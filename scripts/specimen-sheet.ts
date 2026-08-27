@@ -4,8 +4,9 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { parse } from '../src/engine/opentype'
 import { shapeText } from '../src/engine/text'
-import { mosaicGlyph, DEFAULT_PARAMS, type MosaicParams } from '../src/engine/mosaic'
-import { tilesToPathD } from '../src/engine/svg'
+import { getTreatment, defaults, type ParamValues } from '../src/engine/treatments/registry'
+import { ringsToPathD } from '../src/engine/svg'
+import { mulberry32 } from '../src/engine/prng'
 
 const INK = '#274A9C'
 const PAPER = '#F2EDE2'
@@ -23,12 +24,17 @@ const out = args.out ?? 'out/specimen-sheet.svg'
 const bytes = readFileSync('public/fonts/pirata-one/PirataOne-Regular.ttf')
 const font = parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
 
-const rows: { label: string; params: Partial<MosaicParams> }[] = [
-  { label: 'square — aspect 1.0', params: { aspect: 1 } },
-  { label: 'stubby — aspect 0.8', params: { aspect: 0.8 } },
-  { label: 'square + irregular — aspect 1.0, irregularity 0.85', params: { aspect: 1, irregularity: 0.85, groutJitter: 0.6 } },
-  { label: 'square, finer grout — aspect 1.0, grout 8', params: { aspect: 1, grout: 8 } },
-]
+const treatment = getTreatment(args.treatment ?? 'grit')
+const base = defaults(treatment)
+const rows: { label: string; params: Partial<ParamValues> }[] = JSON.parse(
+  args.rows ??
+    JSON.stringify([
+      { label: 'grit 25 — weathered', params: { amount: 25 } },
+      { label: 'grit 45 — stamped', params: { amount: 45 } },
+      { label: 'grit 70 — photocopied', params: { amount: 70 } },
+      { label: 'grit 70, coarse — destroyed', params: { amount: 70, scale: 70 } },
+    ]),
+)
 
 const shaped = shapeText(font, text)
 const rowH = shaped.ascender - shaped.descender
@@ -40,17 +46,24 @@ const sheetH = pad + rows.length * (rowH + labelH) + pad
 let body = ''
 let y = pad
 for (const row of rows) {
-  const params: MosaicParams = { ...DEFAULT_PARAMS, ...row.params }
+  const params = { ...base, ...row.params }
   let d = ''
   let tiles = 0
+  let penX = 0
   for (const g of shaped.glyphs) {
-    const r = mosaicGlyph(g.rings, { ...params, seed: params.seed + g.glyphIndex * 7919 })
-    tiles += r.tiles.length
-    d += tilesToPathD(r.tiles, g.x, 0)
+    const rings = treatment.apply(g.rings, params, {
+      rng: mulberry32(1337 + g.glyphIndex * 7919),
+      unitsPerEm: shaped.unitsPerEm,
+      advanceWidth: 0,
+      penX,
+    })
+    tiles += rings.length
+    d += ringsToPathD(rings, g.x, 0)
+    penX = g.x
   }
   body +=
     `<text x="${pad}" y="${y + 60}" font-family="monospace" font-size="52" fill="#8a8477">` +
-    `${row.label} · ${tiles} tiles</text>` +
+    `${row.label} · ${tiles} contours</text>` +
     `<g transform="translate(${pad}, ${y + labelH + shaped.ascender}) scale(1,-1)">` +
     `<path d="${d}" fill="${INK}" fill-rule="evenodd"/></g>`
   y += rowH + labelH

@@ -1,7 +1,8 @@
-import { Font, Glyph, Path } from './opentype'
-import type { FontType, GlyphType } from './opentype'
-import { commandsToRings } from './flatten'
-import { mosaicGlyph, type MosaicParams } from './mosaic'
+import { FontFlux } from 'font-flux-js'
+import { mulberry32 } from './prng'
+import { pointCount } from './paths'
+import { getTreatment, type ParamValues, type TreatmentContext } from './treatments/registry'
+import type { Ring } from './flatten'
 
 export interface DerivativeNames {
   /** display family name, e.g. "Calçada One" */
@@ -33,139 +34,222 @@ export function toPostScriptName(family: string, style: string): string {
   return `${clean(family)}-${clean(style) || 'Regular'}`.slice(0, 63)
 }
 
+/** one entry in the treatment chain */
+export interface TreatmentStep {
+  id: string
+  params: ParamValues
+}
+
 export interface BuildOptions {
-  source: FontType
-  params: MosaicParams
+  /** raw bytes of the source font */
+  source: ArrayBuffer
+  chain: TreatmentStep[]
   names: DerivativeNames
-  /** restrict tiling to these characters (others pass through untouched) — for fast M1b runs */
+  seed: number
+  /** restrict treatment to these characters — for fast single-glyph runs */
   only?: string | null
-  /** called with 0..1 as glyphs are processed */
   onProgress?: (fraction: number) => void
 }
 
 export interface BuildResult {
-  font: FontType
+  /** TrueType bytes, ready to write or hand to a Blob */
+  bytes: Uint8Array
   glyphCount: number
-  tiledCount: number
-  tileTotal: number
+  treatedCount: number
+  maxPoints: number
+  maxPointsGlyph: string
+  totalPoints: number
+}
+
+interface FluxPoint {
+  x: number
+  y: number
+  onCurve: boolean
+}
+
+/** contours come back as points flagged on/off curve; treatments work on polygons */
+function contoursToRings(contours: FluxPoint[][], flatten: (c: FluxPoint[]) => Ring): Ring[] {
+  return contours.map(flatten)
 }
 
 /**
- * Rebuild every glyph of `source` as mosaic tiles and assemble a new font.
- * Metrics, advances and cmap coverage are carried over from the source; only
- * the outlines change.
+ * Flatten one contour's quadratic segments into a polygon.
+ *
+ * Font Flux hands back TrueType points where an off-curve point is a quadratic
+ * control point, and two consecutive off-curve points imply an on-curve point
+ * midway between them.
  */
-export function buildMosaicFont({ source, params, names, only, onProgress }: BuildOptions): BuildResult {
-  const total = source.glyphs.length
-  const glyphs: GlyphType[] = []
-  let tiledCount = 0
-  let tileTotal = 0
+function flattenContour(points: FluxPoint[], steps = 8): Ring {
+  if (points.length === 0) return []
+  const out: Ring = []
+  const n = points.length
+
+  // find a starting on-curve point, synthesising one if the contour has none
+  let startIdx = points.findIndex((p) => p.onCurve)
+  let start: FluxPoint
+  if (startIdx === -1) {
+    const a = points[0]
+    const b = points[n - 1]
+    start = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, onCurve: true }
+    startIdx = 0
+  } else {
+    start = points[startIdx]
+  }
+
+  let cursor = { x: start.x, y: start.y }
+  out.push({ ...cursor })
+
+  const at = (i: number) => points[((i % n) + n) % n]
+
+  let i = startIdx + (points[startIdx]?.onCurve ? 1 : 0)
+  const end = startIdx + n
+  while (i <= end) {
+    const pt = at(i)
+    if (pt.onCurve) {
+      cursor = { x: pt.x, y: pt.y }
+      out.push({ ...cursor })
+      i++
+      continue
+    }
+    // quadratic: control is pt, endpoint is the next on-curve point, or the
+    // implied midpoint when two control points sit next to each other
+    const nxt = at(i + 1)
+    const endPt = nxt.onCurve ? { x: nxt.x, y: nxt.y } : { x: (pt.x + nxt.x) / 2, y: (pt.y + nxt.y) / 2 }
+    for (let s = 1; s <= steps; s++) {
+      const t = s / steps
+      const mt = 1 - t
+      out.push({
+        x: mt * mt * cursor.x + 2 * mt * t * pt.x + t * t * endPt.x,
+        y: mt * mt * cursor.y + 2 * mt * t * pt.y + t * t * endPt.y,
+      })
+    }
+    cursor = endPt
+    i += nxt.onCurve ? 2 : 1
+  }
+
+  // drop a duplicated closing point
+  if (out.length > 1) {
+    const first = out[0]
+    const last = out[out.length - 1]
+    if (Math.hypot(first.x - last.x, first.y - last.y) < 0.01) out.pop()
+  }
+  return out
+}
+
+function ringsToContours(rings: Ring[]): FluxPoint[][] {
+  return rings
+    .filter((r) => r.length >= 3)
+    .map((r) => r.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y), onCurve: true })))
+}
+
+/**
+ * Apply a treatment chain to every glyph and emit a TrueType font.
+ *
+ * The source font is opened and edited in place rather than rebuilt, so
+ * metrics, cmap coverage, kerning and layout features survive untouched —
+ * only the outlines change.
+ */
+export function buildTreatedFont({
+  source,
+  chain,
+  names,
+  seed,
+  only,
+  onProgress,
+}: BuildOptions): BuildResult {
+  const font = FontFlux.open(source)
+  const glyphs = font.glyphs as Array<{
+    name: string
+    unicode?: number
+    advanceWidth: number
+    contours: FluxPoint[][]
+  }>
 
   const allowed = only ? new Set([...only].map((c) => c.codePointAt(0)!)) : null
+  const steps = chain.map((s) => ({ treatment: getTreatment(s.id), params: s.params }))
 
-  for (let i = 0; i < total; i++) {
-    const src = source.glyphs.get(i)
-    const path = new Path()
-    const skipTiling = allowed !== null && !(src.unicode !== undefined && allowed.has(src.unicode))
+  let treatedCount = 0
+  let maxPoints = 0
+  let maxPointsGlyph = ''
+  let totalPoints = 0
+  let penX = 0
 
-    const rings = skipTiling ? [] : commandsToRings(src.path.commands)
-    if (skipTiling) {
-      for (const cmd of src.path.commands) {
-        if (cmd.type === 'M') path.moveTo(cmd.x, cmd.y)
-        else if (cmd.type === 'L') path.lineTo(cmd.x, cmd.y)
-        else if (cmd.type === 'Q') path.quadraticCurveTo(cmd.x1, cmd.y1, cmd.x, cmd.y)
-        else if (cmd.type === 'C') path.curveTo(cmd.x1, cmd.y1, cmd.x2, cmd.y2, cmd.x, cmd.y)
-        else if (cmd.type === 'Z') path.close()
+  for (let i = 0; i < glyphs.length; i++) {
+    const g = glyphs[i]
+    const skip = allowed !== null && !(g.unicode !== undefined && allowed.has(g.unicode))
+
+    if (!skip && g.contours && g.contours.length > 0) {
+      const ctx: TreatmentContext = {
+        // per-glyph seed, so a glyph looks the same wherever it appears and the
+        // whole font is reproducible from one number
+        rng: mulberry32(seed + i * 7919),
+        unitsPerEm: font.info.unitsPerEm,
+        advanceWidth: g.advanceWidth,
+        penX,
       }
-    }
-    if (rings.length > 0) {
-      const { tiles } = mosaicGlyph(rings, { ...params, seed: params.seed + i * 7919 })
-      if (tiles.length > 0) {
-        tiledCount++
-        tileTotal += tiles.length
+
+      let rings = contoursToRings(g.contours, flattenContour)
+      for (const { treatment, params } of steps) {
+        rings = treatment.apply(rings, params, ctx)
+        if (rings.length === 0) break
       }
-      for (const tile of tiles) {
-        for (const ring of tile) {
-          if (ring.length < 3) continue
-          path.moveTo(Math.round(ring[0].x), Math.round(ring[0].y))
-          for (let k = 1; k < ring.length; k++) path.lineTo(Math.round(ring[k].x), Math.round(ring[k].y))
-          path.close()
+
+      if (rings.length > 0) {
+        g.contours = ringsToContours(rings)
+        treatedCount++
+        const pts = pointCount(rings)
+        totalPoints += pts
+        if (pts > maxPoints) {
+          maxPoints = pts
+          maxPointsGlyph = g.name
         }
+
+        // treatments that grow a glyph need the advance to grow with them, or
+        // the font sets solid
+        const growth = steps.reduce((sum, s) => sum + (s.treatment.growth?.(s.params, ctx) ?? 0), 0)
+        if (growth > 0) g.advanceWidth = Math.round(g.advanceWidth + growth)
       }
     }
 
-    // opentype.js will only map codepoint 0 to a glyph named exactly ".null",
-    // so a source that calls it something else (Pirata One says "NULL") gets
-    // renamed rather than losing the mapping. .notdef keeps no codepoint.
-    const mapsNull = src.unicodes?.includes(0) ?? src.unicode === 0
-    const name = mapsNull && src.name !== '.notdef' ? '.null' : (src.name ?? undefined)
-    const keepsCodepoint = (cp: number) => cp !== 0 || name === '.null'
-    const unicodes = (src.unicodes ?? []).filter(keepsCodepoint)
-
-    const glyph = new Glyph({
-      name,
-      unicode: src.unicode !== undefined && keepsCodepoint(src.unicode) ? src.unicode : undefined,
-      unicodes,
-      index: i,
-      advanceWidth: src.advanceWidth ?? 0,
-      leftSideBearing: src.leftSideBearing,
-      path,
-    })
-    glyphs.push(glyph)
-    onProgress?.((i + 1) / total)
+    penX += g.advanceWidth
+    onProgress?.((i + 1) / glyphs.length)
   }
 
-  const font = new Font({
+  font.setInfo({
     familyName: names.familyName,
     styleName: names.styleName,
-    unitsPerEm: source.unitsPerEm,
-    ascender: source.ascender,
-    descender: source.descender,
-    glyphs,
+    fullName: `${names.familyName} ${names.styleName}`,
+    postScriptName: toPostScriptName(names.familyName, names.styleName),
+    uniqueID: `${names.familyName} ${names.styleName}; ${names.version}`,
+    version: names.version,
+    designer: names.designer,
+    description: names.description,
+    copyright: names.copyright,
+    license: names.license,
+    licenseURL: names.licenseURL,
+    // hinting bytecode refers to point indices that no longer exist
+    trademark: '',
   })
+  font.setHinting({ cvt: null, fpgm: null, prep: null, gasp: null })
 
-  // carry the source's vertical metrics rather than accepting defaults
-  const srcOS2 = source.tables.os2
-  const os2 = font.tables.os2 as Record<string, number>
-  if (srcOS2) {
-    for (const key of [
-      'usWinAscent',
-      'usWinDescent',
-      'sTypoAscender',
-      'sTypoDescender',
-      'sTypoLineGap',
-      'sxHeight',
-      'sCapHeight',
-    ]) {
-      const v = (srcOS2 as Record<string, number>)[key]
-      if (typeof v === 'number') os2[key] = v
-    }
-  }
-  os2.fsType = 0 // installable embedding
-  // hhea is generated at export time, so there is nothing to patch here; the
-  // ascender/descender passed to the constructor drive it.
-
-  // opentype.js v2 keys the name table by platform first: names[platform][field][lang]
-  const nameFields = {
-    fontFamily: { en: names.familyName },
-    fontSubfamily: { en: names.styleName },
-    fullName: { en: `${names.familyName} ${names.styleName}` },
-    postScriptName: { en: toPostScriptName(names.familyName, names.styleName) },
-    uniqueID: { en: `${names.familyName} ${names.styleName}; ${names.version}` },
-    version: { en: names.version },
-    designer: { en: names.designer },
-    description: { en: names.description },
-    copyright: { en: names.copyright },
-    license: { en: names.license },
-    licenseURL: { en: names.licenseURL },
-    preferredFamily: { en: names.familyName },
-    preferredSubfamily: { en: names.styleName },
+  // Export before validating. Font Flux's validate() resyncs `info` from the
+  // stored source tables, which silently discards every name change made above
+  // — and it stays discarded even if the names are re-applied afterwards. So
+  // validate the bytes we actually produced, by reopening them, which is the
+  // stronger check regardless.
+  const bytes = new Uint8Array(font.export({ format: 'ttf' }))
+  const report = FontFlux.open(bytes).validate()
+  if (!report.valid) {
+    const detail = (report.errors ?? report.issues ?? []).slice(0, 3).join('; ')
+    throw new Error(`font failed validation: ${detail}`)
   }
 
-  const allNames = font.names as unknown as Record<string, Record<string, Record<string, string>>>
-  for (const platform of ['macintosh', 'windows']) {
-    allNames[platform] = { ...(allNames[platform] ?? {}), ...nameFields }
+  return {
+    bytes,
+    glyphCount: glyphs.length,
+    treatedCount,
+    maxPoints,
+    maxPointsGlyph,
+    totalPoints,
   }
-
-  return { font, glyphCount: total, tiledCount, tileTotal }
 }
