@@ -46,7 +46,7 @@ const sheetH = pad + rows.length * (rowH + labelH) + pad
 let body = ''
 let y = pad
 for (const row of rows) {
-  const params = { ...base, ...row.params }
+  const params: ParamValues = { ...base, ...(row.params as ParamValues) }
   let d = ''
   let tiles = 0
   let penX = 0
@@ -54,6 +54,7 @@ for (const row of rows) {
     const rings = treatment.apply(g.rings, params, {
       rng: mulberry32(1337 + g.glyphIndex * 7919),
       unitsPerEm: shaped.unitsPerEm,
+      strokeWidth: shaped.unitsPerEm * 0.12,
       advanceWidth: 0,
       penX,
     })

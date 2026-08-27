@@ -48,6 +48,81 @@ export function listTables(input: ArrayBuffer | Uint8Array): string[] {
   return tags
 }
 
+/**
+ * Rebuild the font with a table added or replaced.
+ *
+ * Table data is copied verbatim, so existing checksums still stand; only the
+ * new table's is computed, along with the whole-file checksum in head.
+ */
+export function setTable(
+  input: ArrayBuffer | Uint8Array,
+  tag: string,
+  data: Uint8Array,
+): Uint8Array<ArrayBuffer> {
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input)
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength)
+  const numTables = view.getUint16(4)
+
+  type Entry = { tag: string; checksum: number; data: Uint8Array }
+  const entries: Entry[] = []
+  for (let i = 0; i < numTables; i++) {
+    const rec = HEADER + i * RECORD
+    const t = tagAt(view, rec)
+    if (t === tag) continue
+    const offset = view.getUint32(rec + 8)
+    const length = view.getUint32(rec + 12)
+    entries.push({ tag: t, checksum: view.getUint32(rec + 4), data: bytes.subarray(offset, offset + length) })
+  }
+
+  const padded = new Uint8Array((data.length + 3) & ~3)
+  padded.set(data)
+  entries.push({ tag, checksum: checksum(padded, 0, padded.length), data })
+  entries.sort((a, b) => (a.tag < b.tag ? -1 : a.tag > b.tag ? 1 : 0))
+
+  return assemble(view.getUint32(0), entries)
+}
+
+function assemble(
+  sfntVersion: number,
+  entries: { tag: string; checksum: number; data: Uint8Array }[],
+): Uint8Array<ArrayBuffer> {
+  const pad = (n: number) => (n + 3) & ~3
+  let total = HEADER + entries.length * RECORD
+  for (const e of entries) total += pad(e.data.length)
+
+  const out = new Uint8Array(total)
+  const outView = new DataView(out.buffer)
+  outView.setUint32(0, sfntVersion)
+
+  const n = entries.length
+  const pow = Math.floor(Math.log2(n))
+  const searchRange = 2 ** pow * 16
+  outView.setUint16(4, n)
+  outView.setUint16(6, searchRange)
+  outView.setUint16(8, pow)
+  outView.setUint16(10, n * 16 - searchRange)
+
+  let cursor = HEADER + n * RECORD
+  let headOffset = -1
+  entries.forEach((e, i) => {
+    const rec = HEADER + i * RECORD
+    for (let k = 0; k < 4; k++) out[rec + k] = e.tag.charCodeAt(k)
+    outView.setUint32(rec + 4, e.checksum)
+    outView.setUint32(rec + 8, cursor)
+    outView.setUint32(rec + 12, e.data.length)
+    out.set(e.data, cursor)
+    if (e.tag === 'head') headOffset = cursor
+    cursor += pad(e.data.length)
+  })
+
+  if (headOffset >= 0) {
+    outView.setUint32(headOffset + 8, 0)
+    const sum = checksum(out, 0, out.length)
+    outView.setUint32(headOffset + 8, (0xb1b0afba - sum) >>> 0)
+  }
+  return out
+}
+
 /** rebuild the font without the named tables */
 export function stripTables(input: ArrayBuffer | Uint8Array, drop: string[]): Uint8Array<ArrayBuffer> {
   const bytes = input instanceof Uint8Array ? input : new Uint8Array(input)
@@ -72,44 +147,12 @@ export function stripTables(input: ArrayBuffer | Uint8Array, drop: string[]): Ui
   // the directory must stay sorted by tag
   kept.sort((a, b) => (a.tag < b.tag ? -1 : a.tag > b.tag ? 1 : 0))
 
-  const pad = (n: number) => (n + 3) & ~3
-  let total = HEADER + kept.length * RECORD
-  for (const t of kept) total += pad(t.length)
-
-  const out = new Uint8Array(total)
-  const outView = new DataView(out.buffer)
-  outView.setUint32(0, view.getUint32(0)) // sfntVersion
-
-  // the binary-search hints in the header have to match the new table count
-  const n = kept.length
-  const pow = Math.floor(Math.log2(n))
-  const searchRange = 2 ** pow * 16
-  outView.setUint16(4, n)
-  outView.setUint16(6, searchRange)
-  outView.setUint16(8, pow)
-  outView.setUint16(10, n * 16 - searchRange)
-
-  let cursor = HEADER + n * RECORD
-  let headOffset = -1
-  kept.forEach((t, i) => {
-    const rec = HEADER + i * RECORD
-    for (let k = 0; k < 4; k++) out[rec + k] = t.tag.charCodeAt(k)
-    // table data is untouched, so its checksum still stands
-    outView.setUint32(rec + 4, t.checksum)
-    outView.setUint32(rec + 8, cursor)
-    outView.setUint32(rec + 12, t.length)
-    out.set(bytes.subarray(t.offset, t.offset + t.length), cursor)
-    if (t.tag === 'head') headOffset = cursor
-    cursor += pad(t.length)
-  })
-
-  // head carries a checksum over the whole file, computed with its own field
-  // zeroed — so it has to be redone once everything else is in place
-  if (headOffset >= 0) {
-    outView.setUint32(headOffset + 8, 0)
-    const sum = checksum(out, 0, out.length)
-    outView.setUint32(headOffset + 8, (0xb1b0afba - sum) >>> 0)
-  }
-
-  return out
+  return assemble(
+    view.getUint32(0),
+    kept.map((t) => ({
+      tag: t.tag,
+      checksum: t.checksum,
+      data: bytes.subarray(t.offset, t.offset + t.length),
+    })),
+  )
 }

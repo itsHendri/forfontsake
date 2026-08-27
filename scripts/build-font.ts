@@ -18,6 +18,7 @@ const outPath = resolve(args.out ?? 'out/Treated-Regular.ttf')
 const only = args.only ?? null
 const family = args.family ?? 'Grit One'
 const seed = Number(args.seed ?? 1337)
+const alternates = Number(args.alts ?? 1)
 
 // --treatment=grit --p.amount=60 --p.scale=40
 const treatment = getTreatment(args.treatment ?? 'grit')
@@ -45,6 +46,7 @@ const result = buildTreatedFont({
   source,
   chain,
   seed,
+  alternates,
   only,
   names: {
     familyName: family,
@@ -68,5 +70,8 @@ console.log(
     `${(result.bytes.length / 1024).toFixed(1)} KB in ${((Date.now() - t0) / 1000).toFixed(1)}s\n` +
     `points:    ${result.totalPoints} total, max ${result.maxPoints} on "${result.maxPointsGlyph}"\n` +
     `stroke:    ${result.strokeWidth.toFixed(0)} units` +
-    (result.droppedSubstitutions ? '\nnote:      GSUB dropped — ligatures lost, kerning kept' : ''),
+    (result.alternates > 1
+      ? `\nalts:      ${result.alternates} cuts per letter, ${result.addedGlyphs} glyphs added, calt rotation written`
+      : '') +
+    (result.droppedSubstitutions ? '\nnote:      source GSUB dropped — ligatures lost, kerning kept' : ''),
 )

@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
     "verify:font": "node scripts/verify-font.mjs",
     "build:font": "tsx scripts/build-font.ts",
@@ -40,5 +40,5 @@
     "vitest": "^4.1.11"
   },
   "license": "GPL-3.0-only",
-  "description": "Interactive type foundry — apply parametric treatments to a font and export a real, installable, correctly-licensed derivative."
+  "description": "Interactive type foundry \u2014 apply parametric treatments to a font and export a real, installable, correctly-licensed derivative."
 }

@@ -86,6 +86,8 @@ declare module 'font-flux-js' {
     readonly kerning: Array<{ left: string; right: string; value: number }>
 
     getGlyph(id: string | number): FluxGlyph
+    addGlyph(glyph: Partial<FluxGlyph> & { name: string }): void
+    removeGlyph(id: string | number): void
     hasGlyph(id: string | number): boolean
     listGlyphs(): string[]
     getInfo(): FluxInfo

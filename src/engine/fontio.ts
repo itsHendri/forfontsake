@@ -2,7 +2,8 @@ import { FontFlux } from 'font-flux-js'
 import { mulberry32 } from './prng'
 import { pointCount } from './paths'
 import { medianStrokeWidth, STROKE_SAMPLE_CHARS } from './measure'
-import { stripTables, listTables } from './sfnt'
+import { stripTables, setTable, listTables } from './sfnt'
+import { buildRotatingGsub, type AlternateSet } from './gsub'
 import { getTreatment, type ParamValues, type TreatmentContext } from './treatments/registry'
 import type { Ring } from './flatten'
 
@@ -48,6 +49,12 @@ export interface BuildOptions {
   chain: TreatmentStep[]
   names: DerivativeNames
   seed: number
+  /**
+   * How many differently-cut versions of each letter to ship. Above one, the
+   * extra cuts are added as unmapped glyphs and a `calt` rotation swaps between
+   * them as a letter repeats, which is what stops a word looking stamped.
+   */
+  alternates?: number
   /** restrict treatment to these characters — for fast single-glyph runs */
   only?: string | null
   onProgress?: (fraction: number) => void
@@ -58,8 +65,12 @@ export interface BuildResult {
   bytes: Uint8Array
   /** measured median stem width of the source, in font units */
   strokeWidth: number
-  /** true when substitutions had to be dropped to produce a valid font */
+  /** true when the source's own substitutions had to be dropped */
   droppedSubstitutions: boolean
+  /** how many alternate cuts were generated per letter */
+  alternates: number
+  /** glyphs added to carry those alternates */
+  addedGlyphs: number
   glyphCount: number
   treatedCount: number
   maxPoints: number
@@ -239,6 +250,7 @@ export function buildTreatedFont({
   chain,
   names,
   seed,
+  alternates = 1,
   only,
   onProgress,
 }: BuildOptions): BuildResult {
@@ -265,6 +277,8 @@ export function buildTreatedFont({
   const allowed = only ? new Set([...only].map((c) => c.codePointAt(0)!)) : null
   const steps = chain.map((s) => ({ treatment: getTreatment(s.id), params: s.params }))
 
+  const treatedIndices = new Set<number>()
+  const sourceRings = new Map<number, Ring[]>()
   let treatedCount = 0
   let maxPoints = 0
   let maxPointsGlyph = ''
@@ -287,13 +301,16 @@ export function buildTreatedFont({
         penX,
       }
 
-      let rings = decomposeGlyph(g, (i) => glyphs[i])
+      const original = decomposeGlyph(g, (i) => glyphs[i])
+      let rings = original
       for (const { treatment, params } of steps) {
         rings = treatment.apply(rings, params, ctx)
         if (rings.length === 0) break
       }
 
       if (rings.length > 0) {
+        treatedIndices.add(i)
+        sourceRings.set(i, original)
         g.contours = ringsToContours(rings)
         // the outlines are now the glyph's own, so the references must go or
         // the component would be drawn a second time on top
@@ -339,6 +356,48 @@ export function buildTreatedFont({
   // — and it stays discarded even if the names are re-applied afterwards. So
   // validate the bytes we actually produced, by reopening them, which is the
   // stronger check regardless.
+  // --- alternate cuts ------------------------------------------------------
+  // Each variant is the same glyph run again under a different seed, added as
+  // an unmapped glyph. Only glyphs that actually got treated are worth varying;
+  // an untouched one would produce identical copies.
+  const cuts = Math.max(1, Math.round(alternates))
+  const alternateSets: AlternateSet[] = []
+  let addedGlyphs = 0
+
+  if (cuts > 1 && steps.length > 0) {
+    const baseCount = glyphs.length
+    for (let i = 0; i < baseCount; i++) {
+      const g = glyphs[i]
+      if (!treatedIndices.has(i)) continue
+
+      const variants: number[] = []
+      for (let v = 1; v < cuts; v++) {
+        const ctx: TreatmentContext = {
+          rng: mulberry32(seed + i * 7919 + v * 104729),
+          unitsPerEm: font.info.unitsPerEm,
+          strokeWidth,
+          advanceWidth: g.advanceWidth,
+          penX: 0,
+        }
+        let rings = sourceRings.get(i) ?? []
+        for (const { treatment, params } of steps) {
+          rings = treatment.apply(rings, params, ctx)
+          if (rings.length === 0) break
+        }
+        if (rings.length === 0) break
+
+        const contours = ringsToContours(rings)
+        if (contours.length === 0) break
+        const name = `${g.name || 'g' + i}.alt${v}`
+        font.addGlyph({ name, advanceWidth: g.advanceWidth, contours })
+        variants.push(font.glyphs.length - 1)
+        addedGlyphs++
+      }
+      // a glyph short of the full set would fall out of step with the rotation
+      if (variants.length === cuts - 1) alternateSets.push({ base: i, variants })
+    }
+  }
+
   let bytes = new Uint8Array(font.export({ format: 'ttf' }))
 
   // Font Flux rebuilds GSUB from its own model and, for any font with real
@@ -348,6 +407,11 @@ export function buildTreatedFont({
   // ligatures and alternates do not.
   const droppedSubstitutions = listTables(bytes).includes('GSUB')
   if (droppedSubstitutions) bytes = stripTables(bytes, ['GSUB'])
+
+  // and put back one we wrote ourselves, carrying the rotation
+  if (alternateSets.length > 0) {
+    bytes = setTable(bytes, 'GSUB', buildRotatingGsub(alternateSets))
+  }
 
   const report = FontFlux.open(bytes).validate()
   if (!report.valid) {
@@ -359,6 +423,8 @@ export function buildTreatedFont({
     bytes,
     strokeWidth,
     droppedSubstitutions,
+    alternates: alternateSets.length > 0 ? cuts : 1,
+    addedGlyphs,
     glyphCount: glyphs.length,
     treatedCount,
     maxPoints,

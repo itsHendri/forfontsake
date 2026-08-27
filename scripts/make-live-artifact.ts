@@ -263,9 +263,9 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
         Bubble, Outline and Extrude give the same result every time from the same dials.</p>
         <p>Treatments still run one at a time. Stacking them is possible in the engine but not wired
         to the interface, and it isn't obviously worth it yet.</p>
-        <p>The exported font doesn't carry these yet. Alternates in a real font need a GSUB feature
-        that swaps each repeat for a different glyph — that's the next piece of work, and until it
-        lands the download uses one cut per letter and this page is ahead of it.</p>
+        <p>The exported font carries these now. Each cut ships as its own glyph and a hand-written
+        <code>calt</code> feature rotates between them, so a doubled letter comes out as two
+        different cuts in Figma or anywhere else — not only on this page.</p>
       </section>
     </main>
   </div>

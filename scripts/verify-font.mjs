@@ -68,6 +68,20 @@ if (process.platform === 'darwin') {
   })
 }
 
+// Only meaningful for fonts that ship alternates, so it reports rather than
+// fails when there is nothing to rotate.
+step('alternates actually substitute', () => {
+  const PY = join(root, '.venv/bin/python3')
+  const out = execFileSync(PY, [join(root, 'scripts/shape_check.py'), fontPath, 'aaaa'], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).toString()
+  const r = JSON.parse(out)
+  if (!r.available) return `skipped — ${r.reason}`
+  if (!r.substitutes) return 'no substitutions (font ships a single cut per letter)'
+  if (!r.repeatsVary) throw new Error(`feature fires but repeats do not vary: ${r.withFeature.join(' ')}`)
+  return `${r.withFeature.join(' ')} (was ${r.withoutFeature.join(' ')})`
+})
+
 let report = null
 step('naming fields + reserved font names', () => {
   const PY = join(root, '.venv/bin/python3')
