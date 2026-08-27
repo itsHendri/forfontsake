@@ -28,7 +28,7 @@ describe('mosaicGlyph', () => {
     const a = mosaicGlyph(rings, DEFAULT_PARAMS)
     const b = mosaicGlyph(rings, DEFAULT_PARAMS)
     expect(JSON.stringify(a)).toEqual(JSON.stringify(b))
-    expect(a.tiles.length).toBeGreaterThan(4)
+    expect(a.tiles.length).toBeGreaterThan(2)
   })
 
   it('changes with the seed', () => {
@@ -58,6 +58,26 @@ describe('mosaicGlyph', () => {
       const inHole = Math.abs(cx - 400) < 170 && Math.abs(cy - 400) < 170
       const tileHasHole = tile.length > 1
       expect(inHole && !tileHasHole).toBe(false)
+    }
+  })
+
+  it('ribbon mode cuts a stroke into slabs and leaves the silhouette intact', () => {
+    // a tall thin stem, like a blackletter stroke
+    const stem: Ring[] = [
+      [
+        { x: 220, y: 60 },
+        { x: 380, y: 60 },
+        { x: 380, y: 1740 },
+        { x: 220, y: 1740 },
+      ],
+    ]
+    const r = mosaicGlyph(stem, { ...DEFAULT_PARAMS, seeding: 'ribbon', tileSize: 100, grout: 12 })
+    expect(r.tiles.length).toBeGreaterThan(4)
+    // every slab should span most of the stem's width — that is the whole point
+    for (const tile of r.tiles) {
+      const xs = tile[0].map((pt) => pt.x)
+      const width = Math.max(...xs) - Math.min(...xs)
+      expect(width).toBeGreaterThan(150)
     }
   })
 

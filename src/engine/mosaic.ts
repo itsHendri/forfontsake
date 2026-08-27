@@ -15,6 +15,7 @@ import {
   type Paths64,
 } from 'clipper2-ts'
 import { mulberry32, type Rng } from './prng'
+import { ribbonSlice } from './ribbon'
 import type { Ring } from './flatten'
 
 export interface MosaicParams {
@@ -32,7 +33,7 @@ export interface MosaicParams {
   cornerRound: number
   /** tiles smaller than this fraction of tileSize² are dropped */
   minTileArea: number
-  seeding: 'bands' | 'poisson'
+  seeding: 'ribbon' | 'bands' | 'poisson'
   seed: number
   /**
    * Point-reduction tolerance in font units. Tiles come out of the clipper with
@@ -50,7 +51,7 @@ export const DEFAULT_PARAMS: MosaicParams = {
   relax: 1,
   cornerRound: 4,
   minTileArea: 0.06,
-  seeding: 'bands',
+  seeding: 'ribbon',
   seed: 1337,
   simplify: 1.2,
 }
@@ -204,6 +205,37 @@ export function mosaicGlyph(rings: Ring[], params: MosaicParams): MosaicResult {
     return { tiles: [paths64ToRings(glyph)], seedCount: 0 }
   }
   void glyphArea
+
+  // Ribbon mode cuts across the stroke instead of tessellating the area, so it
+  // shares none of the Voronoi path below.
+  if (p.seeding === 'ribbon') {
+    const { pieces, ribCount } = ribbonSlice(glyph, {
+      tileLength: tilePx,
+      grout: p.grout * SCALE,
+      groutJitter: p.groutJitter,
+      irregularity: p.irregularity,
+      rng,
+    })
+    const minArea = p.minTileArea * tilePx * tilePx
+    const kept = pieces.filter((r) => area(r) < 0 || Math.abs(area(r)) >= minArea * 0.35)
+    const simplified =
+      p.simplify > 0
+        ? ramerDouglasPeuckerPaths(kept, p.simplify * SCALE).filter((r) => r.length >= 3)
+        : kept
+    const source = simplified.length > 0 ? simplified : kept
+    // Group each hole with the tile that contains it, so a tile is a complete
+    // contour set — right for nonzero winding in the font, and it makes the
+    // reported tile count mean what it says.
+    const outers = source.filter((r) => area(r) > 0)
+    const holes = source.filter((r) => area(r) < 0)
+    const grouped: Tile[] = outers.map((o) => [o])
+    for (const h of holes) {
+      const probe = { x: h[0].x, y: h[0].y }
+      const owner = outers.findIndex((o) => pointInPolygon(probe, o) !== PointInPolygonResult.IsOutside)
+      if (owner >= 0) grouped[owner].push(h)
+    }
+    return { tiles: grouped.map((g) => paths64ToRings(g)), seedCount: ribCount }
+  }
 
   let seeds =
     p.seeding === 'bands'

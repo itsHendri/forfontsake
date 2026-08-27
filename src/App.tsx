@@ -15,14 +15,26 @@ interface Variant {
 }
 
 const VARIANTS: Variant[] = [
-  { label: 'A · calçada courses', note: 'offset-band seeding, contour-following', overrides: { seeding: 'bands' } },
   {
-    label: 'B · wilder courses',
-    note: 'bands + high irregularity + uneven grout',
-    overrides: { seeding: 'bands', irregularity: 0.85, groutJitter: 0.6 },
+    label: 'A · ribbon',
+    note: 'cut across the stroke — tiles span full width, silhouette stays crisp',
+    overrides: { seeding: 'ribbon' },
   },
-  { label: 'C · crackle', note: 'raw poisson voronoi (shattered-glass control)', overrides: { seeding: 'poisson', relax: 0 } },
-  { label: 'D · relaxed pebbles', note: 'poisson + 2× Lloyd relaxation', overrides: { seeding: 'poisson', relax: 2 } },
+  {
+    label: 'B · ribbon, longer tiles',
+    note: 'same cut, fewer/longer slabs',
+    overrides: { seeding: 'ribbon', tileSize: 78, irregularity: 0.3 },
+  },
+  {
+    label: 'C · ribbon, irregular',
+    note: 'skewed cuts + uneven grout',
+    overrides: { seeding: 'ribbon', irregularity: 0.9, groutJitter: 0.7 },
+  },
+  {
+    label: 'D · voronoi (old, wrong)',
+    note: 'tessellated — the side-by-side look we are moving away from',
+    overrides: { seeding: 'bands' },
+  },
 ]
 
 interface RenderedVariant {
