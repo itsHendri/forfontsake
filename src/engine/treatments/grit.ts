@@ -74,7 +74,7 @@ export const grit: Treatment = {
   blurb: 'Erosion — chunks bitten out of the edge, holes eaten through the strokes.',
   params: [
     { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, default: 55, note: 'how much is eaten away', primary: true },
-    { key: 'scale', label: 'Piece size', min: 5, max: 160, step: 1, default: 70, note: 'average size of a loss', primary: true },
+    { key: 'scale', label: 'Piece size', min: 8, max: 250, step: 1, default: 58, note: 'size of a loss, as % of stroke width', primary: true },
     { key: 'variation', label: 'Unevenness', min: 1, max: 6, step: 0.1, default: 3.2, note: 'how far sizes spread apart', primary: true },
     { key: 'balance', label: 'Edge / body', min: 0, max: 100, step: 1, default: 50, note: 'bites off the edge vs holes through the middle', primary: true },
     { key: 'protect', label: 'Protect cores', min: 0, max: 100, step: 1, default: 25, note: '0 erodes everywhere' },
@@ -83,11 +83,11 @@ export const grit: Treatment = {
   ],
 
   presets: [
-    { name: 'Photocopy', values: { amount: 45, scale: 42, variation: 3.4, balance: 62, protect: 30, roughen: 30, simplify: 0.6 } },
-    { name: 'Sandblast', values: { amount: 62, scale: 22, variation: 2.2, balance: 55, protect: 15, roughen: 45, simplify: 0.5 } },
-    { name: 'Rust', values: { amount: 42, scale: 88, variation: 4.2, balance: 40, protect: 45, roughen: 35, simplify: 0.8 } },
-    { name: 'Woodcut', values: { amount: 34, scale: 82, variation: 2.6, balance: 12, protect: 55, roughen: 22, simplify: 0.9 } },
-    { name: 'Corroded', values: { amount: 74, scale: 58, variation: 5.2, balance: 50, protect: 12, roughen: 60, simplify: 0.6 } },
+    { name: 'Photocopy', values: { amount: 45, scale: 35, variation: 3.4, balance: 62, protect: 30, roughen: 30, simplify: 0.6 } },
+    { name: 'Sandblast', values: { amount: 62, scale: 18, variation: 2.2, balance: 55, protect: 15, roughen: 45, simplify: 0.5 } },
+    { name: 'Rust', values: { amount: 42, scale: 73, variation: 4.2, balance: 40, protect: 45, roughen: 35, simplify: 0.8 } },
+    { name: 'Woodcut', values: { amount: 34, scale: 68, variation: 2.6, balance: 12, protect: 55, roughen: 22, simplify: 0.9 } },
+    { name: 'Corroded', values: { amount: 74, scale: 48, variation: 5.2, balance: 50, protect: 12, roughen: 60, simplify: 0.6 } },
   ],
 
   apply(rings: Ring[], p: ParamValues, ctx: TreatmentContext): Ring[] {
@@ -100,9 +100,9 @@ export const grit: Treatment = {
 
     const rng = ctx.rng
     const noise = new NoiseField(rng)
-    const em = ctx.unitsPerEm
-    // piece size is a fraction of the em, so it reads the same on any face
-    const piece = (p.scale / 1000) * em * SCALE
+    // Sized against the stroke, not the em: 100 means one stem width, so the
+    // same setting bites the same proportion out of a hairline and a heavy face.
+    const piece = (p.scale / 100) * ctx.strokeWidth * SCALE
     const spread = p.variation
 
     // --- outline roughening ------------------------------------------------
@@ -111,7 +111,7 @@ export const grit: Treatment = {
     let result = glyph
     const roughen = (p.roughen / 100) * amount
     if (roughen > 0) {
-      const dense = resample(glyph, Math.max(p.scale / 4, 3))
+      const dense = resample(glyph, Math.max(piece / (SCALE * 4), 3))
       const shift = roughen * piece * 0.12
       const wandered: Paths64 = dense.map((ring) =>
         ring.map((pt) => ({
@@ -161,7 +161,11 @@ export const grit: Treatment = {
               spacing = nextGap()
               continue
             }
-            const r = scaleSpread(piece * 0.5 * bite, spread, rng)
+            // A bite wider than half the stroke can sever it outright, and the
+            // unevenness multiplier alone can reach six times the base size —
+            // so the draw is capped rather than trusted.
+            const maxBite = ctx.strokeWidth * 0.5 * SCALE
+            const r = Math.min(scaleSpread(piece * 0.5 * bite, spread, rng), maxBite)
             if (r < SCALE * 1.5) {
               spacing = nextGap()
               continue

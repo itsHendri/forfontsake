@@ -9,13 +9,28 @@ declare module 'font-flux-js' {
     onCurve: boolean
   }
 
+  /** a reference to another glyph, optionally offset and transformed */
+  export interface FluxComponent {
+    glyphIndex: number
+    flags?: { argsAreXYValues?: boolean }
+    argument1?: number
+    argument2?: number
+    xScale?: number
+    yScale?: number
+    scale01?: number
+    scale10?: number
+    scale?: number
+  }
+
   export interface FluxGlyph {
     name: string
     unicode?: number
     unicodes?: number[]
     advanceWidth: number
     leftSideBearing?: number
-    contours: FluxPoint[][]
+    /** absent on composite glyphs, which carry components instead */
+    contours?: FluxPoint[][]
+    components?: FluxComponent[]
   }
 
   export interface FluxInfo {

@@ -3,7 +3,8 @@
 // the engine without shipping a font parser.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { FontFlux } from 'font-flux-js'
-import { flattenContour } from '../src/engine/fontio'
+import { decomposeGlyph } from '../src/engine/fontio'
+import { medianStrokeWidth, STROKE_SAMPLE_CHARS } from '../src/engine/measure'
 
 const CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!?&'-"
 
@@ -73,7 +74,9 @@ for (const src of SOURCES) {
       continue
     }
     const g = font.getGlyph(cp)
-    const rings = (g.contours ?? []).map((c) => flattenContour(c))
+    // follow component references, or caps-only faces lose their whole
+    // lowercase and every accented character comes out blank
+    const rings = decomposeGlyph(g, (i) => font.glyphs[i])
     glyphs[ch] = {
       adv: g.advanceWidth,
       // flat [x,y,x,y,…] per ring, rounded — a third the size of point objects
@@ -81,17 +84,34 @@ for (const src of SOURCES) {
     }
   }
 
+  // measured once per font and shipped with the data, so the page does not pay
+  // for it on load
+  const samples = [...STROKE_SAMPLE_CHARS]
+    .filter((c) => glyphs[c])
+    .map((c) => {
+      const rings: { x: number; y: number }[][] = []
+      for (const flat of glyphs[c].rings) {
+        const ring: { x: number; y: number }[] = []
+        for (let i = 0; i < flat.length; i += 2) ring.push({ x: flat[i], y: flat[i + 1] })
+        rings.push(ring)
+      }
+      return rings
+    })
+  const strokeWidth = medianStrokeWidth(samples, font.info.unitsPerEm * 0.1)
+
   out[src.id] = {
     label: src.label,
     note: src.note,
     reserved: src.reserved,
     unitsPerEm: font.info.unitsPerEm,
+    strokeWidth,
     ascender: font.info.ascender ?? 800,
     descender: font.info.descender ?? -200,
     glyphs,
   }
   console.log(
     `${src.label.padEnd(16)} upm ${String(font.info.unitsPerEm).padStart(4)}  ` +
+      `stroke ${strokeWidth.toFixed(0).padStart(4)}  ` +
       `${Object.keys(glyphs).length} glyphs${missing ? `, ${missing} missing` : ''}`,
   )
 }

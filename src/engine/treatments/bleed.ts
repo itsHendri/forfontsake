@@ -23,23 +23,23 @@ export const bleed: Treatment = {
   deterministic: false,
   blurb: 'Wet ink spreading unevenly into the paper, pooling where strokes meet.',
   params: [
-    { key: 'amount', label: 'Spread', min: 0, max: 90, step: 1, default: 26, note: 'how far the ink creeps', primary: true },
+    { key: 'amount', label: 'Spread', min: 0, max: 120, step: 1, default: 22, note: 'how far ink creeps, as % of stroke', primary: true },
     { key: 'unevenness', label: 'Unevenness', min: 0, max: 100, step: 1, default: 65, note: 'how much the spread varies', primary: true },
     { key: 'pooling', label: 'Pooling', min: 0, max: 100, step: 1, default: 55, note: 'extra bloom where strokes meet', primary: true },
-    { key: 'grain', label: 'Grain', min: 4, max: 90, step: 1, default: 26, note: 'size of the lumps', primary: true },
-    { key: 'soften', label: 'Soften', min: 0, max: 60, step: 1, default: 12, note: 'rounds the wet edge' },
+    { key: 'grain', label: 'Grain', min: 5, max: 140, step: 1, default: 22, note: 'size of the lumps', primary: true },
+    { key: 'soften', label: 'Soften', min: 0, max: 100, step: 1, default: 10, note: 'rounds the wet edge' },
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.6 },
   ],
 
   presets: [
-    { name: 'Damp', values: { amount: 12, unevenness: 55, pooling: 40, grain: 20, soften: 10, simplify: 0.6 } },
-    { name: 'Wet ink', values: { amount: 28, unevenness: 70, pooling: 60, grain: 28, soften: 14, simplify: 0.6 } },
-    { name: 'Blotted', values: { amount: 32, unevenness: 92, pooling: 70, grain: 40, soften: 8, simplify: 0.7 } },
-    { name: 'Newsprint', values: { amount: 16, unevenness: 95, pooling: 25, grain: 12, soften: 4, simplify: 0.5 } },
+    { name: 'Damp', values: { amount: 10, unevenness: 55, pooling: 40, grain: 17, soften: 8, simplify: 0.6 } },
+    { name: 'Wet ink', values: { amount: 23, unevenness: 70, pooling: 60, grain: 23, soften: 12, simplify: 0.6 } },
+    { name: 'Blotted', values: { amount: 27, unevenness: 92, pooling: 70, grain: 33, soften: 7, simplify: 0.7 } },
+    { name: 'Newsprint', values: { amount: 13, unevenness: 95, pooling: 25, grain: 10, soften: 3, simplify: 0.5 } },
   ],
 
-  growth(p) {
-    return Math.round(p.amount * 1.6)
+  growth(p, ctx) {
+    return Math.round((p.amount / 100) * ctx.strokeWidth * 1.6)
   },
 
   apply(rings: Ring[], p: ParamValues, ctx: TreatmentContext): Ring[] {
@@ -50,9 +50,11 @@ export const bleed: Treatment = {
 
     const rng = ctx.rng
     const noise = new NoiseField(rng)
-    const em = ctx.unitsPerEm
-    const spread = (p.amount / 1000) * em
-    const grain = (p.grain / 1000) * em
+    // shares of the stem, so a spread that reads as damp stays damp on a
+    // heavier face instead of closing every counter
+    const stem = ctx.strokeWidth
+    const spread = (p.amount / 100) * stem
+    const grain = (p.grain / 100) * stem
     const uneven = p.unevenness / 100
     const pooling = p.pooling / 100
 
@@ -92,7 +94,7 @@ export const bleed: Treatment = {
 
     let result = union(parts, FillRule.NonZero)
     if (result.length === 0) result = glyph
-    if (p.soften > 0) result = roundPaths(result, p.soften)
+    if (p.soften > 0) result = roundPaths(result, (p.soften / 100) * stem)
     result = simplify(result, p.simplify)
     return pathsToRings(result)
   },

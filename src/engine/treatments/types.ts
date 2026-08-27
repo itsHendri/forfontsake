@@ -23,8 +23,17 @@ export type ParamValues = Record<string, number>
 export interface TreatmentContext {
   /** deterministic, seeded per glyph — treatments must never call Math.random */
   rng: Rng
-  /** font units per em, so treatments can size themselves relative to the em */
+  /** font units per em */
   unitsPerEm: number
+  /**
+   * Median stem width of the source font, in font units.
+   *
+   * Size-like parameters are expressed as a percentage of this rather than of
+   * the em: 100 means one stroke width. Fonts vary about twofold in how heavy
+   * they are at the same em size, so a setting pinned to the em means something
+   * different on every face, and a preset tuned on one is wrong on the next.
+   */
+  strokeWidth: number
   /** advance width of the glyph being treated */
   advanceWidth: number
   /**

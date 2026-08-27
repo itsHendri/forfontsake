@@ -9,6 +9,8 @@ import type { TreatmentContext } from './types'
 const ctx = (seed = 1337): TreatmentContext => ({
   rng: mulberry32(seed),
   unitsPerEm: 1000,
+  // matches the stem fixture below, which is 160 units wide
+  strokeWidth: 160,
   advanceWidth: 600,
   penX: 0,
 })

@@ -18,22 +18,23 @@ export const outline: Treatment = {
   blurb: 'Hollow the letter, or run a stripe inside the strokes.',
   params: [
     { key: 'mode', label: 'Style', min: 0, max: 2, step: 1, default: 0, note: '0 outline · 1 hairline · 2 inline stripe', primary: true },
-    { key: 'weight', label: 'Line weight', min: 2, max: 90, step: 1, default: 26, primary: true },
-    { key: 'inset', label: 'Position', min: -60, max: 60, step: 1, default: 0, note: 'push the line out of or into the letter', primary: true },
-    { key: 'rounding', label: 'Rounding', min: 0, max: 80, step: 1, default: 0, primary: true },
+    { key: 'weight', label: 'Line weight', min: 3, max: 150, step: 1, default: 22, note: '% of stroke width', primary: true },
+    { key: 'inset', label: 'Position', min: -100, max: 100, step: 1, default: 0, note: 'push the line out of or into the letter', primary: true },
+    { key: 'rounding', label: 'Rounding', min: 0, max: 130, step: 1, default: 0, primary: true },
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.4 },
   ],
 
   presets: [
-    { name: 'Hollow', values: { mode: 0, weight: 26, inset: 0, rounding: 0, simplify: 0.4 } },
-    { name: 'Hairline', values: { mode: 1, weight: 6, inset: 0, rounding: 0, simplify: 0.3 } },
-    { name: 'Inline', values: { mode: 2, weight: 14, inset: -6, rounding: 0, simplify: 0.4 } },
-    { name: 'Halo', values: { mode: 0, weight: 18, inset: 30, rounding: 24, simplify: 0.5 } },
+    { name: 'Hollow', values: { mode: 0, weight: 22, inset: 0, rounding: 0, simplify: 0.4 } },
+    { name: 'Hairline', values: { mode: 1, weight: 5, inset: 0, rounding: 0, simplify: 0.3 } },
+    { name: 'Inline', values: { mode: 2, weight: 12, inset: -5, rounding: 0, simplify: 0.4 } },
+    { name: 'Halo', values: { mode: 0, weight: 15, inset: 25, rounding: 20, simplify: 0.5 } },
   ],
 
-  growth(p) {
+  growth(p, ctx) {
     // only the outward-facing styles push past the original silhouette
-    const outward = p.mode === 2 ? 0 : p.weight / 2 + Math.max(0, p.inset)
+    const stem = ctx.strokeWidth / 100
+    const outward = p.mode === 2 ? 0 : (p.weight / 2 + Math.max(0, p.inset)) * stem
     return outward * 2
   },
 
@@ -41,15 +42,17 @@ export const outline: Treatment = {
     if (rings.length === 0) return rings
     let glyph = simplify(normalise(rings), 1.5)
     if (glyph.length === 0) return rings
-    void ctx
+    // widths as shares of the stem, so a line weight means the same thing on
+    // every face rather than vanishing on heavy ones
+    const stem = ctx.strokeWidth / 100
+    if (p.rounding > 0) glyph = roundPaths(glyph, p.rounding * stem)
 
-    if (p.rounding > 0) glyph = roundPaths(glyph, p.rounding)
-
-    const half = p.weight / 2
+    const half = (p.weight * stem) / 2
     const mode = Math.round(p.mode)
+    const inset = p.inset * stem
 
     // where the band sits relative to the original edge
-    const centre = mode === 0 ? half + p.inset : mode === 1 ? p.inset : -half + p.inset
+    const centre = mode === 0 ? half + inset : mode === 1 ? inset : -half + inset
 
     const outer = grow(glyph, centre + half)
     const inner = grow(glyph, centre - half)

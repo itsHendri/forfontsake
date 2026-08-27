@@ -12,6 +12,7 @@ interface FontData {
   note: string
   reserved: string[]
   unitsPerEm: number
+  strokeWidth: number
   ascender: number
   descender: number
   glyphs: Record<string, { adv: number; rings: number[][] }>
@@ -114,6 +115,7 @@ export function render(
         const rings = treatment.apply(toRings(g.rings), params, {
           rng: mulberry32(charSeed),
           unitsPerEm: data.unitsPerEm,
+          strokeWidth: data.strokeWidth || data.unitsPerEm * 0.1,
           advanceWidth: g.adv,
           penX,
         })

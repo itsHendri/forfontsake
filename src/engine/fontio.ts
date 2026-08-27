@@ -1,6 +1,7 @@
 import { FontFlux } from 'font-flux-js'
 import { mulberry32 } from './prng'
 import { pointCount } from './paths'
+import { medianStrokeWidth, STROKE_SAMPLE_CHARS } from './measure'
 import { getTreatment, type ParamValues, type TreatmentContext } from './treatments/registry'
 import type { Ring } from './flatten'
 
@@ -54,6 +55,8 @@ export interface BuildOptions {
 export interface BuildResult {
   /** TrueType bytes, ready to write or hand to a Blob */
   bytes: Uint8Array
+  /** measured median stem width of the source, in font units */
+  strokeWidth: number
   glyphCount: number
   treatedCount: number
   maxPoints: number
@@ -65,6 +68,55 @@ interface FluxPoint {
   x: number
   y: number
   onCurve: boolean
+}
+
+interface FluxComponent {
+  glyphIndex: number
+  argument1?: number
+  argument2?: number
+  xScale?: number
+  yScale?: number
+  scale01?: number
+  scale10?: number
+  scale?: number
+}
+
+interface AnyGlyph {
+  name?: string
+  advanceWidth: number
+  contours?: FluxPoint[][]
+  components?: FluxComponent[]
+}
+
+/**
+ * Resolve a glyph to plain outlines, following component references.
+ *
+ * Accented characters, and whole lowercase alphabets in caps-only faces, are
+ * stored as references to other glyphs rather than as their own contours. A
+ * treatment handed those sees an empty shape and silently produces nothing, so
+ * every reference is followed and flattened before any treatment runs.
+ */
+export function decomposeGlyph(
+  glyph: AnyGlyph | undefined,
+  byIndex: (i: number) => AnyGlyph | undefined,
+  depth = 0,
+): Ring[] {
+  if (!glyph || depth > 5) return []
+
+  const rings: Ring[] = glyph.contours ? contoursToRings(glyph.contours) : []
+
+  for (const c of glyph.components ?? []) {
+    const dx = c.argument1 ?? 0
+    const dy = c.argument2 ?? 0
+    const a = c.xScale ?? c.scale ?? 1
+    const b = c.scale01 ?? 0
+    const cc = c.scale10 ?? 0
+    const d = c.yScale ?? c.scale ?? 1
+    for (const ring of decomposeGlyph(byIndex(c.glyphIndex), byIndex, depth + 1)) {
+      rings.push(ring.map((p) => ({ x: a * p.x + cc * p.y + dx, y: b * p.x + d * p.y + dy })))
+    }
+  }
+  return rings
 }
 
 /**
@@ -192,8 +244,20 @@ export function buildTreatedFont({
     name: string
     unicode?: number
     advanceWidth: number
-    contours: FluxPoint[][]
+    contours?: FluxPoint[][]
+    components?: FluxComponent[]
   }>
+
+  // measured once from the source, then shared by every glyph, so a treatment
+  // sizes itself against this font's strokes rather than against the em
+  const strokeSamples: Ring[][] = []
+  for (const ch of STROKE_SAMPLE_CHARS) {
+    const cp = ch.codePointAt(0)!
+    if (!font.hasGlyph(cp)) continue
+    const g = font.getGlyph(cp)
+    strokeSamples.push(decomposeGlyph(g as AnyGlyph, (i) => font.glyphs[i] as AnyGlyph))
+  }
+  const strokeWidth = medianStrokeWidth(strokeSamples, font.info.unitsPerEm * 0.1)
 
   const allowed = only ? new Set([...only].map((c) => c.codePointAt(0)!)) : null
   const steps = chain.map((s) => ({ treatment: getTreatment(s.id), params: s.params }))
@@ -207,18 +271,20 @@ export function buildTreatedFont({
   for (let i = 0; i < glyphs.length; i++) {
     const g = glyphs[i]
     const skip = allowed !== null && !(g.unicode !== undefined && allowed.has(g.unicode))
+    const hasShape = (g.contours?.length ?? 0) > 0 || (g.components?.length ?? 0) > 0
 
-    if (!skip && g.contours && g.contours.length > 0) {
+    if (!skip && hasShape) {
       const ctx: TreatmentContext = {
         // per-glyph seed, so a glyph looks the same wherever it appears and the
         // whole font is reproducible from one number
         rng: mulberry32(seed + i * 7919),
         unitsPerEm: font.info.unitsPerEm,
+        strokeWidth,
         advanceWidth: g.advanceWidth,
         penX,
       }
 
-      let rings = contoursToRings(g.contours)
+      let rings = decomposeGlyph(g, (i) => glyphs[i])
       for (const { treatment, params } of steps) {
         rings = treatment.apply(rings, params, ctx)
         if (rings.length === 0) break
@@ -226,6 +292,9 @@ export function buildTreatedFont({
 
       if (rings.length > 0) {
         g.contours = ringsToContours(rings)
+        // the outlines are now the glyph's own, so the references must go or
+        // the component would be drawn a second time on top
+        if (g.components) g.components = []
         treatedCount++
         const pts = pointCount(rings)
         totalPoints += pts
@@ -276,6 +345,7 @@ export function buildTreatedFont({
 
   return {
     bytes,
+    strokeWidth,
     glyphCount: glyphs.length,
     treatedCount,
     maxPoints,
