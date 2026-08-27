@@ -40,14 +40,11 @@ header{padding:48px 0 22px;border-bottom:1px solid var(--rule)}
 h1{font-weight:600;font-size:29px;line-height:1.2;margin:0 0 10px;letter-spacing:-.01em}
 .lede{margin:0;max-width:64ch;color:var(--muted)}
 
-.layout{display:grid;grid-template-columns:290px minmax(0,1fr);gap:34px;padding-top:26px;align-items:start}
-/* panel on the right: swap the column order so the reading column leads */
-.layout.right{grid-template-columns:minmax(0,1fr) 290px}
-.layout.right .panel{order:2}
-.layout.right main{order:1}
-.hint{font-family:"Roboto Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
-button.seg{padding:5px 12px}
-button.seg.is-on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+/* Specimen leads, controls sit to its right, so everything you read runs down
+   one edge instead of being interrupted by the panel. */
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 290px;gap:34px;padding-top:26px;align-items:start}
+.layout .panel{order:2}
+.layout main{order:1}
 
 .panel{position:sticky;top:22px;display:flex;flex-direction:column;gap:18px}
 .panel h2{
@@ -174,7 +171,7 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
 
 @media (max-width:820px){
   .layout{grid-template-columns:1fr}
-  .panel{position:static}
+  .panel{position:static;order:-1}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -186,14 +183,9 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
     <p class="lede">This runs the actual treatment engine — every slider recomputes real glyph
     geometry in the page, the same code that builds the exported font. Pick a font and a treatment,
     then a few dials up front with the rest behind "more".</p>
-    <div class="row" style="margin-top:16px">
-      <span class="hint">Panel side</span>
-      <button type="button" id="side-left" class="seg">Left</button>
-      <button type="button" id="side-right" class="seg is-on">Right</button>
-    </div>
   </header>
 
-  <div class="layout right" id="layout">
+  <div class="layout">
     <form class="panel" id="panel" onsubmit="return false">
       <div class="ctl">
         <div class="ctl-head"><label for="text">Text</label></div>
@@ -265,6 +257,8 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
         <p>The address bar carries the whole state, so a setting you like is a link you can send or
         bookmark. <em>Keep this one</em> parks a result in the strip above; clicking it puts every
         control back where it was.</p>
+        <p><strong>Bleed</strong> is the wet-ink one: it grows the letter unevenly and swells where
+        strokes meet, rather than fattening it evenly the way Bubble does.</p>
         <p>Only Grit uses randomness, so the seed and cuts controls hide themselves for the others —
         Bubble, Outline and Extrude give the same result every time from the same dials.</p>
         <p>Treatments still run one at a time. Stacking them is possible in the engine but not wired
@@ -552,15 +546,6 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
     schedule();
   });
 
-  var sideLeft = document.getElementById('side-left');
-  var sideRight = document.getElementById('side-right');
-  function setSide(right) {
-    document.getElementById('layout').classList.toggle('right', right);
-    sideRight.classList.toggle('is-on', right);
-    sideLeft.classList.toggle('is-on', !right);
-  }
-  sideLeft.addEventListener('click', function () { setSide(false); });
-  sideRight.addEventListener('click', function () { setSide(true); });
 
   document.getElementById('reset').addEventListener('click', function () {
     params = FFS.defaultParams(current);

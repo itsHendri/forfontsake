@@ -5,10 +5,10 @@ import {
   pointInPolygon,
   FillRule,
   PointInPolygonResult,
-  type Path64,
   type Paths64,
 } from 'clipper2-ts'
 import { NoiseField } from '../noise'
+import { roughBlob } from '../blob'
 import { SCALE, normalise, pathsToRings, resample, simplify, dropTinyAreas, boundsOf } from '../paths'
 import type { Ring } from '../flatten'
 import type { Treatment, ParamValues, TreatmentContext } from './types'
@@ -66,24 +66,6 @@ function scaleSpread(base: number, spread: number, rng: () => number): number {
   const lo = Math.log(base / spread)
   const hi = Math.log(base * spread)
   return Math.exp(lo + (hi - lo) * rng())
-}
-
-/** an irregular blob — never a circle, and lumpier the larger it is */
-function blob(cx: number, cy: number, radius: number, noise: NoiseField, rng: () => number): Path64 {
-  const sides = Math.max(6, Math.min(14, Math.round(6 + radius / (SCALE * 6))))
-  const phase = rng() * Math.PI * 2
-  const ring: Path64 = []
-  for (let i = 0; i < sides; i++) {
-    const ang = phase + (i / sides) * Math.PI * 2
-    // two noise lookups at different frequencies keep the outline from
-    // settling into a regular polygon
-    const coarse = noise.sample(cx / 1400 + Math.cos(ang) * 1.6, cy / 1400 + Math.sin(ang) * 1.6)
-    const fine = noise.sample(cx / 320 + Math.cos(ang) * 3.1, cy / 320 + Math.sin(ang) * 3.1)
-    const wobble = 1 + coarse * 0.45 + fine * 0.22
-    const r = radius * Math.max(0.3, wobble)
-    ring.push({ x: Math.round(cx + Math.cos(ang) * r), y: Math.round(cy + Math.sin(ang) * r) })
-  }
-  return ring
 }
 
 export const grit: Treatment = {
@@ -189,7 +171,7 @@ export const grit: Treatment = {
             const off = (rng() - 0.35) * r * 0.8
             const nx = -(b.y - a.y) / segLen
             const ny = (b.x - a.x) / segLen
-            cutters.push(blob(px + nx * off, py + ny * off, r, noise, rng))
+            cutters.push(roughBlob(px + nx * off, py + ny * off, r, noise, rng))
             spacing = nextGap()
           }
           carried += segLen - walked
@@ -221,7 +203,7 @@ export const grit: Treatment = {
           if (rng() > chance) continue
           const r = scaleSpread(piece * 0.3 * speckle, spread, rng)
           if (r < SCALE) continue
-          cutters.push(blob(px, py, r, noise, rng))
+          cutters.push(roughBlob(px, py, r, noise, rng))
         }
       }
     }

@@ -29,7 +29,6 @@ export const bubble: Treatment = {
     { name: 'Marker', values: { weight: 26, rounding: 34, squeeze: 60, simplify: 0.5 } },
     { name: 'Balloon', values: { weight: 68, rounding: 74, squeeze: 80, simplify: 0.5 } },
     { name: 'Softened', values: { weight: 8, rounding: 62, squeeze: 30, simplify: 0.5 } },
-    { name: 'Bleed', values: { weight: 46, rounding: 20, squeeze: 40, simplify: 0.5 } },
   ],
 
   growth(p) {
