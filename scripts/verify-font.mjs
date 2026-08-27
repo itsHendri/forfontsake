@@ -82,6 +82,17 @@ step('alternates actually substitute', () => {
   return `${r.withFeature.join(' ')} (was ${r.withoutFeature.join(' ')})`
 })
 
+step('ligatures still form', () => {
+  const PY = join(root, '.venv/bin/python3')
+  const out = execFileSync(PY, [join(root, 'scripts/shape_check.py'), fontPath, 'aaaa'], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  }).toString()
+  const r = JSON.parse(out)
+  if (!r.available) return `skipped — ${r.reason}`
+  if (!r.ligaturesForm) return `none in this font (${r.ligatureWord} stays ${r.withLigatures.length} glyphs)`
+  return `${r.ligatureWord} → ${r.withLigatures.join(' ')}`
+})
+
 let report = null
 step('naming fields + reserved font names', () => {
   const PY = join(root, '.venv/bin/python3')

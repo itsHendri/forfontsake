@@ -73,5 +73,8 @@ console.log(
     (result.alternates > 1
       ? `\nalts:      ${result.alternates} cuts per letter, ${result.addedGlyphs} glyphs added, calt rotation written`
       : '') +
-    (result.droppedSubstitutions ? '\nnote:      source GSUB dropped — ligatures lost, kerning kept' : ''),
+    (result.carriedFeatures.length > 0
+      ? `\nkept:      ${result.carriedFeatures.join(', ')} carried from the source`
+      : '') +
+    (result.droppedRules > 0 ? `\ndropped:   ${result.droppedRules} source rules we cannot reproduce` : ''),
 )

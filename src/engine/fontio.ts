@@ -3,7 +3,7 @@ import { mulberry32 } from './prng'
 import { pointCount } from './paths'
 import { medianStrokeWidth, STROKE_SAMPLE_CHARS } from './measure'
 import { stripTables, setTable, listTables } from './sfnt'
-import { buildRotatingGsub, type AlternateSet } from './gsub'
+import { buildGsub, isCarriedFeature, type AlternateSet, type CarriedRule } from './gsub'
 import { getTreatment, type ParamValues, type TreatmentContext } from './treatments/registry'
 import type { Ring } from './flatten'
 
@@ -65,8 +65,10 @@ export interface BuildResult {
   bytes: Uint8Array
   /** measured median stem width of the source, in font units */
   strokeWidth: number
-  /** true when the source's own substitutions had to be dropped */
-  droppedSubstitutions: boolean
+  /** substitutions carried over from the source, by feature tag */
+  carriedFeatures: string[]
+  /** source rules we could not reproduce and therefore dropped */
+  droppedRules: number
   /** how many alternate cuts were generated per letter */
   alternates: number
   /** glyphs added to carry those alternates */
@@ -356,6 +358,48 @@ export function buildTreatedFont({
   // — and it stays discarded even if the names are re-applied afterwards. So
   // validate the bytes we actually produced, by reopening them, which is the
   // stronger check regardless.
+  // --- the source's own substitutions --------------------------------------
+  // Names are resolved to ids against the finished glyph list, so a ligature
+  // still points at the glyph we treated rather than at whatever sat there in
+  // the original.
+  const idByName = new Map<string, number>()
+  glyphs.forEach((g, i) => {
+    if (g.name) idByName.set(g.name, i)
+  })
+
+  const carriedRules: CarriedRule[] = []
+  let droppedRules = 0
+  for (const raw of (font.substitutions ?? []) as Array<Record<string, unknown>>) {
+    const feature = String(raw.feature ?? '')
+    // Language-specific rules would have to be reproduced with the language
+    // systems that trigger them; carried without those they would fire for
+    // every language, so a Turkish dotted i would appear in English text.
+    if (raw.language != null || !isCarriedFeature(feature)) {
+      droppedRules++
+      continue
+    }
+
+    if (raw.type === 'ligature') {
+      const parts = (raw.components as string[]).map((n) => idByName.get(n))
+      const lig = idByName.get(raw.ligature as string)
+      if (lig === undefined || parts.some((p) => p === undefined)) {
+        droppedRules++
+        continue
+      }
+      carriedRules.push({ kind: 'ligature', feature, components: parts as number[], ligature: lig })
+    } else if (raw.type === 'single') {
+      const from = idByName.get(raw.from as string)
+      const to = idByName.get(raw.to as string)
+      if (from === undefined || to === undefined) {
+        droppedRules++
+        continue
+      }
+      carriedRules.push({ kind: 'single', feature, from, to })
+    } else {
+      droppedRules++
+    }
+  }
+
   // --- alternate cuts ------------------------------------------------------
   // Each variant is the same glyph run again under a different seed, added as
   // an unmapped glyph. Only glyphs that actually got treated are worth varying;
@@ -405,12 +449,12 @@ export function buildTreatedFont({
   // refuse the font entirely. Nothing in its API removes the data, so the table
   // is cut from the finished binary. Kerning lives in GPOS and survives;
   // ligatures and alternates do not.
-  const droppedSubstitutions = listTables(bytes).includes('GSUB')
-  if (droppedSubstitutions) bytes = stripTables(bytes, ['GSUB'])
-
-  // and put back one we wrote ourselves, carrying the rotation
-  if (alternateSets.length > 0) {
-    bytes = setTable(bytes, 'GSUB', buildRotatingGsub(alternateSets))
+  // The library rebuilds GSUB from its own model and writes one the sanitiser
+  // rejects, so its table goes and ours takes its place — carrying both the
+  // source's ligatures and the rotation.
+  if (listTables(bytes).includes('GSUB')) bytes = stripTables(bytes, ['GSUB'])
+  if (carriedRules.length > 0 || alternateSets.length > 0) {
+    bytes = setTable(bytes, 'GSUB', buildGsub({ alternates: alternateSets, carried: carriedRules }))
   }
 
   const report = FontFlux.open(bytes).validate()
@@ -422,7 +466,8 @@ export function buildTreatedFont({
   return {
     bytes,
     strokeWidth,
-    droppedSubstitutions,
+    carriedFeatures: [...new Set(carriedRules.map((r) => r.feature))].sort(),
+    droppedRules,
     alternates: alternateSets.length > 0 ? cuts : 1,
     addedGlyphs,
     glyphCount: glyphs.length,

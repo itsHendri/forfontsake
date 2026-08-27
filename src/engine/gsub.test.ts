@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildRotatingGsub } from './gsub'
+import { buildRotatingGsub, buildGsub, isCarriedFeature } from './gsub'
 
 const read16 = (b: Uint8Array, at: number) => (b[at] << 8) | b[at + 1]
 const readTag = (b: Uint8Array, at: number) =>
@@ -65,5 +65,44 @@ describe('buildRotatingGsub', () => {
   it('refuses an empty request', () => {
     expect(() => buildRotatingGsub([])).toThrow(/no alternate sets/)
     expect(() => buildRotatingGsub([{ base: 10, variants: [] }])).toThrow(/at least one/)
+  })
+})
+
+describe('carried source rules', () => {
+  const ligature = { kind: 'ligature' as const, feature: 'liga', components: [20, 20, 30], ligature: 40 }
+  const single = { kind: 'single' as const, feature: 'case', from: 50, to: 51 }
+
+  it('registers a feature per carried tag, in tag order', () => {
+    const t = buildGsub({ carried: [ligature, single] })
+    const featureList = read16(t, 6)
+    expect(read16(t, featureList)).toBe(2)
+    expect(readTag(t, featureList + 2)).toBe('case')
+    expect(readTag(t, featureList + 8)).toBe('liga')
+  })
+
+  it('writes carried lookups before the rotation, so ligatures form first', () => {
+    const t = buildGsub({ carried: [ligature], alternates: sets })
+    const lookupList = read16(t, 8)
+    // one ligature lookup, then two substitutions and two chains for the cycle
+    expect(read16(t, lookupList)).toBe(5)
+    const firstLookup = lookupList + read16(t, lookupList + 2)
+    expect(read16(t, firstLookup)).toBe(4) // LookupType 4 = ligature
+  })
+
+  it('never carries a rule into calt, which the rotation owns', () => {
+    const t = buildGsub({ carried: [{ ...single, feature: 'calt' }, ligature] })
+    const featureList = read16(t, 6)
+    expect(read16(t, featureList)).toBe(1)
+    expect(readTag(t, featureList + 2)).toBe('liga')
+  })
+
+  it('ignores features it cannot reproduce faithfully', () => {
+    expect(isCarriedFeature('liga')).toBe(true)
+    expect(isCarriedFeature('locl')).toBe(false)
+    expect(isCarriedFeature('aalt')).toBe(false)
+  })
+
+  it('refuses to write an empty table', () => {
+    expect(() => buildGsub({})).toThrow(/nothing to write/)
   })
 })

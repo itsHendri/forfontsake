@@ -84,6 +84,8 @@ declare module 'font-flux-js' {
     readonly glyphCount: number
     readonly format: 'truetype' | 'cff' | 'cff2'
     readonly kerning: Array<{ left: string; right: string; value: number }>
+    /** parsed GSUB rules; shapes vary by type, so callers narrow them */
+    readonly substitutions: Array<Record<string, unknown>>
 
     getGlyph(id: string | number): FluxGlyph
     addGlyph(glyph: Partial<FluxGlyph> & { name: string }): void
