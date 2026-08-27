@@ -69,19 +69,10 @@ interface RingMetrics {
   /** cumulative arc length at each vertex */
   at: number[]
   perimeter: number
-  /** arc positions of vertices where the outline turns hard */
-  corners: number[]
 }
 
-/**
- * Where does this contour turn hard? Those points are serifs, spurs and
- * terminals; ribs placed near them fan out into wedges instead of slabs.
- *
- * Measured per vertex and stored as arc positions, so the test for a given
- * sample is "how far along the outline am I from a corner" — independent of
- * how the outline happens to be subdivided into segments.
- */
-function measureRing(ring: Path64, cosLimit: number): RingMetrics {
+/** cumulative arc length around a contour, so positions can be addressed by distance */
+function measureRing(ring: Path64): RingMetrics {
   const n = ring.length
   const at: number[] = new Array(n)
   let perimeter = 0
@@ -92,32 +83,7 @@ function measureRing(ring: Path64, cosLimit: number): RingMetrics {
     perimeter += Math.hypot(b.x - a.x, b.y - a.y)
   }
 
-  const corners: number[] = []
-  for (let i = 0; i < n; i++) {
-    const prev = ring[(i - 1 + n) % n]
-    const cur = ring[i]
-    const next = ring[(i + 1) % n]
-    const ix = cur.x - prev.x
-    const iy = cur.y - prev.y
-    const ox = next.x - cur.x
-    const oy = next.y - cur.y
-    const li = Math.hypot(ix, iy)
-    const lo = Math.hypot(ox, oy)
-    if (li < 1e-6 || lo < 1e-6) continue
-    const cos = (ix * ox + iy * oy) / (li * lo)
-    if (cos < cosLimit) corners.push(at[i])
-  }
-  return { at, perimeter, corners }
-}
-
-/** shortest distance around the closed contour from an arc position to a corner */
-function nearCorner(m: RingMetrics, pos: number, radius: number): boolean {
-  for (const c of m.corners) {
-    let d = Math.abs(pos - c)
-    if (d > m.perimeter / 2) d = m.perimeter - d
-    if (d < radius) return true
-  }
-  return false
+  return { at, perimeter }
 }
 
 interface Rib {
@@ -128,21 +94,72 @@ interface Rib {
   width: number
 }
 
+/** the point at arc position `s` around a closed contour */
+function pointAtArc(ring: Path64, m: RingMetrics, s: number): { x: number; y: number } {
+  const n = ring.length
+  let pos = s % m.perimeter
+  if (pos < 0) pos += m.perimeter
+  for (let i = 0; i < n; i++) {
+    const start = m.at[i]
+    const end = i + 1 < n ? m.at[i + 1] : m.perimeter
+    if (pos <= end || i === n - 1) {
+      const a = ring[i]
+      const b = ring[(i + 1) % n]
+      const segLen = end - start
+      const f = segLen > 1e-9 ? (pos - start) / segLen : 0
+      return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f }
+    }
+  }
+  return ring[0]
+}
+
+/**
+ * Direction of the outline at `s`, averaged over a window either side.
+ *
+ * The instantaneous tangent swings wildly around a serif or terminal, and cuts
+ * taken from it fan out into wedges. Averaging gives each cut in a corner
+ * roughly the same angle, so the corner is sliced rather than shattered.
+ */
+function smoothTangent(ring: Path64, m: RingMetrics, s: number, window: number) {
+  const back = pointAtArc(ring, m, s - window)
+  const fwd = pointAtArc(ring, m, s + window)
+  const dx = fwd.x - back.x
+  const dy = fwd.y - back.y
+  const len = Math.hypot(dx, dy)
+  if (len < 1e-6) return null
+  return { x: dx / len, y: dy / len }
+}
+
+export interface RibOptions {
+  /** nominal tile size, also the fallback when a stroke width can't be read */
+  tileLength: number
+  /** tile length as a multiple of the local stroke width — 1 is square */
+  aspect: number
+  irregularity: number
+  /** cuts never end up closer together than this */
+  minSpacing: number
+  rng: Rng
+}
+
 /**
  * Walk the outline; at intervals, shoot a ray straight into the shape to find
  * the opposite wall. That chord is where the stroke gets cut.
+ *
+ * Spacing is taken from the stroke's own width at that point rather than from a
+ * fixed distance, so tiles stay square as the stroke thickens and thins — a
+ * fixed spacing makes long thin slabs wherever the stroke narrows.
  */
-export function findRibs(glyph: Paths64, tileLength: number, irregularity: number, rng: Rng): Rib[] {
+export function findRibs(glyph: Paths64, o: RibOptions): Rib[] {
+  const { tileLength, aspect, irregularity, minSpacing, rng } = o
   const segs = toSegments(glyph)
   let ribs: Rib[] = []
-  const step = Math.max(tileLength / 4, 1)
+  const step = Math.max(tileLength / 8, 1)
 
   for (const ring of glyph) {
-    const metrics = measureRing(ring, 0.45) // ~63 degrees counts as a corner
-    const cornerRadius = tileLength * 0.3
-    // walk this contour at a fixed step, carrying arc length so ribs land
-    // evenly along the stroke rather than evenly around the outline
-    let sinceRib = tileLength * (0.4 + 0.4 * rng())
+    const metrics = measureRing(ring)
+    let sinceRib = tileLength * (0.3 + 0.5 * rng())
+    let lastWidth = tileLength
+
     for (let i = 0; i < ring.length; i++) {
       const a = ring[i]
       const b = ring[(i + 1) % ring.length]
@@ -150,28 +167,24 @@ export function findRibs(glyph: Paths64, tileLength: number, irregularity: numbe
       const ey = b.y - a.y
       const segLen = Math.hypot(ex, ey)
       if (segLen < 1e-6) continue
-      const tx = ex / segLen
-      const ty = ey / segLen
 
       for (let d = 0; d < segLen; d += step) {
-        sinceRib += Math.min(step, segLen - d)
-        const spacing = tileLength * (1 + irregularity * (rng() - 0.5) * 0.9)
-        if (sinceRib < spacing) continue
-        sinceRib = 0
+        const advance = Math.min(step, segLen - d)
+        sinceRib += advance
+        // cheapest possible reject before doing any ray work
+        if (sinceRib < minSpacing) continue
 
-        const px = a.x + tx * d
-        const py = a.y + ty * d
+        const arcPos = metrics.at[i] + d
+        const px = a.x + (ex / segLen) * d
+        const py = a.y + (ey / segLen) * d
 
-        // Serifs and terminals turn sharply; ribs placed there fan out into
-        // wedges instead of slabs, so leave corners uncut.
-        if (nearCorner(metrics, metrics.at[i] + d, cornerRadius)) {
-          continue
-        }
+        const tangent = smoothTangent(ring, metrics, arcPos, Math.max(lastWidth, tileLength) * 0.45)
+        if (!tangent) continue
 
         // inward normal: the filled side is to the left of travel for outers
         // and holes alike, but verify rather than trust the orientation
-        let nx = -ty
-        let ny = tx
+        let nx = -tangent.y
+        let ny = tangent.x
         if (!insideShape(glyph, px + nx * 2, py + ny * 2)) {
           nx = -nx
           ny = -ny
@@ -187,6 +200,12 @@ export function findRibs(glyph: Paths64, tileLength: number, irregularity: numbe
         const hit = rayHit(segs, px, py, dx, dy, 1)
         if (!isFinite(hit)) continue
 
+        // square tiles: advance along the stroke by roughly its own width
+        const spacing = Math.max(hit * aspect * (1 + irregularity * (rng() - 0.5) * 0.5), minSpacing)
+        if (sinceRib < spacing) continue
+
+        sinceRib = 0
+        lastWidth = hit
         ribs.push({ px, py, qx: px + dx * hit, qy: py + dy * hit, width: hit })
       }
     }
@@ -202,17 +221,18 @@ export function findRibs(glyph: Paths64, tileLength: number, irregularity: numbe
     ribs = ribs.filter((r) => r.width <= median * 2.2)
   }
 
-  // both walls of a stroke generate the same cut; keep one of each pair
+  // both walls of a stroke generate the same cut; keep one of each pair.
+  // The gap scales with the stroke so cuts stay square in thin features too.
   const kept: Rib[] = []
-  const minGap = tileLength * 0.72
   for (const r of ribs) {
     const mx = (r.px + r.qx) / 2
     const my = (r.py + r.qy) / 2
+    const gap = Math.max(r.width * aspect * 0.6, minSpacing * 0.9)
     let dupe = false
     for (const k of kept) {
       const kx = (k.px + k.qx) / 2
       const ky = (k.py + k.qy) / 2
-      if (Math.hypot(mx - kx, my - ky) < minGap) {
+      if (Math.hypot(mx - kx, my - ky) < gap) {
         dupe = true
         break
       }
@@ -253,6 +273,8 @@ function ribCutters(ribs: Rib[], grout: number, groutJitter: number, rng: Rng): 
 
 export interface RibbonOptions {
   tileLength: number
+  /** tile length as a multiple of the local stroke width — 1 is square */
+  aspect: number
   grout: number
   groutJitter: number
   irregularity: number
@@ -261,7 +283,14 @@ export interface RibbonOptions {
 
 /** returns the glyph minus its grout lines, as separate contours */
 export function ribbonSlice(glyph: Paths64, o: RibbonOptions): { pieces: Paths64; ribCount: number } {
-  const ribs = findRibs(glyph, o.tileLength, o.irregularity, o.rng)
+  const ribs = findRibs(glyph, {
+    tileLength: o.tileLength,
+    aspect: o.aspect,
+    irregularity: o.irregularity,
+    // never cut so finely that a tile ends up thinner than its own grout
+    minSpacing: Math.max(o.grout * 2.2, o.tileLength * 0.18),
+    rng: o.rng,
+  })
   if (ribs.length === 0) return { pieces: glyph, ribCount: 0 }
   const cutters = ribCutters(ribs, o.grout, o.groutJitter, o.rng)
   if (cutters.length === 0) return { pieces: glyph, ribCount: 0 }

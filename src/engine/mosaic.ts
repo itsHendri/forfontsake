@@ -34,6 +34,11 @@ export interface MosaicParams {
   /** tiles smaller than this fraction of tileSize² are dropped */
   minTileArea: number
   seeding: 'ribbon' | 'bands' | 'poisson'
+  /**
+   * Tile length as a multiple of the local stroke width. 1 gives square tiles;
+   * lower is stubbier, higher makes longer slabs. Ribbon mode only.
+   */
+  aspect: number
   seed: number
   /**
    * Point-reduction tolerance in font units. Tiles come out of the clipper with
@@ -52,6 +57,7 @@ export const DEFAULT_PARAMS: MosaicParams = {
   cornerRound: 4,
   minTileArea: 0.06,
   seeding: 'ribbon',
+  aspect: 1,
   seed: 1337,
   simplify: 1.2,
 }
@@ -211,6 +217,7 @@ export function mosaicGlyph(rings: Ring[], params: MosaicParams): MosaicResult {
   if (p.seeding === 'ribbon') {
     const { pieces, ribCount } = ribbonSlice(glyph, {
       tileLength: tilePx,
+      aspect: p.aspect,
       grout: p.grout * SCALE,
       groutJitter: p.groutJitter,
       irregularity: p.irregularity,

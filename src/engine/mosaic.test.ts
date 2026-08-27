@@ -22,9 +22,19 @@ const ringArea = (r: Ring) => {
   return a / 2
 }
 
+/** a tall thin stroke, the shape the engine is actually built for */
+const stem = (): Ring[] => [
+  [
+    { x: 220, y: 60 },
+    { x: 380, y: 60 },
+    { x: 380, y: 1740 },
+    { x: 220, y: 1740 },
+  ],
+]
+
 describe('mosaicGlyph', () => {
   it('is deterministic for identical params', () => {
-    const rings = [square(300, 300, 280)]
+    const rings = stem()
     const a = mosaicGlyph(rings, DEFAULT_PARAMS)
     const b = mosaicGlyph(rings, DEFAULT_PARAMS)
     expect(JSON.stringify(a)).toEqual(JSON.stringify(b))
@@ -32,7 +42,7 @@ describe('mosaicGlyph', () => {
   })
 
   it('changes with the seed', () => {
-    const rings = [square(300, 300, 280)]
+    const rings = stem()
     const a = mosaicGlyph(rings, DEFAULT_PARAMS)
     const b = mosaicGlyph(rings, { ...DEFAULT_PARAMS, seed: 42 })
     expect(JSON.stringify(a)).not.toEqual(JSON.stringify(b))
@@ -63,15 +73,7 @@ describe('mosaicGlyph', () => {
 
   it('ribbon mode cuts a stroke into slabs and leaves the silhouette intact', () => {
     // a tall thin stem, like a blackletter stroke
-    const stem: Ring[] = [
-      [
-        { x: 220, y: 60 },
-        { x: 380, y: 60 },
-        { x: 380, y: 1740 },
-        { x: 220, y: 1740 },
-      ],
-    ]
-    const r = mosaicGlyph(stem, { ...DEFAULT_PARAMS, seeding: 'ribbon', tileSize: 100, grout: 12 })
+    const r = mosaicGlyph(stem(), { ...DEFAULT_PARAMS, seeding: 'ribbon', tileSize: 100, grout: 12 })
     expect(r.tiles.length).toBeGreaterThan(4)
     // every slab should span most of the stem's width — that is the whole point
     for (const tile of r.tiles) {

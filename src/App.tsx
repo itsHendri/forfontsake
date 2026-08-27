@@ -15,26 +15,10 @@ interface Variant {
 }
 
 const VARIANTS: Variant[] = [
-  {
-    label: 'A · ribbon',
-    note: 'cut across the stroke — tiles span full width, silhouette stays crisp',
-    overrides: { seeding: 'ribbon' },
-  },
-  {
-    label: 'B · ribbon, longer tiles',
-    note: 'same cut, fewer/longer slabs',
-    overrides: { seeding: 'ribbon', tileSize: 78, irregularity: 0.3 },
-  },
-  {
-    label: 'C · ribbon, irregular',
-    note: 'skewed cuts + uneven grout',
-    overrides: { seeding: 'ribbon', irregularity: 0.9, groutJitter: 0.7 },
-  },
-  {
-    label: 'D · voronoi (old, wrong)',
-    note: 'tessellated — the side-by-side look we are moving away from',
-    overrides: { seeding: 'bands' },
-  },
+  { label: 'A · square tiles', note: 'tile length = stroke width', overrides: { aspect: 1 } },
+  { label: 'B · stubby', note: 'aspect 0.75 — wider than long', overrides: { aspect: 0.75 } },
+  { label: 'C · square, irregular', note: 'aspect 1 + skew and uneven grout', overrides: { aspect: 1, irregularity: 0.85, groutJitter: 0.6 } },
+  { label: 'D · slabs', note: 'aspect 1.4 — the longer look, for comparison', overrides: { aspect: 1.4 } },
 ]
 
 interface RenderedVariant {
@@ -228,6 +212,7 @@ export default function App() {
 
       <div className="controls">
         <input className="text" value={text} onChange={(e) => setText(e.target.value)} spellCheck={false} />
+        <Slider label="aspect" value={params.aspect} min={0.5} max={2} step={0.05} onChange={(v) => set({ aspect: v })} />
         <Slider label="tile" value={params.tileSize} min={30} max={140} step={2} onChange={(v) => set({ tileSize: v })} />
         <Slider label="grout" value={params.grout} min={2} max={30} step={1} onChange={(v) => set({ grout: v })} />
         <Slider

@@ -24,10 +24,10 @@ const bytes = readFileSync('public/fonts/pirata-one/PirataOne-Regular.ttf')
 const font = parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
 
 const rows: { label: string; params: Partial<MosaicParams> }[] = [
-  { label: 'chunky — tile 78, grout 10', params: { tileSize: 78, grout: 10, irregularity: 0.3 } },
-  { label: 'default — tile 62, grout 11', params: {} },
-  { label: 'fine — tile 44, grout 8', params: { tileSize: 44, grout: 8 } },
-  { label: 'fine + irregular — tile 44, grout 9, irregularity 0.9', params: { tileSize: 44, grout: 9, irregularity: 0.9, groutJitter: 0.6 } },
+  { label: 'square — aspect 1.0', params: { aspect: 1 } },
+  { label: 'stubby — aspect 0.8', params: { aspect: 0.8 } },
+  { label: 'square + irregular — aspect 1.0, irregularity 0.85', params: { aspect: 1, irregularity: 0.85, groutJitter: 0.6 } },
+  { label: 'square, finer grout — aspect 1.0, grout 8', params: { aspect: 1, grout: 8 } },
 ]
 
 const shaped = shapeText(font, text)
