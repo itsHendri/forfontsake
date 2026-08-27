@@ -41,6 +41,13 @@ h1{font-weight:600;font-size:29px;line-height:1.2;margin:0 0 10px;letter-spacing
 .lede{margin:0;max-width:64ch;color:var(--muted)}
 
 .layout{display:grid;grid-template-columns:290px minmax(0,1fr);gap:34px;padding-top:26px;align-items:start}
+/* panel on the right: swap the column order so the reading column leads */
+.layout.right{grid-template-columns:minmax(0,1fr) 290px}
+.layout.right .panel{order:2}
+.layout.right main{order:1}
+.hint{font-family:"Roboto Mono",monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+button.seg{padding:5px 12px}
+button.seg.is-on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 
 .panel{position:sticky;top:22px;display:flex;flex-direction:column;gap:18px}
 .panel h2{
@@ -149,20 +156,33 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
     <p class="eyebrow">For Font's Sake · workbench</p>
     <h1>Treatments, with the dials in your hands</h1>
     <p class="lede">This runs the actual treatment engine — every slider recomputes real glyph
-    geometry in the page, the same code that builds the exported font. Pick a treatment, then a
-    few dials up front with the rest behind "more".</p>
+    geometry in the page, the same code that builds the exported font. Pick a font and a treatment,
+    then a few dials up front with the rest behind "more".</p>
+    <div class="row" style="margin-top:16px">
+      <span class="hint">Panel side</span>
+      <button type="button" id="side-left" class="seg">Left</button>
+      <button type="button" id="side-right" class="seg is-on">Right</button>
+    </div>
   </header>
 
-  <div class="layout">
+  <div class="layout right" id="layout">
     <form class="panel" id="panel" onsubmit="return false">
       <div class="ctl">
         <div class="ctl-head"><label for="text">Text</label></div>
         <input type="text" id="text" value="Grittier letters" autocomplete="off" spellcheck="false">
       </div>
       <div class="ctl">
+        <div class="ctl-head"><label for="font">Font</label></div>
+        <select id="font"></select>
+      </div>
+      <div class="ctl">
         <div class="ctl-head"><label for="treatment">Treatment</label></div>
         <select id="treatment"></select>
         <p class="ctl-note" id="blurb"></p>
+      </div>
+      <div class="row">
+        <button type="button" id="reroll">Randomise</button>
+        <button type="button" id="reset">Reset</button>
       </div>
       <div class="ctl" id="alts-ctl">
         <div class="ctl-head">
@@ -170,7 +190,15 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
           <output id="o-alts">3</output>
         </div>
         <input type="range" id="alts" min="1" max="5" step="1" value="3">
-        <p class="ctl-note">how many versions of each letter cycle as you type</p>
+        <p class="ctl-note" id="alts-note">how many versions of each letter cycle as you type</p>
+      </div>
+      <div class="ctl" id="seed-ctl">
+        <div class="ctl-head">
+          <label for="seed">Random seed</label>
+          <output id="o-seed">1337</output>
+        </div>
+        <input type="range" id="seed" min="1" max="9999" step="1" value="1337">
+        <p class="ctl-note">Randomise just moves this. Same seed, same letters.</p>
       </div>
       <h2>Dials</h2>
       <div id="dials"></div>
@@ -178,17 +206,13 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
         <summary>More</summary>
         <div id="more"></div>
       </details>
-      <div class="row">
-        <button type="button" id="reroll">Reroll</button>
-        <button type="button" id="reset">Reset</button>
-      </div>
     </form>
 
     <main>
       <div class="stage"><svg id="stage" role="img" aria-label="Live specimen"></svg></div>
       <div class="meta">
-        <span>seed <b id="m-seed">1337</b></span>
-        <span>cuts <b id="m-alts">3</b></span>
+        <span id="m-seed-wrap">seed <b id="m-seed">1337</b></span>
+        <span id="m-alts-wrap">cuts <b id="m-alts">3</b></span>
         <span>contours <b id="m-contours">—</b></span>
         <span>redraw <b id="m-ms">—</b></span>
       </div>
@@ -200,12 +224,10 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
 
       <section class="foot">
         <h2>Where this still falls short</h2>
-        <p><strong>Bubble</strong>, <strong>Outline</strong> and <strong>Extrude</strong> are the
-        graffiti trio — the Snooze One grid is mostly those three stacked in different colours.
-        They can't stack yet; each runs on its own, so judge them separately for now.</p>
-        <p>Repeated letters cycle through separate cuts — set <em>Cuts per letter</em> to 1 and watch
-        a doubled letter become a matched pair, then push it back up. It only shows on Grit, since
-        the other three are deterministic.</p>
+        <p>Only Grit uses randomness, so the seed and cuts controls hide themselves for the others —
+        Bubble, Outline and Extrude give the same result every time from the same dials.</p>
+        <p>Treatments still run one at a time. Stacking them is possible in the engine but not wired
+        to the interface, and it isn't obviously worth it yet.</p>
         <p>The exported font doesn't carry these yet. Alternates in a real font need a GSUB feature
         that swaps each repeat for a different glyph — that's the next piece of work, and until it
         lands the download uses one cut per letter and this page is ahead of it.</p>
@@ -221,15 +243,28 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
   FFS.init(DATA);
 
   var current = 'grit';
+  var currentFont = 'pirataone';
   var params = FFS.defaultParams(current);
   var seed = 1337;
   var alternates = 3;
+
+  var fontPick = document.getElementById('font');
+  fontPick.innerHTML = FFS.listFonts().map(function (f) {
+    return '<option value="' + f.id + '">' + f.label + ' — ' + f.note + '</option>';
+  }).join('');
+  fontPick.value = currentFont;
+  fontPick.addEventListener('change', function () {
+    currentFont = fontPick.value;
+    schedule();
+  });
 
   var pick = document.getElementById('treatment');
   var treatments = FFS.listTreatments();
   pick.innerHTML = treatments.map(function (t) {
     return '<option value="' + t.id + '">' + t.name + '</option>';
   }).join('');
+
+  var this_is_deterministic = 'This treatment has no randomness — the same dials always give the same letters';
 
   function buildControls() {
     var specs = FFS.listParams(current);
@@ -249,6 +284,16 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
     document.getElementById('more-wrap').style.display = rest.length ? '' : 'none';
     var t = treatments.filter(function (x) { return x.id === current; })[0];
     document.getElementById('blurb').textContent = t ? t.blurb : '';
+    // randomness only means something for treatments that consume it
+    var random = !FFS.isDeterministic(current);
+    document.getElementById('alts-ctl').style.display = random ? '' : 'none';
+    document.getElementById('seed-ctl').style.display = random ? '' : 'none';
+    document.getElementById('reroll').disabled = !random;
+    document.getElementById('m-seed-wrap').style.display = random ? '' : 'none';
+    document.getElementById('m-alts-wrap').style.display = random ? '' : 'none';
+    document.getElementById('reroll').title = random
+      ? 'Move the seed to a new random value'
+      : this_is_deterministic;
   }
 
   pick.addEventListener('change', function () {
@@ -272,7 +317,7 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
   function draw() {
     pending = null;
     var text = textEl.value.length ? textEl.value : 'Grittier letters';
-    var r = FFS.render(current, text, params, seed, alternates);
+    var r = FFS.render(currentFont, current, text, params, seed, alternates);
     var pad = 40;
     var vb = [-pad, -r.ascender - pad, r.width + pad * 2, r.ascender - r.descender + pad * 2].join(' ');
     // font space is y-up; flip once here so every view can share the path
@@ -307,6 +352,11 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
   document.getElementById('panel').addEventListener('input', function (e) {
     var el = e.target;
     if (el.id === 'text') { schedule(); return; }
+    if (el.id === 'seed') {
+      setSeed(Number(el.value));
+      schedule();
+      return;
+    }
     if (el.id === 'alts') {
       alternates = Number(el.value);
       document.getElementById('o-alts').textContent = el.value;
@@ -323,15 +373,33 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
     schedule();
   });
 
+  function setSeed(v) {
+    seed = v;
+    var input = document.getElementById('seed');
+    var out = document.getElementById('o-seed');
+    if (input) input.value = v;
+    if (out) out.textContent = v;
+  }
+
   document.getElementById('reroll').addEventListener('click', function () {
-    seed = Math.floor(Math.random() * 1000000);
+    setSeed(Math.floor(Math.random() * 9999) + 1);
     schedule();
   });
+
+  var sideLeft = document.getElementById('side-left');
+  var sideRight = document.getElementById('side-right');
+  function setSide(right) {
+    document.getElementById('layout').classList.toggle('right', right);
+    sideRight.classList.toggle('is-on', right);
+    sideLeft.classList.toggle('is-on', !right);
+  }
+  sideLeft.addEventListener('click', function () { setSide(false); });
+  sideRight.addEventListener('click', function () { setSide(true); });
 
   document.getElementById('reset').addEventListener('click', function () {
     params = FFS.defaultParams(current);
     buildControls();
-    seed = 1337;
+    setSeed(1337);
     schedule();
   });
 

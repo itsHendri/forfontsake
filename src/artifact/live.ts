@@ -7,14 +7,19 @@ import { mulberry32 } from '../engine/prng'
 import { ringsToPathD } from '../engine/svg'
 import type { Ring } from '../engine/flatten'
 
-interface GlyphData {
+interface FontData {
+  label: string
+  note: string
+  reserved: string[]
   unitsPerEm: number
   ascender: number
   descender: number
   glyphs: Record<string, { adv: number; rings: number[][] }>
 }
 
-let data: GlyphData
+type Library = Record<string, FontData>
+
+let library: Library
 
 function toRings(flat: number[][]): Ring[] {
   return flat.map((r) => {
@@ -24,8 +29,23 @@ function toRings(flat: number[][]): Ring[] {
   })
 }
 
-export function init(glyphData: GlyphData) {
-  data = glyphData
+export function init(data: Library) {
+  library = data
+}
+
+/** id, label and note for each source font — enough to build a picker */
+export function listFonts() {
+  return Object.entries(library).map(([id, f]) => ({
+    id,
+    label: f.label,
+    note: f.note,
+    reserved: f.reserved,
+  }))
+}
+
+/** whether a treatment consumes randomness — decides if seed controls apply */
+export function isDeterministic(treatmentId: string): boolean {
+  return getTreatment(treatmentId).deterministic === true
 }
 
 export function listParams(treatmentId: string) {
@@ -56,6 +76,7 @@ export interface RenderResult {
  * distressed faces ship several cuts per letter for exactly this reason.
  */
 export function render(
+  fontId: string,
   treatmentId: string,
   text: string,
   params: ParamValues,
@@ -63,6 +84,7 @@ export function render(
   alternates = 1,
 ): RenderResult {
   const t0 = performance.now()
+  const data = library[fontId] ?? Object.values(library)[0]
   const treatment = getTreatment(treatmentId)
   const variants = treatment.deterministic ? 1 : Math.max(1, Math.round(alternates))
   const seen = new Map<string, number>()
