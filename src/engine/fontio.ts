@@ -67,9 +67,14 @@ interface FluxPoint {
   onCurve: boolean
 }
 
-/** contours come back as points flagged on/off curve; treatments work on polygons */
-function contoursToRings(contours: FluxPoint[][], flatten: (c: FluxPoint[]) => Ring): Ring[] {
-  return contours.map(flatten)
+/**
+ * Contours come back as points flagged on/off curve; treatments work on
+ * polygons. Note the explicit arrow — passing `flattenContour` straight to
+ * `map` hands it the array index as its second argument, which is the
+ * subdivision count, and silently drops every curve on the first contour.
+ */
+function contoursToRings(contours: FluxPoint[][]): Ring[] {
+  return contours.map((c) => flattenContour(c))
 }
 
 /**
@@ -79,7 +84,7 @@ function contoursToRings(contours: FluxPoint[][], flatten: (c: FluxPoint[]) => R
  * control point, and two consecutive off-curve points imply an on-curve point
  * midway between them.
  */
-function flattenContour(points: FluxPoint[], steps = 8): Ring {
+export function flattenContour(points: FluxPoint[], steps = 8): Ring {
   if (points.length === 0) return []
   const out: Ring = []
   const n = points.length
@@ -136,10 +141,35 @@ function flattenContour(points: FluxPoint[], steps = 8): Ring {
   return out
 }
 
+function signedArea(r: Ring): number {
+  let a = 0
+  for (let i = 0; i < r.length; i++) {
+    const p = r[i]
+    const q = r[(i + 1) % r.length]
+    a += p.x * q.y - q.x * p.y
+  }
+  return a / 2
+}
+
+/** collapsed slivers survive the boolean ops and only add noise to the glyph */
+const MIN_CONTOUR_AREA = 4
+
+/**
+ * TrueType fills the opposite way round to PostScript: outer contours run
+ * clockwise (negative area) and holes counter-clockwise. The path ops upstream
+ * work in the PostScript convention, so every contour is reversed on the way
+ * out. Get this wrong and counters fill solid while outers cancel — the glyph
+ * comes out looking shredded even though the geometry is correct.
+ */
 function ringsToContours(rings: Ring[]): FluxPoint[][] {
-  return rings
-    .filter((r) => r.length >= 3)
-    .map((r) => r.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y), onCurve: true })))
+  const out: FluxPoint[][] = []
+  for (const r of rings) {
+    if (r.length < 3) continue
+    if (Math.abs(signedArea(r)) < MIN_CONTOUR_AREA) continue
+    const reversed = [...r].reverse()
+    out.push(reversed.map((p) => ({ x: Math.round(p.x), y: Math.round(p.y), onCurve: true })))
+  }
+  return out
 }
 
 /**
@@ -188,7 +218,7 @@ export function buildTreatedFont({
         penX,
       }
 
-      let rings = contoursToRings(g.contours, flattenContour)
+      let rings = contoursToRings(g.contours)
       for (const { treatment, params } of steps) {
         rings = treatment.apply(rings, params, ctx)
         if (rings.length === 0) break

@@ -1,13 +1,11 @@
 import {
   difference,
-  inflatePaths,
   union,
   area,
   pointInPolygon,
   FillRule,
-  JoinType,
-  EndType,
   PointInPolygonResult,
+  type Path64,
   type Paths64,
 } from 'clipper2-ts'
 import { NoiseField } from '../noise'
@@ -16,40 +14,17 @@ import type { Ring } from '../flatten'
 import type { Treatment, ParamValues, TreatmentContext } from './types'
 
 /**
- * Grit — parametric erosion.
+ * Grit — erosion.
  *
- * Three layers, all driven by one amount:
- *   1. coherent-noise displacement of the outline (the edge stops being clean)
- *   2. bites taken out along the edge (ink starvation at the boundary)
- *   3. speckle holes in the interior (photocopy / riso dropout)
+ * Two things eat the letter: bites centred **on** the outline, which take
+ * chunks out of the silhouette, and holes through the body of the strokes.
  *
- * The rule that keeps it legible: erosion is allowed near the edge and
- * suppressed toward the middle of a stroke. Distressed faces die below display
- * size when the damage eats into stroke cores, so speckle is placed by distance
- * from the boundary rather than uniformly.
+ * Piece sizes are drawn log-uniformly rather than from a narrow band. Erosion
+ * that comes in one size reads as a texture swatch laid over the letter; real
+ * damage has a few big losses, more middling ones and a scatter of small ones,
+ * and it is that spread of scales that makes it look bitten rather than
+ * printed.
  */
-
-function ringDistanceToEdge(paths: Paths64, x: number, y: number): number {
-  // distance to the nearest outline segment; cheap enough at the sample counts
-  // grit uses, and exact, which a rasterised distance field would not be
-  let best = Infinity
-  for (const ring of paths) {
-    for (let i = 0; i < ring.length; i++) {
-      const a = ring[i]
-      const b = ring[(i + 1) % ring.length]
-      const dx = b.x - a.x
-      const dy = b.y - a.y
-      const len2 = dx * dx + dy * dy
-      let t = len2 > 0 ? ((x - a.x) * dx + (y - a.y) * dy) / len2 : 0
-      t = t < 0 ? 0 : t > 1 ? 1 : t
-      const px = a.x + dx * t
-      const py = a.y + dy * t
-      const d = Math.hypot(x - px, y - py)
-      if (d < best) best = d
-    }
-  }
-  return best
-}
 
 function isInside(paths: Paths64, x: number, y: number): boolean {
   let winding = 0
@@ -60,13 +35,52 @@ function isInside(paths: Paths64, x: number, y: number): boolean {
   return winding !== 0
 }
 
-/** a rough blob, used for both bites and speckle */
-function blob(cx: number, cy: number, radius: number, noise: NoiseField, sides = 7) {
-  const ring = []
+/** distance from a point to the nearest outline segment */
+function distanceToEdge(paths: Paths64, x: number, y: number): number {
+  let best = Infinity
+  for (const ring of paths) {
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i]
+      const b = ring[(i + 1) % ring.length]
+      const dx = b.x - a.x
+      const dy = b.y - a.y
+      const len2 = dx * dx + dy * dy
+      let t = len2 > 0 ? ((x - a.x) * dx + (y - a.y) * dy) / len2 : 0
+      t = t < 0 ? 0 : t > 1 ? 1 : t
+      const d = Math.hypot(x - (a.x + dx * t), y - (a.y + dy * t))
+      if (d < best) best = d
+    }
+  }
+  return best
+}
+
+/**
+ * Log-uniform size in [base/spread, base*spread].
+ *
+ * A plain uniform draw clusters everything around the mean, which is what made
+ * every piece look the same size. Log-uniform gives equal weight to each octave
+ * of scale, so big and small pieces both actually show up.
+ */
+function scaleSpread(base: number, spread: number, rng: () => number): number {
+  if (spread <= 1) return base
+  const lo = Math.log(base / spread)
+  const hi = Math.log(base * spread)
+  return Math.exp(lo + (hi - lo) * rng())
+}
+
+/** an irregular blob — never a circle, and lumpier the larger it is */
+function blob(cx: number, cy: number, radius: number, noise: NoiseField, rng: () => number): Path64 {
+  const sides = Math.max(6, Math.min(14, Math.round(6 + radius / (SCALE * 6))))
+  const phase = rng() * Math.PI * 2
+  const ring: Path64 = []
   for (let i = 0; i < sides; i++) {
-    const ang = (i / sides) * Math.PI * 2
-    const wobble = 0.6 + 0.5 * (noise.sample(cx / 800 + Math.cos(ang), cy / 800 + Math.sin(ang)) * 0.5 + 0.5)
-    const r = radius * wobble
+    const ang = phase + (i / sides) * Math.PI * 2
+    // two noise lookups at different frequencies keep the outline from
+    // settling into a regular polygon
+    const coarse = noise.sample(cx / 1400 + Math.cos(ang) * 1.6, cy / 1400 + Math.sin(ang) * 1.6)
+    const fine = noise.sample(cx / 320 + Math.cos(ang) * 3.1, cy / 320 + Math.sin(ang) * 3.1)
+    const wobble = 1 + coarse * 0.45 + fine * 0.22
+    const r = radius * Math.max(0.3, wobble)
     ring.push({ x: Math.round(cx + Math.cos(ang) * r), y: Math.round(cy + Math.sin(ang) * r) })
   }
   return ring
@@ -75,14 +89,16 @@ function blob(cx: number, cy: number, radius: number, noise: NoiseField, sides =
 export const grit: Treatment = {
   id: 'grit',
   name: 'Grit',
-  blurb: 'Erosion — the edge breaks up, ink starves, the surface speckles.',
+  blurb: 'Erosion — chunks bitten out of the edge, holes eaten through the strokes.',
   params: [
-    { key: 'amount', label: 'grit', min: 0, max: 100, step: 1, default: 45, note: 'drives all three layers' },
-    { key: 'scale', label: 'texture scale', min: 4, max: 120, step: 2, default: 34, note: 'size of the disruption' },
-    { key: 'bite', label: 'edge bites', min: 0, max: 100, step: 1, default: 50 },
-    { key: 'speckle', label: 'interior speckle', min: 0, max: 100, step: 1, default: 40 },
-    { key: 'protect', label: 'protect stroke cores', min: 0, max: 100, step: 1, default: 55, note: 'keeps it legible small' },
-    { key: 'simplify', label: 'simplify', min: 0, max: 4, step: 0.1, default: 0.8 },
+    { key: 'amount', label: 'grit', min: 0, max: 100, step: 1, default: 55, note: 'how much is eaten away' },
+    { key: 'scale', label: 'piece size', min: 5, max: 160, step: 1, default: 70, note: 'average size of a loss' },
+    { key: 'variation', label: 'size variation', min: 1, max: 6, step: 0.1, default: 3.2, note: 'spread of big to small' },
+    { key: 'bite', label: 'edge bites', min: 0, max: 100, step: 1, default: 70 },
+    { key: 'speckle', label: 'holes', min: 0, max: 100, step: 1, default: 60 },
+    { key: 'protect', label: 'protect stroke cores', min: 0, max: 100, step: 1, default: 25, note: '0 erodes everywhere' },
+    { key: 'roughen', label: 'edge roughen', min: 0, max: 100, step: 1, default: 35, note: 'wander in the outline' },
+    { key: 'simplify', label: 'simplify', min: 0, max: 4, step: 0.1, default: 0.6 },
   ],
 
   apply(rings: Ring[], p: ParamValues, ctx: TreatmentContext): Ring[] {
@@ -93,84 +109,109 @@ export const grit: Treatment = {
     const amount = p.amount / 100
     if (amount <= 0) return rings
 
-    const noise = new NoiseField(ctx.rng)
+    const rng = ctx.rng
+    const noise = new NoiseField(rng)
     const em = ctx.unitsPerEm
-    const featureSize = (p.scale / 1000) * em * SCALE
-    const bounds = boundsOf(glyph)
+    // piece size is a fraction of the em, so it reads the same on any face
+    const piece = (p.scale / 1000) * em * SCALE
+    const spread = p.variation
 
-    // --- layer 1: coherent displacement of the outline ---------------------
-    // resample first, or the noise has almost no points to act on
-    const dense = resample(glyph, Math.max(p.scale / 3, 3))
-    const maxShift = amount * featureSize * 0.16
-    const displaced: Paths64 = dense.map((ring) =>
-      ring.map((pt) => {
-        const nx = noise.fractal(pt.x / featureSize, pt.y / featureSize, 2)
-        const ny = noise.fractal((pt.x + 9173) / featureSize, (pt.y - 4271) / featureSize, 2)
-        return {
-          x: Math.round(pt.x + nx * maxShift),
-          y: Math.round(pt.y + ny * maxShift),
-        }
-      }),
-    )
-    let result = union(displaced, FillRule.NonZero)
-    if (result.length === 0) result = glyph
+    // --- outline roughening ------------------------------------------------
+    // Low amplitude on purpose: this is the wander in an inked edge, not the
+    // erosion. The bites below do the visible damage.
+    let result = glyph
+    const roughen = (p.roughen / 100) * amount
+    if (roughen > 0) {
+      const dense = resample(glyph, Math.max(p.scale / 4, 3))
+      const shift = roughen * piece * 0.12
+      const wandered: Paths64 = dense.map((ring) =>
+        ring.map((pt) => ({
+          x: Math.round(pt.x + noise.fractal(pt.x / piece, pt.y / piece, 2) * shift),
+          y: Math.round(pt.y + noise.fractal((pt.x + 9173) / piece, (pt.y - 4271) / piece, 2) * shift),
+        })),
+      )
+      const merged = union(wandered, FillRule.NonZero)
+      if (merged.length > 0) result = merged
+    }
 
-    // --- layer 2: bites along the edge -------------------------------------
-    const biteAmount = (p.bite / 100) * amount
-    if (biteAmount > 0) {
-      // walk a ring just inside the outline and subtract blobs straddling it
-      const edge = inflatePaths(result, -featureSize * 0.15, JoinType.Round, EndType.Polygon)
-      const cutters: Paths64 = []
-      const spacing = featureSize * (1.5 - biteAmount * 0.8)
-      for (const ring of edge.length > 0 ? edge : result) {
-        let carried = 0
+    const cutters: Paths64 = []
+
+    // --- bites, centred on the outline -------------------------------------
+    // Centring on the boundary is the whole point: a blob straddling the edge
+    // removes a chunk of the silhouette. Placed inside it would only carve a
+    // groove parallel to the edge, which reads as a pinstripe rather than
+    // erosion.
+    const bite = (p.bite / 100) * amount
+    if (bite > 0) {
+      const spacing = piece * (1.1 - bite * 0.55)
+      for (const ring of result) {
+        let carried = rng() * spacing
         for (let i = 0; i < ring.length; i++) {
           const a = ring[i]
           const b = ring[(i + 1) % ring.length]
           const segLen = Math.hypot(b.x - a.x, b.y - a.y)
-          carried += segLen
-          if (carried < spacing) continue
-          carried = 0
-          if (ctx.rng() > 0.35 + biteAmount * 0.55) continue
-          const r = featureSize * (0.18 + ctx.rng() * 0.4) * biteAmount
-          if (r < SCALE) continue
-          cutters.push(blob(a.x, a.y, r, noise))
+          if (segLen < 1e-6) continue
+          let walked = 0
+          while (carried + segLen - walked >= spacing) {
+            walked += spacing - carried
+            carried = 0
+            const f = walked / segLen
+            const px = a.x + (b.x - a.x) * f
+            const py = a.y + (b.y - a.y) * f
+            if (rng() > 0.25 + bite * 0.7) continue
+            const r = scaleSpread(piece * 0.5 * bite, spread, rng)
+            if (r < SCALE * 1.5) continue
+            // nudge the centre across the boundary so some bites cut deep and
+            // others only nick the edge
+            const off = (rng() - 0.35) * r * 0.8
+            const nx = -(b.y - a.y) / segLen
+            const ny = (b.x - a.x) / segLen
+            cutters.push(blob(px + nx * off, py + ny * off, r, noise, rng))
+          }
+          carried += segLen - walked
         }
-      }
-      if (cutters.length > 0) {
-        result = difference(result, union(cutters, FillRule.NonZero), FillRule.NonZero)
       }
     }
 
-    // --- layer 3: interior speckle, biased away from stroke cores -----------
-    const speckleAmount = (p.speckle / 100) * amount
-    if (speckleAmount > 0 && result.length > 0) {
-      const protect = (p.protect / 100) * featureSize * 1.2
-      const cutters: Paths64 = []
-      const step = featureSize * (1.4 - speckleAmount * 0.7)
-      const jitter = step * 0.5
-      for (let y = bounds.minY; y <= bounds.maxY; y += step) {
-        for (let x = bounds.minX; x <= bounds.maxX; x += step) {
-          const px = x + (ctx.rng() - 0.5) * jitter
-          const py = y + (ctx.rng() - 0.5) * jitter
+    // --- holes through the strokes -----------------------------------------
+    const speckle = (p.speckle / 100) * amount
+    if (speckle > 0) {
+      const bounds = boundsOf(result)
+      const step = piece * (1.2 - speckle * 0.6)
+      const jitter = step * 0.8
+      // `protect` biases holes toward the edge rather than banning them from
+      // the middle — at 0 the whole stroke is fair game
+      const protect = p.protect / 100
+      for (let y = bounds.minY - step; y <= bounds.maxY + step; y += step) {
+        for (let x = bounds.minX - step; x <= bounds.maxX + step; x += step) {
+          const px = x + (rng() - 0.5) * jitter
+          const py = y + (rng() - 0.5) * jitter
           if (!isInside(result, px, py)) continue
-          const d = ringDistanceToEdge(result, px, py)
-          // deep inside a stroke is protected; the falloff is what keeps the
-          // face readable once it is set small
-          if (d > protect) continue
-          const nearness = protect > 0 ? 1 - d / protect : 1
-          if (ctx.rng() > nearness * speckleAmount * 0.9) continue
-          const r = featureSize * (0.06 + ctx.rng() * 0.18) * speckleAmount
-          if (r < SCALE * 0.6) continue
-          cutters.push(blob(px, py, r, noise, 6))
+          let chance = speckle * 0.85
+          if (protect > 0) {
+            // deeper inside a stroke is less likely to be holed, but never immune
+            const d = distanceToEdge(result, px, py)
+            const depth = Math.min(1, d / (piece * 1.6))
+            chance *= 1 - protect * depth * 0.85
+          }
+          if (rng() > chance) continue
+          const r = scaleSpread(piece * 0.3 * speckle, spread, rng)
+          if (r < SCALE) continue
+          cutters.push(blob(px, py, r, noise, rng))
         }
-      }
-      if (cutters.length > 0) {
-        result = difference(result, union(cutters, FillRule.NonZero), FillRule.NonZero)
       }
     }
 
-    result = dropTinyAreas(result, (featureSize / SCALE) * (featureSize / SCALE) * 0.02)
+    if (cutters.length > 0) {
+      const merged = union(cutters, FillRule.NonZero)
+      const eaten = difference(result, merged, FillRule.NonZero)
+      // if a glyph is small enough that the grit would consume it, keep it
+      if (eaten.length > 0 && Math.abs(eaten.reduce((s, r) => s + area(r), 0)) > 0) {
+        result = eaten
+      }
+    }
+
+    result = dropTinyAreas(result, (piece / SCALE) * (piece / SCALE) * 0.01)
     result = simplify(result, p.simplify)
     return pathsToRings(result)
   },

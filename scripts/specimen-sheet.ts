@@ -29,10 +29,10 @@ const base = defaults(treatment)
 const rows: { label: string; params: Partial<ParamValues> }[] = JSON.parse(
   args.rows ??
     JSON.stringify([
-      { label: 'grit 25 — weathered', params: { amount: 25 } },
-      { label: 'grit 45 — stamped', params: { amount: 45 } },
-      { label: 'grit 70 — photocopied', params: { amount: 70 } },
-      { label: 'grit 70, coarse — destroyed', params: { amount: 70, scale: 70 } },
+      { label: 'grit 40', params: { amount: 40 } },
+      { label: 'grit 60', params: { amount: 60 } },
+      { label: 'grit 80', params: { amount: 80 } },
+      { label: 'grit 80, bigger pieces', params: { amount: 80, scale: 85, variation: 4.5 } },
     ]),
 )
 
