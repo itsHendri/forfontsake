@@ -23,6 +23,7 @@ const glyphData = readFileSync('out/glyph-data.json', 'utf8')
 // Vite emits hashed asset URLs; each is read off disk and pasted in place, so
 // the published file depends on nothing it cannot carry itself.
 let inlined = 0
+let fontsInlined = 0
 
 html = html.replace(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/g, (whole, src: string) => {
   const path = join(DIST, src.replace(/^\//, ''))
@@ -33,6 +34,23 @@ html = html.replace(/<script\b[^>]*\bsrc="([^"]+)"[^>]*><\/script>/g, (whole, sr
   return `<script type="module">${code}</script>`
 })
 
+/**
+ * The preview font subsets carry the metrics the specimen field types on, so a
+ * published page without them puts the caret in the wrong place. They are a few
+ * KB each, which is worth spending to keep the page self-contained.
+ */
+function inlineFonts(css: string): string {
+  return css.replace(/url\(\s*["']?(\/fonts\/[^"')]+\.woff2)["']?\s*\)/g, (whole, ref: string) => {
+    const path = join('public', ref.replace(/^\//, ''))
+    if (!existsSync(path)) {
+      console.warn(`  missing ${ref} — the published caret will drift on that font`)
+      return whole
+    }
+    fontsInlined++
+    return `url(data:font/woff2;base64,${readFileSync(path).toString('base64')})`
+  })
+}
+
 html = html.replace(
   /<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"]+)"[^>]*>/g,
   (whole, href: string) => {
@@ -40,7 +58,7 @@ html = html.replace(
     const path = join(DIST, href.replace(/^\//, ''))
     if (!existsSync(path)) return whole
     inlined++
-    return `<style>${readFileSync(path, 'utf8')}</style>`
+    return `<style>${inlineFonts(readFileSync(path, 'utf8'))}</style>`
   },
 )
 
@@ -51,5 +69,5 @@ mkdirSync('out', { recursive: true })
 writeFileSync(OUT, html)
 console.log(
   `wrote ${OUT} — ${(html.length / 1024).toFixed(0)} KB, ${inlined} assets inlined, ` +
-    `${(glyphData.length / 1024).toFixed(0)} KB of outlines`,
+    `${fontsInlined} preview fonts, ${(glyphData.length / 1024).toFixed(0)} KB of outlines`,
 )

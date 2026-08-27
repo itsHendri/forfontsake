@@ -1,26 +1,18 @@
 import { Dial } from './Dial'
-import type { Library } from '../lib/glyphData'
 import type { ParamValues, Preset, Treatment } from '../engine/treatments/registry'
 
 interface Props {
-  library: Library
-  treatments: Treatment[]
-  fontId: string
   treatment: Treatment
   params: ParamValues
   seed: number
   alternates: number
-  text: string
-  onFont: (id: string) => void
-  onTreatment: (id: string) => void
   onParam: (key: string, value: number) => void
   onPreset: (preset: Preset) => void
   onSeed: (seed: number) => void
   onAlternates: (n: number) => void
-  onText: (text: string) => void
   onRandomise: () => void
   onReset: () => void
-  onKeep: () => void
+  onSave: () => void
 }
 
 /** a preset is only "on" while the dials still match it exactly */
@@ -28,6 +20,15 @@ function matches(preset: Preset, params: ParamValues) {
   return Object.keys(preset.values).every((k) => params[k] === preset.values[k])
 }
 
+/**
+ * Every treatment lays its controls out in the same order — actions, presets,
+ * dials, then the rest — so switching treatments moves the values without
+ * moving the furniture. Cuts and seed come last because they are the same two
+ * controls on every treatment that has them, rather than part of the effect.
+ *
+ * Font, treatment and the specimen text are not here: they belong to the plate,
+ * with the type they change.
+ */
 export function Panel(p: Props) {
   const specs = p.treatment.params
   const primary = specs.filter((s) => s.primary)
@@ -37,95 +38,22 @@ export function Panel(p: Props) {
 
   return (
     <form className="panel" onSubmit={(e) => e.preventDefault()}>
-      <div className="ctl">
-        <div className="ctl-head">
-          <label htmlFor="text">Text</label>
-        </div>
-        <input
-          id="text"
-          type="text"
-          value={p.text}
-          onChange={(e) => p.onText(e.target.value)}
-          autoComplete="off"
-          spellCheck={false}
-        />
-      </div>
-
-      <div className="ctl">
-        <div className="ctl-head">
-          <label htmlFor="font">Font</label>
-        </div>
-        <select id="font" value={p.fontId} onChange={(e) => p.onFont(e.target.value)}>
-          {Object.entries(p.library).map(([id, f]) => (
-            <option key={id} value={id}>
-              {f.label} — {f.note}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="ctl">
-        <div className="ctl-head">
-          <label htmlFor="treatment">Treatment</label>
-        </div>
-        <select
-          id="treatment"
-          value={p.treatment.id}
-          onChange={(e) => p.onTreatment(e.target.value)}
-        >
-          {p.treatments.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-        <p className="ctl-note">{p.treatment.blurb}</p>
-      </div>
-
       <div className="row">
-        <button type="button" onClick={p.onRandomise} disabled={!random} title={
-          random ? 'Move the seed to a new value' : 'This treatment has no randomness'
-        }>
+        <button
+          type="button"
+          onClick={p.onRandomise}
+          disabled={!random}
+          title={random ? 'Move the seed to a new value' : 'This treatment has no randomness'}
+        >
           Randomise
         </button>
         <button type="button" onClick={p.onReset}>
           Reset
         </button>
-        <button type="button" onClick={p.onKeep}>
-          Keep
+        <button type="button" className="save" onClick={p.onSave}>
+          Save
         </button>
       </div>
-
-      {random && (
-        <>
-          <Dial
-            spec={{
-              key: 'alternates',
-              label: 'Cuts per letter',
-              min: 1,
-              max: 5,
-              step: 1,
-              default: 3,
-              note: 'how many versions of each letter cycle as you type',
-            }}
-            value={p.alternates}
-            onChange={p.onAlternates}
-          />
-          <Dial
-            spec={{
-              key: 'seed',
-              label: 'Random seed',
-              min: 1,
-              max: 9999,
-              step: 1,
-              default: 1337,
-              note: 'Randomise just moves this. Same seed, same letters.',
-            }}
-            value={p.seed}
-            onChange={p.onSeed}
-          />
-        </>
-      )}
 
       {p.treatment.presets && p.treatment.presets.length > 0 && (
         <div className="group">
@@ -159,7 +87,7 @@ export function Panel(p: Props) {
 
       {rest.length > 0 && (
         <details>
-          <summary>More</summary>
+          <summary>More dials</summary>
           <div className="group">
             {rest.map((spec) => (
               <Dial
@@ -171,6 +99,38 @@ export function Panel(p: Props) {
             ))}
           </div>
         </details>
+      )}
+
+      {random && (
+        <div className="group randomness">
+          <h2>Randomness</h2>
+          <Dial
+            spec={{
+              key: 'alternates',
+              label: 'Cuts per letter',
+              min: 1,
+              max: 5,
+              step: 1,
+              default: 3,
+              note: 'how many versions of each letter cycle as you type',
+            }}
+            value={p.alternates}
+            onChange={p.onAlternates}
+          />
+          <Dial
+            spec={{
+              key: 'seed',
+              label: 'Seed',
+              min: 1,
+              max: 9999,
+              step: 1,
+              default: 1337,
+              note: 'Randomise just moves this. Same seed, same letters.',
+            }}
+            value={p.seed}
+            onChange={p.onSeed}
+          />
+        </div>
       )}
     </form>
   )

@@ -23,7 +23,7 @@ export function Shelf({ kept, onRestore, onForget }: Props) {
 
   return (
     <section className="shelf">
-      <h2>Kept</h2>
+      <h2>Saved styles</h2>
       <div className="shelf-strip">
         {kept.map((k) => {
           const pad = 40
@@ -35,7 +35,7 @@ export function Shelf({ kept, onRestore, onForget }: Props) {
           ].join(' ')
           return (
             <div className="kept" key={k.id}>
-              <button type="button" onClick={() => onRestore(k.state)} title="Restore this">
+              <button type="button" onClick={() => onRestore(k.state)} title="Restore this style">
                 <svg viewBox={box} height="44" role="img" aria-label={`Restore ${k.state.text}`}>
                   <g transform="scale(1,-1)">
                     <path d={k.result.d} />

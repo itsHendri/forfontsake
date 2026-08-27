@@ -1,7 +1,8 @@
 #!/usr/bin/env tsx
 // Extracts flattened outlines for every source font so the live page can run
 // the engine without shipping a font parser.
-import { readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
 import { FontFlux } from 'font-flux-js'
 import { decomposeGlyph } from '../src/engine/fontio'
 import { medianStrokeWidth, STROKE_SAMPLE_CHARS } from '../src/engine/measure'
@@ -58,6 +59,48 @@ const SOURCES: Source[] = [
 ]
 
 const out: Record<string, unknown> = {}
+
+/**
+ * The workbench types into a transparent input laid over the treated outlines,
+ * so the caret only lands between the right letters if the browser lays that
+ * text out on the source font's own advance widths. These subsets exist to
+ * supply those metrics — never to be seen. Cut to the preview charset they come
+ * to a few KB each, small enough to inline in the published page.
+ */
+const PREVIEW_DIR = 'public/fonts/preview'
+const FONTTOOLS = '.venv/bin/fonttools'
+
+function subsetPreviewFont(src: Source): boolean {
+  if (!existsSync(FONTTOOLS)) return false
+  try {
+    execFileSync(
+      FONTTOOLS,
+      [
+        'subset',
+        src.file,
+        `--text=${CHARSET}`,
+        '--flavor=woff2',
+        '--layout-features=',
+        '--no-hinting',
+        '--desubroutinize',
+        `--output-file=${PREVIEW_DIR}/${src.id}.woff2`,
+      ],
+      { stdio: 'pipe' },
+    )
+    return true
+  } catch (e) {
+    console.warn(`  could not subset ${src.id}: ${String(e).slice(0, 120)}`)
+    return false
+  }
+}
+
+mkdirSync(PREVIEW_DIR, { recursive: true })
+if (!existsSync(FONTTOOLS)) {
+  console.warn(
+    'fonttools not found — preview fonts not rebuilt. The hero caret needs them;\n' +
+      'see the README for the venv setup.',
+  )
+}
 
 for (const src of SOURCES) {
   if (!existsSync(src.file)) {
@@ -117,10 +160,12 @@ for (const src of SOURCES) {
     descender: font.info.descender ?? -200,
     glyphs,
   }
+  const subset = subsetPreviewFont(src)
   console.log(
     `${src.label.padEnd(16)} upm ${String(font.info.unitsPerEm).padStart(4)}  ` +
       `stroke ${strokeWidth.toFixed(0).padStart(4)}  ` +
-      `${Object.keys(glyphs).length} glyphs${missing ? `, ${missing} missing` : ''}`,
+      `${Object.keys(glyphs).length} glyphs${missing ? `, ${missing} missing` : ''}` +
+      `${subset ? '' : '  (no preview font)'}`,
   )
 }
 

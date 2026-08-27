@@ -29,6 +29,7 @@ button.
 | **Workbench** | The live page where you turn dials. A React app in `src/`. |
 | **Source font** | The font a treatment is applied to. Seven ship with the tool; all OFL. |
 | **Cut** | One randomised version of a letter. Several cuts per letter stop a word looking stamped. |
+| **Plate** | The specimen block at the top of the workbench: the type, and the two choices that define it. |
 
 ## Treatments
 
@@ -54,12 +55,13 @@ npm install
 python3 -m venv .venv && ./.venv/bin/pip install opentype-sanitizer fonttools uharfbuzz
 ```
 
-The Python environment is for verification only — the app itself needs none of it.
+The Python environment is for verification, and for cutting the metrics-only font
+subsets the workbench's specimen field needs. The app itself needs none of it at runtime.
 
 | Command | What it does |
 | --- | --- |
 | `npm run dev` | The workbench, with hot reload. The normal way to work on it. |
-| `npm run build:workbench` | Builds the self-contained page into `out/workbench.html`, for publishing. |
+| `npm run build:workbench` | Builds the self-contained page into `out/workbench.html`, for publishing. Also recuts the preview font subsets. |
 | `npm run build:font -- --treatment=grit --alts=3` | Headless font build. See flags below. |
 | `npm run verify:font -- out/Font.ttf Pirata` | Gates a font on seven checks. |
 | `npm run typecheck` | App and test configs. Never use bare `tsc --noEmit`. |
@@ -105,10 +107,28 @@ src/engine/
   fontio.ts       open a font, treat every glyph, write a new one
   gsub.ts         our own GSUB writer
   sfnt.ts         add and remove tables from a finished binary
-src/lib/          browser-side glue: glyph data, render, URL state
-src/components/   Panel, Dial, Stage, Shelf
+src/lib/
+  glyphData.ts    outlines shipped as data, so no font parser reaches the browser
+  render.ts       one line of type, and the whole glyph set, as SVG paths
+  urlState.ts     the whole workbench state, encoded into the address bar
+src/components/
+  Plate.tsx       the specimen — and the field you type it into
+  Panel.tsx       presets and dials, in one order for every treatment
+  GlyphGrid.tsx   every glyph in the face, on shared baselines
+  Waterfall.tsx   the same line at seven sizes
+  Dial.tsx        one parameter, with its default marked on the track
+  Shelf.tsx       saved styles
+public/fonts/preview/   metrics-only subsets — never seen, see below
 scripts/          build, verify and comparison tooling
 ```
+
+**You type into the specimen itself.** The big line is not a preview of a field
+somewhere else. A transparent input lies over the treated outlines, so the caret,
+selection, click-to-position and every keyboard behaviour are the browser's own. That
+only works because the field lays its text out on the source font's advance widths —
+which is what `public/fonts/preview/*.woff2` are for. They are a few KB each, cut to the
+preview charset by `make-glyph-data`, and never rendered. Because treatments preserve
+advance widths, the field and the outlines agree to the pixel on all seven faces.
 
 **Sizes are shares of the stroke, not the em.** A parameter of 100 means one stem width.
 The bundled fonts range from 11% to 20% of the em in weight, so an em-relative setting means

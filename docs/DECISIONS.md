@@ -180,6 +180,7 @@ rewriter's head checksum validating against the spec's magic constant.
 | `requestAnimationFrame` in preview pages | Controls appear dead | rAF is suspended in hidden and background tabs. Use a timer. |
 | Stale bundle | Engine edits appear to do nothing | `build:workbench` chains glyph data → Vite → inlined HTML for exactly this reason. Always run it after engine changes before publishing. |
 | Bare `tsc --noEmit` | Passes while broken | The root tsconfig has `files: []` and checks nothing. Use `npm run typecheck`. |
+| `Object.entries` on a glyph map | The specimen grid opened on the digits | JavaScript hoists integer-like keys to the front of an object, so `"0"`–`"9"` come before `"A"`. Iterate an explicit order. |
 | Test fixtures that lie | A correct change fails a test | A stem fixture declared a 120-unit stroke while being 160 wide. Make fixtures self-consistent before doubting the code. |
 
 ---
@@ -211,6 +212,42 @@ It is now a normal Vite app. `scripts/inline-build.ts` folds the build output �
 stylesheet and glyph outlines — into a single self-contained file for publishing, because an
 artifact has no server to fetch from. The app reads `window.__GLYPH_DATA__` when it is
 present and falls back to fetching, so the same code serves both.
+
+## The specimen is the input
+
+The obvious build is a text field that drives a preview. It is also the wrong one: it puts
+the thing you are editing and the thing you are judging in two different places, and the
+field ends up small and off to one side, which is exactly the complaint that started this
+rework.
+
+So the big line *is* the field. A transparent `<input>` sits over the treated outlines,
+which means the caret, selection, click-to-position, double-click-a-word, IME and mobile
+keyboards are all the browser's own — none of it reimplemented.
+
+That only holds if the browser lays the text out on the same advance widths the outlines
+were drawn with. Two things make it true. Treatments preserve advance widths, which the
+font verification already tested for its own reasons; and the source faces are shipped as
+metrics-only woff2 subsets in `public/fonts/preview/`, cut to the preview charset, applied
+to the field and never actually seen. Measured across all seven faces the field's text
+width and the drawn outline width agree exactly — a delta of 0.0 px.
+
+The vertical half is measured rather than derived. A hidden probe span with a zero-height
+strut reports where the text baseline actually falls in real layout, and the outlines are
+positioned against that. Deriving it from `ascender`/`descender` instead would mean
+guessing which of hhea, OS/2 typo or OS/2 win metrics the browser chose, and being wrong
+on some faces. The plate carries a little padding above the line so faces whose ascenders
+overshoot their own line box — Pacifico by about 2 px at display size — are not clipped.
+
+## One order for every treatment
+
+Controls are laid out in the same sequence whatever treatment is loaded: actions, presets,
+dials, more dials, then randomness. Switching treatments moves the values without moving
+the furniture.
+
+Cuts per letter and seed come last and are grouped apart, because they are the same two
+controls on every treatment that has them rather than part of any particular effect. They
+disappear entirely on deterministic treatments instead of sitting there implying an effect
+they cannot have.
 
 ## Where to look next
 
