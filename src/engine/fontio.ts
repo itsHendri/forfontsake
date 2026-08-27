@@ -2,6 +2,7 @@ import { FontFlux } from 'font-flux-js'
 import { mulberry32 } from './prng'
 import { pointCount } from './paths'
 import { medianStrokeWidth, STROKE_SAMPLE_CHARS } from './measure'
+import { stripTables, listTables } from './sfnt'
 import { getTreatment, type ParamValues, type TreatmentContext } from './treatments/registry'
 import type { Ring } from './flatten'
 
@@ -57,6 +58,8 @@ export interface BuildResult {
   bytes: Uint8Array
   /** measured median stem width of the source, in font units */
   strokeWidth: number
+  /** true when substitutions had to be dropped to produce a valid font */
+  droppedSubstitutions: boolean
   glyphCount: number
   treatedCount: number
   maxPoints: number
@@ -336,7 +339,16 @@ export function buildTreatedFont({
   // — and it stays discarded even if the names are re-applied afterwards. So
   // validate the bytes we actually produced, by reopening them, which is the
   // stronger check regardless.
-  const bytes = new Uint8Array(font.export({ format: 'ttf' }))
+  let bytes = new Uint8Array(font.export({ format: 'ttf' }))
+
+  // Font Flux rebuilds GSUB from its own model and, for any font with real
+  // features, writes one the OpenType Sanitiser rejects — which makes browsers
+  // refuse the font entirely. Nothing in its API removes the data, so the table
+  // is cut from the finished binary. Kerning lives in GPOS and survives;
+  // ligatures and alternates do not.
+  const droppedSubstitutions = listTables(bytes).includes('GSUB')
+  if (droppedSubstitutions) bytes = stripTables(bytes, ['GSUB'])
+
   const report = FontFlux.open(bytes).validate()
   if (!report.valid) {
     const detail = (report.errors ?? report.issues ?? []).slice(0, 3).join('; ')
@@ -346,6 +358,7 @@ export function buildTreatedFont({
   return {
     bytes,
     strokeWidth,
+    droppedSubstitutions,
     glyphCount: glyphs.length,
     treatedCount,
     maxPoints,

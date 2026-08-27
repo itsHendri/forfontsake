@@ -66,5 +66,7 @@ console.log(
   `built:     ${outPath}\n` +
     `           ${result.glyphCount} glyphs, ${result.treatedCount} treated, ` +
     `${(result.bytes.length / 1024).toFixed(1)} KB in ${((Date.now() - t0) / 1000).toFixed(1)}s\n` +
-    `points:    ${result.totalPoints} total, max ${result.maxPoints} on "${result.maxPointsGlyph}"`,
+    `points:    ${result.totalPoints} total, max ${result.maxPoints} on "${result.maxPointsGlyph}"\n` +
+    `stroke:    ${result.strokeWidth.toFixed(0)} units` +
+    (result.droppedSubstitutions ? '\nnote:      GSUB dropped — ligatures lost, kerning kept' : ''),
 )

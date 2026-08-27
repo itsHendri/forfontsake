@@ -47,6 +47,14 @@ const SOURCES: Source[] = [
     reserved: ['UnifrakturCook'],
     note: 'Heavy blackletter',
   },
+  {
+    id: 'abrilfatface',
+    label: 'Abril Fatface',
+    file: 'public/fonts/abrilfatface/font.ttf',
+    reserved: [],
+    note: 'High-contrast serif',
+  },
+  { id: 'pacifico', label: 'Pacifico', file: 'public/fonts/pacifico/font.ttf', reserved: [], note: 'Script' },
 ]
 
 const out: Record<string, unknown> = {}
