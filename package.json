@@ -6,13 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint",
-    "preview": "vite preview",
+    "build:font": "tsx scripts/build-font.ts",
+    "build:workbench": "tsx scripts/make-glyph-data.ts && cp out/glyph-data.json public/glyph-data.json && vite build && tsx scripts/inline-build.ts",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
     "verify:font": "node scripts/verify-font.mjs",
-    "build:font": "tsx scripts/build-font.ts",
-    "build:workbench": "tsx scripts/make-glyph-data.ts && esbuild src/artifact/live.ts --bundle --format=iife --global-name=FFS --minify --outfile=out/live-bundle.js && tsx scripts/make-live-artifact.ts"
+    "lint": "oxlint",
+    "preview": "vite preview"
   },
   "dependencies": {
     "clipper2-ts": "^2.0.1-18",
@@ -40,5 +40,5 @@
     "vitest": "^4.1.11"
   },
   "license": "GPL-3.0-only",
-  "description": "Interactive type foundry \u2014 apply parametric treatments to a font and export a real, installable, correctly-licensed derivative."
+  "description": "Interactive type foundry — apply parametric treatments to a font and export a real, installable, correctly-licensed derivative."
 }
