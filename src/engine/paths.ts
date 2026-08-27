@@ -1,8 +1,11 @@
 import {
   union,
   ramerDouglasPeuckerPaths,
+  inflatePaths,
   area,
   FillRule,
+  JoinType,
+  EndType,
   type Paths64,
 } from 'clipper2-ts'
 import type { Ring } from './flatten'
@@ -92,4 +95,44 @@ export function resample(paths: Paths64, spacing: number): Paths64 {
     }
     return out
   })
+}
+
+/**
+ * Round both convex and concave corners.
+ *
+ * Two passes, because a single offset only rounds one kind: shrinking then
+ * growing rounds the outside and eats thin spurs; growing then shrinking fills
+ * notches and rounds the inside. Bubble lettering needs both or the corners
+ * stay sharp exactly where a marker nib would have rounded them.
+ */
+/**
+ * How finely a round join is approximated. Clipper's default is proportional to
+ * the offset, which at our working scale emits far more segments than a font
+ * can show — one font unit of error is already invisible, and the segment count
+ * is what makes repeated offsetting slow.
+ */
+const ARC_TOLERANCE = SCALE
+
+export function roundPaths(paths: Paths64, radiusUnits: number): Paths64 {
+  if (radiusUnits <= 0 || paths.length === 0) return paths
+  const r = radiusUnits * SCALE
+  const off = (src: Paths64, delta: number) =>
+    inflatePaths(src, delta, JoinType.Round, EndType.Polygon, 2, ARC_TOLERANCE)
+  const opened = off(off(paths, -r), r)
+  const source = opened.length > 0 ? opened : paths
+  const closed = off(off(source, r), -r)
+  return closed.length > 0 ? closed : source
+}
+
+/** grow (or shrink, if negative) a shape by an even amount all round */
+export function grow(paths: Paths64, units: number, join: JoinType = JoinType.Round): Paths64 {
+  if (units === 0 || paths.length === 0) return paths
+  const out = inflatePaths(paths, units * SCALE, join, EndType.Polygon, 2.5, ARC_TOLERANCE)
+  return out.length > 0 ? out : paths
+}
+
+export function shift(paths: Paths64, dx: number, dy: number): Paths64 {
+  const x = dx * SCALE
+  const y = dy * SCALE
+  return paths.map((r) => r.map((p) => ({ x: Math.round(p.x + x), y: Math.round(p.y + y) })))
 }

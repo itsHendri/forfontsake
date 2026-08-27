@@ -1,28 +1,11 @@
 #!/usr/bin/env tsx
 // Builds the live specimen page: the real engine bundled in, driven by sliders.
 import { readFileSync, writeFileSync } from 'node:fs'
-import { getTreatment, defaults } from '../src/engine/treatments/registry'
 
 const bundle = readFileSync('out/live-bundle.js', 'utf8')
 const glyphData = readFileSync('out/glyph-data.json', 'utf8')
 
-const grit = getTreatment('grit')
-const initial = defaults(grit)
-
-const control = (p: (typeof grit.params)[number]) => `
-        <div class="ctl" data-key="${p.key}">
-          <div class="ctl-head">
-            <label for="c-${p.key}">${p.label}</label>
-            <output id="o-${p.key}">${initial[p.key]}</output>
-          </div>
-          <input type="range" id="c-${p.key}" min="${p.min}" max="${p.max}" step="${p.step}" value="${initial[p.key]}">
-          ${p.note ? `<p class="ctl-note">${p.note}</p>` : ''}
-        </div>`
-
-const primary = grit.params.filter((p) => p.primary).map(control).join('')
-const advanced = grit.params.filter((p) => !p.primary).map(control).join('')
-
-const html = `<title>Grit Workbench</title>
+const html = `<title>Treatment Workbench</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap">
@@ -65,6 +48,7 @@ h1{font-weight:600;font-size:29px;line-height:1.2;margin:0 0 10px;letter-spacing
   text-transform:uppercase;color:var(--muted);margin:0;font-weight:500;
 }
 .ctl{display:flex;flex-direction:column;gap:5px}
+#dials,#more{display:flex;flex-direction:column;gap:18px}
 .ctl-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
 .ctl-head label{font-size:14px;font-weight:500}
 .ctl-head output{
@@ -110,6 +94,11 @@ input[type=text]{
   border:1px solid var(--rule);border-radius:2px;padding:8px 12px;width:100%;
 }
 input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
+select{
+  font:inherit;font-size:15px;color:var(--ink);background:var(--plate);
+  border:1px solid var(--rule);border-radius:2px;padding:8px 12px;width:100%;
+}
+select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
 
 .stage{
   background:var(--plate);border:1px solid var(--rule);border-radius:2px;
@@ -158,10 +147,10 @@ input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
 <div class="wrap">
   <header>
     <p class="eyebrow">For Font's Sake · workbench</p>
-    <h1>Grit, with the dials in your hands</h1>
+    <h1>Treatments, with the dials in your hands</h1>
     <p class="lede">This runs the actual treatment engine — every slider recomputes real glyph
-    geometry in the page, the same code that builds the exported font. Four dials up front, the
-    rest behind "more".</p>
+    geometry in the page, the same code that builds the exported font. Pick a treatment, then a
+    few dials up front with the rest behind "more".</p>
   </header>
 
   <div class="layout">
@@ -170,7 +159,12 @@ input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
         <div class="ctl-head"><label for="text">Text</label></div>
         <input type="text" id="text" value="Grittier letters" autocomplete="off" spellcheck="false">
       </div>
-      <div class="ctl" data-alt="1">
+      <div class="ctl">
+        <div class="ctl-head"><label for="treatment">Treatment</label></div>
+        <select id="treatment"></select>
+        <p class="ctl-note" id="blurb"></p>
+      </div>
+      <div class="ctl" id="alts-ctl">
         <div class="ctl-head">
           <label for="alts">Cuts per letter</label>
           <output id="o-alts">3</output>
@@ -179,10 +173,10 @@ input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
         <p class="ctl-note">how many versions of each letter cycle as you type</p>
       </div>
       <h2>Dials</h2>
-      ${primary}
-      <details>
+      <div id="dials"></div>
+      <details id="more-wrap">
         <summary>More</summary>
-        ${advanced}
+        <div id="more"></div>
       </details>
       <div class="row">
         <button type="button" id="reroll">Reroll</button>
@@ -206,8 +200,12 @@ input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
 
       <section class="foot">
         <h2>Where this still falls short</h2>
-        <p>Repeated letters now cycle through separate cuts — set <em>Cuts per letter</em> to 1 and
-        watch the double <em>t</em> in "Grittier letters" become a matched pair, then push it back up.</p>
+        <p><strong>Bubble</strong>, <strong>Outline</strong> and <strong>Extrude</strong> are the
+        graffiti trio — the Snooze One grid is mostly those three stacked in different colours.
+        They can't stack yet; each runs on its own, so judge them separately for now.</p>
+        <p>Repeated letters cycle through separate cuts — set <em>Cuts per letter</em> to 1 and watch
+        a doubled letter become a matched pair, then push it back up. It only shows on Grit, since
+        the other three are deterministic.</p>
         <p>The exported font doesn't carry these yet. Alternates in a real font need a GSUB feature
         that swaps each repeat for a different glyph — that's the next piece of work, and until it
         lands the download uses one cut per letter and this page is ahead of it.</p>
@@ -222,9 +220,43 @@ input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
   var DATA = ${glyphData};
   FFS.init(DATA);
 
-  var params = FFS.defaultParams('grit');
+  var current = 'grit';
+  var params = FFS.defaultParams(current);
   var seed = 1337;
   var alternates = 3;
+
+  var pick = document.getElementById('treatment');
+  var treatments = FFS.listTreatments();
+  pick.innerHTML = treatments.map(function (t) {
+    return '<option value="' + t.id + '">' + t.name + '</option>';
+  }).join('');
+
+  function buildControls() {
+    var specs = FFS.listParams(current);
+    var html = function (p) {
+      return '<div class="ctl" data-key="' + p.key + '">' +
+        '<div class="ctl-head"><label for="c-' + p.key + '">' + p.label + '</label>' +
+        '<output id="o-' + p.key + '">' + params[p.key] + '</output></div>' +
+        '<input type="range" id="c-' + p.key + '" min="' + p.min + '" max="' + p.max +
+        '" step="' + p.step + '" value="' + params[p.key] + '">' +
+        (p.note ? '<p class="ctl-note">' + p.note + '</p>' : '') +
+        '</div>';
+    };
+    var primary = specs.filter(function (p) { return p.primary; });
+    var rest = specs.filter(function (p) { return !p.primary; });
+    document.getElementById('dials').innerHTML = primary.map(html).join('');
+    document.getElementById('more').innerHTML = rest.map(html).join('');
+    document.getElementById('more-wrap').style.display = rest.length ? '' : 'none';
+    var t = treatments.filter(function (x) { return x.id === current; })[0];
+    document.getElementById('blurb').textContent = t ? t.blurb : '';
+  }
+
+  pick.addEventListener('change', function () {
+    current = pick.value;
+    params = FFS.defaultParams(current);
+    buildControls();
+    schedule();
+  });
   var SIZES = [{label:'48 px', px:48},{label:'28 px', px:28},{label:'17 px', px:17},{label:'11 px', px:11}];
 
   var stage = document.getElementById('stage');
@@ -240,7 +272,7 @@ input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
   function draw() {
     pending = null;
     var text = textEl.value.length ? textEl.value : 'Grittier letters';
-    var r = FFS.render('grit', text, params, seed, alternates);
+    var r = FFS.render(current, text, params, seed, alternates);
     var pad = 40;
     var vb = [-pad, -r.ascender - pad, r.width + pad * 2, r.ascender - r.descender + pad * 2].join(' ');
     // font space is y-up; flip once here so every view can share the path
@@ -297,17 +329,13 @@ input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
   });
 
   document.getElementById('reset').addEventListener('click', function () {
-    params = FFS.defaultParams('grit');
-    Object.keys(params).forEach(function (k) {
-      var input = document.getElementById('c-' + k);
-      var out = document.getElementById('o-' + k);
-      if (input) input.value = params[k];
-      if (out) out.textContent = params[k];
-    });
+    params = FFS.defaultParams(current);
+    buildControls();
     seed = 1337;
     schedule();
   });
 
+  buildControls();
   draw();
 })();
 </script>

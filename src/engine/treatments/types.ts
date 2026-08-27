@@ -42,6 +42,12 @@ export interface Treatment {
   blurb: string
   params: ParamSpec[]
   /**
+   * True when the same input always gives the same output. Alternates only
+   * make sense for treatments that consume randomness; computing several
+   * "variants" of a deterministic one just does the same work repeatedly.
+   */
+  deterministic?: boolean
+  /**
    * How much this treatment can grow a glyph beyond its outline, in font
    * units, given its parameters. The builder widens advance widths to match —
    * without this, a fattening treatment makes the font set solid.

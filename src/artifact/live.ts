@@ -2,7 +2,7 @@
  * Browser entry for the live specimen page: the real treatment engine, driven
  * by sliders, with glyph outlines supplied as data so no font parser ships.
  */
-import { getTreatment, defaults, type ParamValues } from '../engine/treatments/registry'
+import { getTreatment, defaults, listTreatments, type ParamValues } from '../engine/treatments/registry'
 import { mulberry32 } from '../engine/prng'
 import { ringsToPathD } from '../engine/svg'
 import type { Ring } from '../engine/flatten'
@@ -31,6 +31,8 @@ export function init(glyphData: GlyphData) {
 export function listParams(treatmentId: string) {
   return getTreatment(treatmentId).params
 }
+
+export { listTreatments }
 
 export function defaultParams(treatmentId: string): ParamValues {
   return defaults(getTreatment(treatmentId))
@@ -62,7 +64,7 @@ export function render(
 ): RenderResult {
   const t0 = performance.now()
   const treatment = getTreatment(treatmentId)
-  const variants = Math.max(1, Math.round(alternates))
+  const variants = treatment.deterministic ? 1 : Math.max(1, Math.round(alternates))
   const seen = new Map<string, number>()
   const cache = new Map<string, { rings: Ring[]; contours: number }>()
   let penX = 0
