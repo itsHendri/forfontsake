@@ -26,6 +26,13 @@ export const extrude: Treatment = {
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.5 },
   ],
 
+  presets: [
+    { name: 'Block', values: { depth: 70, angle: 315, layer: 0, simplify: 0.5 } },
+    { name: 'Long throw', values: { depth: 180, angle: 315, layer: 0, simplify: 0.6 } },
+    { name: 'Drop', values: { depth: 46, angle: 270, layer: 0, simplify: 0.5 } },
+    { name: 'Shade only', values: { depth: 90, angle: 315, layer: 1, simplify: 0.5 } },
+  ],
+
   growth(p) {
     return Math.round(p.depth)
   },

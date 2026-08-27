@@ -35,12 +35,24 @@ export interface TreatmentContext {
   penX: number
 }
 
+/**
+ * A named starting point. Names are things, not settings — "Photocopy" tells
+ * you what you are about to get in a way that "amount 70, piece 40" does not,
+ * and it is the difference between a tool that reads as a design object and one
+ * that reads as a control panel.
+ */
+export interface Preset {
+  name: string
+  values: ParamValues
+}
+
 export interface Treatment {
   id: string
   name: string
   /** one line, shown on the style card */
   blurb: string
   params: ParamSpec[]
+  presets?: Preset[]
   /**
    * True when the same input always gives the same output. Alternates only
    * make sense for treatments that consume randomness; computing several

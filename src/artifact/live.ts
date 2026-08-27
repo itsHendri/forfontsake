@@ -48,6 +48,11 @@ export function isDeterministic(treatmentId: string): boolean {
   return getTreatment(treatmentId).deterministic === true
 }
 
+/** named starting points for a treatment */
+export function listPresets(treatmentId: string) {
+  return getTreatment(treatmentId).presets ?? []
+}
+
 export function listParams(treatmentId: string) {
   return getTreatment(treatmentId).params
 }

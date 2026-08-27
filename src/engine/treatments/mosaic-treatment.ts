@@ -22,6 +22,12 @@ export const mosaic: Treatment = {
     { key: 'simplify', label: 'simplify', min: 0, max: 4, step: 0.1, default: 1.2 },
   ],
 
+  presets: [
+    { name: 'Calçada', values: { tileSize: 44, aspect: 1, grout: 8, groutJitter: 0.35, irregularity: 0.45, simplify: 1.2 } },
+    { name: 'Subway', values: { tileSize: 58, aspect: 1.3, grout: 6, groutJitter: 0.1, irregularity: 0.12, simplify: 1.2 } },
+    { name: 'Rubble', values: { tileSize: 36, aspect: 0.8, grout: 11, groutJitter: 0.8, irregularity: 0.95, simplify: 1.2 } },
+  ],
+
   apply(rings: Ring[], p: ParamValues, ctx: TreatmentContext): Ring[] {
     void ctx
     const { tiles } = mosaicGlyph(rings, {

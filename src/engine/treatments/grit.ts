@@ -100,6 +100,14 @@ export const grit: Treatment = {
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.6 },
   ],
 
+  presets: [
+    { name: 'Photocopy', values: { amount: 45, scale: 42, variation: 3.4, balance: 62, protect: 30, roughen: 30, simplify: 0.6 } },
+    { name: 'Sandblast', values: { amount: 62, scale: 22, variation: 2.2, balance: 55, protect: 15, roughen: 45, simplify: 0.5 } },
+    { name: 'Rust', values: { amount: 42, scale: 88, variation: 4.2, balance: 40, protect: 45, roughen: 35, simplify: 0.8 } },
+    { name: 'Woodcut', values: { amount: 34, scale: 82, variation: 2.6, balance: 12, protect: 55, roughen: 22, simplify: 0.9 } },
+    { name: 'Corroded', values: { amount: 74, scale: 58, variation: 5.2, balance: 50, protect: 12, roughen: 60, simplify: 0.6 } },
+  ],
+
   apply(rings: Ring[], p: ParamValues, ctx: TreatmentContext): Ring[] {
     if (rings.length === 0) return rings
     const glyph = normalise(rings)

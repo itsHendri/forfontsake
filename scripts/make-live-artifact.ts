@@ -120,6 +120,34 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
 }
 .meta b{color:var(--ink);font-weight:500;font-variant-numeric:tabular-nums}
 
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{
+  font:inherit;font-size:12px;padding:5px 11px;cursor:pointer;
+  color:var(--ink);background:var(--plate);
+  border:1px solid var(--rule);border-radius:2px;
+}
+.chip:hover{border-color:var(--ink)}
+.chip.is-on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+.shelf{margin-top:26px}
+.shelf-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.shelf-head h2{
+  font-family:"Roboto Mono",monospace;font-size:11px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--mark);margin:0;font-weight:500;
+}
+.shelf-strip{display:flex;gap:10px;overflow-x:auto;padding-bottom:6px}
+.kept{
+  flex:0 0 auto;background:var(--plate);border:1px solid var(--rule);border-radius:2px;
+  padding:8px;cursor:pointer;position:relative;
+}
+.kept:hover{border-color:var(--ink)}
+.kept svg{display:block;height:44px;width:auto}
+.kept path{fill:var(--ink)}
+.kept span{
+  display:block;font-family:"Roboto Mono",monospace;font-size:9px;
+  color:var(--muted);margin-top:5px;white-space:nowrap;
+}
+
 .sizes{margin-top:26px}
 .sizes h2{
   font-family:"Roboto Mono",monospace;font-size:11px;letter-spacing:.16em;
@@ -200,6 +228,8 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
         <input type="range" id="seed" min="1" max="9999" step="1" value="1337">
         <p class="ctl-note">Randomise just moves this. Same seed, same letters.</p>
       </div>
+      <h2>Presets</h2>
+      <div class="chips" id="presets"></div>
       <h2>Dials</h2>
       <div id="dials"></div>
       <details id="more-wrap">
@@ -217,6 +247,14 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
         <span>redraw <b id="m-ms">—</b></span>
       </div>
 
+      <section class="shelf" id="shelf-wrap" hidden>
+        <div class="shelf-head">
+          <h2>Kept</h2>
+          <button type="button" id="keep">Keep this one</button>
+        </div>
+        <div class="shelf-strip" id="shelf"></div>
+      </section>
+
       <section class="sizes">
         <h2>Same font, smaller</h2>
         <div class="size-grid" id="sizes"></div>
@@ -224,6 +262,9 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
 
       <section class="foot">
         <h2>Where this still falls short</h2>
+        <p>The address bar carries the whole state, so a setting you like is a link you can send or
+        bookmark. <em>Keep this one</em> parks a result in the strip above; clicking it puts every
+        control back where it was.</p>
         <p>Only Grit uses randomness, so the seed and cuts controls hide themselves for the others —
         Bubble, Outline and Extrude give the same result every time from the same dials.</p>
         <p>Treatments still run one at a time. Stacking them is possible in the engine but not wired
@@ -266,6 +307,43 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
 
   var this_is_deterministic = 'This treatment has no randomness — the same dials always give the same letters';
 
+  function applyPreset(values) {
+    Object.keys(values).forEach(function (k) { params[k] = values[k]; });
+    syncControls();
+    markPreset();
+    schedule();
+  }
+
+  function syncControls() {
+    Object.keys(params).forEach(function (k) {
+      var input = document.getElementById('c-' + k);
+      var out = document.getElementById('o-' + k);
+      if (input) input.value = params[k];
+      if (out) out.textContent = params[k];
+    });
+  }
+
+  // highlight a preset only while the dials still match it exactly
+  function markPreset() {
+    var chips = document.querySelectorAll('#presets .chip');
+    var presets = FFS.listPresets(current);
+    for (var i = 0; i < chips.length; i++) {
+      var v = presets[i] ? presets[i].values : null;
+      var same = v && Object.keys(v).every(function (k) { return params[k] === v[k]; });
+      chips[i].classList.toggle('is-on', !!same);
+    }
+  }
+
+  function buildPresets() {
+    var presets = FFS.listPresets(current);
+    var host = document.getElementById('presets');
+    host.innerHTML = presets.map(function (p, i) {
+      return '<button type="button" class="chip" data-preset="' + i + '">' + p.name + '</button>';
+    }).join('');
+    host.parentElement.querySelector('h2').style.display = presets.length ? '' : 'none';
+    host.style.display = presets.length ? '' : 'none';
+  }
+
   function buildControls() {
     var specs = FFS.listParams(current);
     var html = function (p) {
@@ -291,6 +369,8 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
     document.getElementById('reroll').disabled = !random;
     document.getElementById('m-seed-wrap').style.display = random ? '' : 'none';
     document.getElementById('m-alts-wrap').style.display = random ? '' : 'none';
+    buildPresets();
+    markPreset();
     document.getElementById('reroll').title = random
       ? 'Move the seed to a new random value'
       : this_is_deterministic;
@@ -329,6 +409,7 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
     document.getElementById('m-ms').textContent = Math.round(r.ms) + ' ms';
     document.getElementById('m-seed').textContent = seed;
     document.getElementById('m-alts').textContent = alternates;
+    writeUrl();
 
     // the same geometry shown small — no recompute, so this is free
     var cells = sizesEl.querySelectorAll('svg');
@@ -381,6 +462,91 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
     if (out) out.textContent = v;
   }
 
+  document.getElementById('presets').addEventListener('click', function (e) {
+    var chip = e.target.closest('.chip');
+    if (!chip) return;
+    var preset = FFS.listPresets(current)[Number(chip.dataset.preset)];
+    if (preset) applyPreset(preset.values);
+  });
+
+  // ---- keeping results ---------------------------------------------------
+  var kept = [];
+  function stateNow() {
+    return {
+      font: currentFont, treatment: current, seed: seed,
+      alts: alternates, text: textEl.value, params: JSON.parse(JSON.stringify(params)),
+    };
+  }
+  function keepCurrent() {
+    var last = document.querySelector('#stage').innerHTML;
+    var vb = document.getElementById('stage').getAttribute('viewBox');
+    kept.unshift({ state: stateNow(), svg: last, vb: vb });
+    if (kept.length > 12) kept.pop();
+    renderShelf();
+  }
+  function renderShelf() {
+    var wrap = document.getElementById('shelf-wrap');
+    wrap.hidden = kept.length === 0;
+    document.getElementById('shelf').innerHTML = kept.map(function (k, i) {
+      var t = FFS.listTreatments().filter(function (x) { return x.id === k.state.treatment; })[0];
+      return '<div class="kept" data-kept="' + i + '" title="Restore this">' +
+        '<svg viewBox="' + k.vb + '" height="44">' + k.svg + '</svg>' +
+        '<span>' + (t ? t.name : k.state.treatment) + ' · ' + k.state.seed + '</span></div>';
+    }).join('');
+  }
+  document.getElementById('keep').addEventListener('click', keepCurrent);
+  document.getElementById('shelf').addEventListener('click', function (e) {
+    var cell = e.target.closest('.kept');
+    if (!cell) return;
+    restore(kept[Number(cell.dataset.kept)].state);
+  });
+
+  function restore(st) {
+    currentFont = st.font;
+    current = st.treatment;
+    params = JSON.parse(JSON.stringify(st.params));
+    alternates = st.alts;
+    fontPick.value = currentFont;
+    pick.value = current;
+    textEl.value = st.text;
+    document.getElementById('alts').value = alternates;
+    document.getElementById('o-alts').textContent = alternates;
+    buildControls();
+    setSeed(st.seed);
+    schedule();
+  }
+
+  // ---- shareable state ---------------------------------------------------
+  function writeUrl() {
+    var st = stateNow();
+    var packed = [st.font, st.treatment, st.seed, st.alts,
+      Object.keys(st.params).map(function (k) { return k + ':' + st.params[k]; }).join(','),
+      encodeURIComponent(st.text)].join('|');
+    try { history.replaceState(null, '', '#' + packed); } catch (err) { /* not fatal */ }
+  }
+
+  function readUrl() {
+    var raw = location.hash.replace(/^#/, '');
+    if (!raw) return false;
+    var bits = raw.split('|');
+    if (bits.length < 6) return false;
+    try {
+      var st = {
+        font: bits[0], treatment: bits[1], seed: Number(bits[2]), alts: Number(bits[3]),
+        text: decodeURIComponent(bits[5]), params: {},
+      };
+      FFS.listParams(st.treatment); // throws on an unknown treatment
+      bits[4].split(',').forEach(function (pair) {
+        var kv = pair.split(':');
+        st.params[kv[0]] = Number(kv[1]);
+      });
+      restore(st);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
   document.getElementById('reroll').addEventListener('click', function () {
     setSeed(Math.floor(Math.random() * 9999) + 1);
     schedule();
@@ -404,7 +570,7 @@ select:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
   });
 
   buildControls();
-  draw();
+  if (!readUrl()) draw();
 })();
 </script>
 `

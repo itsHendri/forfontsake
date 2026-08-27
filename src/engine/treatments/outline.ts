@@ -24,6 +24,13 @@ export const outline: Treatment = {
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.4 },
   ],
 
+  presets: [
+    { name: 'Hollow', values: { mode: 0, weight: 26, inset: 0, rounding: 0, simplify: 0.4 } },
+    { name: 'Hairline', values: { mode: 1, weight: 6, inset: 0, rounding: 0, simplify: 0.3 } },
+    { name: 'Inline', values: { mode: 2, weight: 14, inset: -6, rounding: 0, simplify: 0.4 } },
+    { name: 'Halo', values: { mode: 0, weight: 18, inset: 30, rounding: 24, simplify: 0.5 } },
+  ],
+
   growth(p) {
     // only the outward-facing styles push past the original silhouette
     const outward = p.mode === 2 ? 0 : p.weight / 2 + Math.max(0, p.inset)
