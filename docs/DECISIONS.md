@@ -178,7 +178,7 @@ rewriter's head checksum validating against the spec's magic constant.
 | TrueType winding | Counters fill, outers cancel | TrueType fills opposite to PostScript: outer contours clockwise. Reverse on the way out. |
 | `font.validate()` | Name changes silently reverted | It resyncs `info` from stored source tables, permanently. Export first, then validate the produced bytes. |
 | `requestAnimationFrame` in preview pages | Controls appear dead | rAF is suspended in hidden and background tabs. Use a timer. |
-| Stale bundle | Engine edits appear to do nothing | `build:workbench` chains glyph data → esbuild → HTML for exactly this reason. Always run it after engine changes. |
+| Stale bundle | Engine edits appear to do nothing | `build:workbench` chains glyph data → Vite → inlined HTML for exactly this reason. Always run it after engine changes before publishing. |
 | Bare `tsc --noEmit` | Passes while broken | The root tsconfig has `files: []` and checks nothing. Use `npm run typecheck`. |
 | Test fixtures that lie | A correct change fails a test | A stem fixture declared a 120-unit stroke while being 160 wide. Make fixtures self-consistent before doubting the code. |
 
@@ -218,10 +218,10 @@ Highest value first, from the competitive research:
 
 1. **Amount master slider** lerping source → preset. Lightroom shipped this after a paid
    plugin filled the gap for years.
-3. **Hover a preset to preview it** on the main canvas. Nearly free here because the engine
+2. **Hover a preset to preview it** on the main canvas. Nearly free here because the engine
    is client-side and deterministic; expensive for everyone else.
-4. **Slider craft**: drag on the label not the number, `Shift` for fine, a tick on the track
-   showing the default.
-5. **In-browser export**, so the workbench and the download are the same path.
-6. **Licence panel at font upload** — read the source's `name` table and `fsType`, show
+3. **Slider craft**: drag on the label not the number, `Shift` for fine. The tick on the
+   track showing the default is done.
+4. **In-browser export**, so the workbench and the download are the same path.
+5. **Licence panel at font upload** — read the source's `name` table and `fsType`, show
    open / unknown / restricted. Nobody in the category does this.
