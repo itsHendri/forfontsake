@@ -168,7 +168,15 @@ input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
     <form class="panel" id="panel" onsubmit="return false">
       <div class="ctl">
         <div class="ctl-head"><label for="text">Text</label></div>
-        <input type="text" id="text" value="LisbonTag" autocomplete="off" spellcheck="false">
+        <input type="text" id="text" value="Grittier letters" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="ctl" data-alt="1">
+        <div class="ctl-head">
+          <label for="alts">Cuts per letter</label>
+          <output id="o-alts">3</output>
+        </div>
+        <input type="range" id="alts" min="1" max="5" step="1" value="3">
+        <p class="ctl-note">how many versions of each letter cycle as you type</p>
       </div>
       <h2>Dials</h2>
       ${primary}
@@ -186,6 +194,7 @@ input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
       <div class="stage"><svg id="stage" role="img" aria-label="Live specimen"></svg></div>
       <div class="meta">
         <span>seed <b id="m-seed">1337</b></span>
+        <span>cuts <b id="m-alts">3</b></span>
         <span>contours <b id="m-contours">—</b></span>
         <span>redraw <b id="m-ms">—</b></span>
       </div>
@@ -197,10 +206,11 @@ input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
 
       <section class="foot">
         <h2>Where this still falls short</h2>
-        <p>Every instance of a letter erodes identically — the seed is tied to the character, so
-        two <em>o</em>s in a word are twins. Real distressed faces ship several cut variants per
-        letter and rotate between them. That's the next thing worth fixing.</p>
-        <p>Find settings you like and I'll build them into an installable font.</p>
+        <p>Repeated letters now cycle through separate cuts — set <em>Cuts per letter</em> to 1 and
+        watch the double <em>t</em> in "Grittier letters" become a matched pair, then push it back up.</p>
+        <p>The exported font doesn't carry these yet. Alternates in a real font need a GSUB feature
+        that swaps each repeat for a different glyph — that's the next piece of work, and until it
+        lands the download uses one cut per letter and this page is ahead of it.</p>
       </section>
     </main>
   </div>
@@ -214,6 +224,7 @@ input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
 
   var params = FFS.defaultParams('grit');
   var seed = 1337;
+  var alternates = 3;
   var SIZES = [{label:'48 px', px:48},{label:'28 px', px:28},{label:'17 px', px:17},{label:'11 px', px:11}];
 
   var stage = document.getElementById('stage');
@@ -228,8 +239,8 @@ input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
 
   function draw() {
     pending = null;
-    var text = textEl.value.length ? textEl.value : 'LisbonTag';
-    var r = FFS.render('grit', text, params, seed);
+    var text = textEl.value.length ? textEl.value : 'Grittier letters';
+    var r = FFS.render('grit', text, params, seed, alternates);
     var pad = 40;
     var vb = [-pad, -r.ascender - pad, r.width + pad * 2, r.ascender - r.descender + pad * 2].join(' ');
     // font space is y-up; flip once here so every view can share the path
@@ -240,6 +251,7 @@ input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
     document.getElementById('m-contours').textContent = r.contours;
     document.getElementById('m-ms').textContent = Math.round(r.ms) + ' ms';
     document.getElementById('m-seed').textContent = seed;
+    document.getElementById('m-alts').textContent = alternates;
 
     // the same geometry shown small — no recompute, so this is free
     var cells = sizesEl.querySelectorAll('svg');
@@ -263,6 +275,12 @@ input[type=text]:focus-visible{outline:2px solid var(--mark);outline-offset:1px}
   document.getElementById('panel').addEventListener('input', function (e) {
     var el = e.target;
     if (el.id === 'text') { schedule(); return; }
+    if (el.id === 'alts') {
+      alternates = Number(el.value);
+      document.getElementById('o-alts').textContent = el.value;
+      schedule();
+      return;
+    }
     var ctl = el.closest('.ctl');
     if (!ctl) return;
     var key = ctl.getAttribute('data-key');

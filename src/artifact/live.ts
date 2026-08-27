@@ -45,15 +45,26 @@ export interface RenderResult {
   ms: number
 }
 
-/** run the treatment over a string and return one SVG path */
+/**
+ * Run the treatment over a string and return one SVG path.
+ *
+ * `alternates` is how many differently-cut versions of each letter exist. With
+ * one, every `o` in a word is identical and the eye reads the repetition as a
+ * pattern; with three, they cycle and the line stops looking stamped. Real
+ * distressed faces ship several cuts per letter for exactly this reason.
+ */
 export function render(
   treatmentId: string,
   text: string,
   params: ParamValues,
   seed: number,
+  alternates = 1,
 ): RenderResult {
   const t0 = performance.now()
   const treatment = getTreatment(treatmentId)
+  const variants = Math.max(1, Math.round(alternates))
+  const seen = new Map<string, number>()
+  const cache = new Map<string, { rings: Ring[]; contours: number }>()
   let penX = 0
   let d = ''
   let contours = 0
@@ -62,17 +73,26 @@ export function render(
     const g = data.glyphs[ch]
     if (!g) continue
     if (g.rings.length > 0) {
-      // seed from the character, so the same letter erodes the same way
-      // wherever it appears in the word
-      const charSeed = seed + (ch.codePointAt(0) ?? 0) * 7919
-      const out = treatment.apply(toRings(g.rings), params, {
-        rng: mulberry32(charSeed),
-        unitsPerEm: data.unitsPerEm,
-        advanceWidth: g.adv,
-        penX,
-      })
-      contours += out.length
-      d += ringsToPathD(out, penX, 0)
+      // cycle through the cuts as a letter repeats
+      const nth = seen.get(ch) ?? 0
+      seen.set(ch, nth + 1)
+      const variant = nth % variants
+
+      const key = ch + '/' + variant
+      let entry = cache.get(key)
+      if (!entry) {
+        const charSeed = seed + (ch.codePointAt(0) ?? 0) * 7919 + variant * 104729
+        const rings = treatment.apply(toRings(g.rings), params, {
+          rng: mulberry32(charSeed),
+          unitsPerEm: data.unitsPerEm,
+          advanceWidth: g.adv,
+          penX,
+        })
+        entry = { rings, contours: rings.length }
+        cache.set(key, entry)
+      }
+      contours += entry.contours
+      d += ringsToPathD(entry.rings, penX, 0)
     }
     penX += g.adv
   }
