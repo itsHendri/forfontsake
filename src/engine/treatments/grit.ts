@@ -91,14 +91,13 @@ export const grit: Treatment = {
   name: 'Grit',
   blurb: 'Erosion — chunks bitten out of the edge, holes eaten through the strokes.',
   params: [
-    { key: 'amount', label: 'grit', min: 0, max: 100, step: 1, default: 55, note: 'how much is eaten away' },
-    { key: 'scale', label: 'piece size', min: 5, max: 160, step: 1, default: 70, note: 'average size of a loss' },
-    { key: 'variation', label: 'size variation', min: 1, max: 6, step: 0.1, default: 3.2, note: 'spread of big to small' },
-    { key: 'bite', label: 'edge bites', min: 0, max: 100, step: 1, default: 70 },
-    { key: 'speckle', label: 'holes', min: 0, max: 100, step: 1, default: 60 },
-    { key: 'protect', label: 'protect stroke cores', min: 0, max: 100, step: 1, default: 25, note: '0 erodes everywhere' },
-    { key: 'roughen', label: 'edge roughen', min: 0, max: 100, step: 1, default: 35, note: 'wander in the outline' },
-    { key: 'simplify', label: 'simplify', min: 0, max: 4, step: 0.1, default: 0.6 },
+    { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, default: 55, note: 'how much is eaten away', primary: true },
+    { key: 'scale', label: 'Piece size', min: 5, max: 160, step: 1, default: 70, note: 'average size of a loss', primary: true },
+    { key: 'variation', label: 'Unevenness', min: 1, max: 6, step: 0.1, default: 3.2, note: 'how far sizes spread apart', primary: true },
+    { key: 'balance', label: 'Edge / body', min: 0, max: 100, step: 1, default: 50, note: 'bites off the edge vs holes through the middle', primary: true },
+    { key: 'protect', label: 'Protect cores', min: 0, max: 100, step: 1, default: 25, note: '0 erodes everywhere' },
+    { key: 'roughen', label: 'Edge wander', min: 0, max: 100, step: 1, default: 35 },
+    { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.6 },
   ],
 
   apply(rings: Ring[], p: ParamValues, ctx: TreatmentContext): Ring[] {
@@ -141,10 +140,20 @@ export const grit: Treatment = {
     // removes a chunk of the silhouette. Placed inside it would only carve a
     // groove parallel to the edge, which reads as a pinstripe rather than
     // erosion.
-    const bite = (p.bite / 100) * amount
+    // one dial slides between eating the edge and holing the middle; at the
+    // midpoint both run at full strength
+    const balance = p.balance / 100
+    const biteMix = 1 - Math.max(0, (balance - 0.5) * 2)
+    const speckleMix = 1 - Math.max(0, (0.5 - balance) * 2)
+
+    const bite = biteMix * amount
     if (bite > 0) {
-      const spacing = piece * (1.1 - bite * 0.55)
+      const baseSpacing = piece * (1.1 - bite * 0.55)
+      // Evenly spaced bites betray the algorithm however irregular each one is,
+      // so the gap itself is redrawn every time.
+      const nextGap = () => baseSpacing * (0.35 + rng() * 1.5)
       for (const ring of result) {
+        let spacing = nextGap()
         let carried = rng() * spacing
         for (let i = 0; i < ring.length; i++) {
           const a = ring[i]
@@ -158,15 +167,22 @@ export const grit: Treatment = {
             const f = walked / segLen
             const px = a.x + (b.x - a.x) * f
             const py = a.y + (b.y - a.y) * f
-            if (rng() > 0.25 + bite * 0.7) continue
+            if (rng() > 0.25 + bite * 0.7) {
+              spacing = nextGap()
+              continue
+            }
             const r = scaleSpread(piece * 0.5 * bite, spread, rng)
-            if (r < SCALE * 1.5) continue
+            if (r < SCALE * 1.5) {
+              spacing = nextGap()
+              continue
+            }
             // nudge the centre across the boundary so some bites cut deep and
             // others only nick the edge
             const off = (rng() - 0.35) * r * 0.8
             const nx = -(b.y - a.y) / segLen
             const ny = (b.x - a.x) / segLen
             cutters.push(blob(px + nx * off, py + ny * off, r, noise, rng))
+            spacing = nextGap()
           }
           carried += segLen - walked
         }
@@ -174,7 +190,7 @@ export const grit: Treatment = {
     }
 
     // --- holes through the strokes -----------------------------------------
-    const speckle = (p.speckle / 100) * amount
+    const speckle = speckleMix * amount
     if (speckle > 0) {
       const bounds = boundsOf(result)
       const step = piece * (1.2 - speckle * 0.6)

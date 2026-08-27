@@ -11,6 +11,11 @@ export interface ParamSpec {
   default: number
   /** short hint shown under the control */
   note?: string
+  /**
+   * Front-of-house controls. A treatment should expose three or four of these;
+   * everything else lives behind "more" so the common case stays a few dials.
+   */
+  primary?: boolean
 }
 
 export type ParamValues = Record<string, number>
