@@ -1,0 +1,39 @@
+{
+  "name": "forfontsake",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "test": "vitest run",
+    "verify:font": "node scripts/verify-font.mjs",
+    "build:font": "tsx scripts/build-font.ts"
+  },
+  "dependencies": {
+    "clipper2-ts": "^2.0.1-18",
+    "d3-delaunay": "^6.0.4",
+    "jszip": "^3.10.1",
+    "opentype.js": "^2.0.0",
+    "poisson-disk-sampling": "^2.3.1",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/d3-delaunay": "^6.0.4",
+    "@types/node": "^24.13.3",
+    "@types/opentype.js": "^1.3.10",
+    "@types/poisson-disk-sampling": "^2.2.4",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "oxlint": "^1.79.0",
+    "tsx": "^4.23.12",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
+  }
+}
