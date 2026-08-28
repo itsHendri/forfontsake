@@ -85,9 +85,14 @@ sit in `public/`, where Vite shipped 4.4 MB of it to every visitor.
 
 ## Design source of truth
 
-Figma: `https://www.figma.com/design/TKbuhH0KFYuVEagpqcweRC` — in the **SwissBorg org**
-drafts (the only Figma plan on the account), and its document name reads as "Document"
-because the API cannot set it. Page *Build* is the shipped design; page *Variations* has
+Figma: `https://www.figma.com/design/TKbuhH0KFYuVEagpqcweRC` — its document name reads as
+"Document" because the API cannot set it.
+
+> **Access warning.** This file sits in the **SwissBorg org**, and that employment ends
+> Monday. Once the account is deactivated the file goes with it, along with the Figma MCP
+> connection here, which authenticates as `hendri@swissborg.com`. Duplicate it to a personal
+> Figma account, or archive the frames to SVG, before then. The vector type is reproducible
+> from `scripts/figma-export.ts`; the layout work in it is not. Page *Build* is the shipped design; page *Variations* has
 three, of which **C (export + saved styles) was chosen and is what shipped**. Variation B's
 idea — plate full width, waterfall beside the rail — is still unbuilt and is the best
 candidate for the next layout pass.

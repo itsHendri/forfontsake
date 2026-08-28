@@ -71,32 +71,41 @@ the pieces are there.
 A static site with no backend can go almost anywhere, so the decision is about constraints
 rather than capability.
 
-| Option | Fit | Notes |
-| --- | --- | --- |
-| **Cloudflare Pages** | Very good | Free tier, custom domain + TLS included, generous bandwidth, good for a 500 KB payload. |
-| **GitHub Pages** | Good | The repo is already public on GitHub; custom domains and TLS work. Simplest possible path. |
-| **Netlify / Vercel** | Good technically | See the caveat below before choosing either. |
+**Decided: GitHub Pages.** The repo is already public there, it is free for public repos
+including the custom domain and automatic TLS, and it needs no new account. Cloudflare Pages
+would work equally well; its advantage is bandwidth headroom this will not reach.
 
-**A caveat that is yours to weigh, not mine.** SwissBorg's engineering policy says not to
-use third-party services where SwissBorg has no company account — naming Netlify and Vercel
-specifically — to build, host or deploy apps. The stated reason is keeping user and company
-data out of tools the company cannot control. This project is personal, on a personal
-domain, and contains no SwissBorg data of any kind, so the *reason* does not apply; the
-*rule as written* still names those two services. There is also a Vercel connector attached
-to this working environment, which may be a company account. Given that, Cloudflare Pages or
-GitHub Pages avoid the question entirely and cost nothing. If you want Vercel or Netlify,
-that is a reasonable call on a personal project — just make it knowingly and with a personal
-account.
+### Serve it from the domain root, from the very first deploy
+
+**This is the one setup detail that bites.** The app assumes it is served from `/` — the
+`@font-face` rules in `src/index.css` point at `/fonts/preview/*.woff2` absolutely, and
+`index.html` at `/favicon.svg`. Vite's `base` is unset, i.e. `/`.
+
+- `forfontsake.xyz` at the apex → served from `/` → correct with no changes.
+- `itshendri.github.io/forfontsake/` → served from a subpath → those URLs 404.
+
+The subpath failure is **silent and misleading**. Those preview fonts are the metrics-only
+subsets the specimen field depends on; without them the field falls back to system metrics
+and the caret drifts away from the letters it is supposed to sit between, with nothing
+logged. Anyone debugging that without knowing would go looking in `Plate.tsx`, which is the
+wrong place entirely.
+
+So attach the custom domain as part of the first deploy rather than testing on the github.io
+URL first. If a subpath deploy is ever genuinely wanted, set Vite's `base` **and** convert
+those absolute CSS URLs — changing one without the other reproduces exactly this bug.
 
 ### Roughly what it takes
 
-1. Build: `npm run build` → `dist/`.
-2. Point the host at the repo, build command `npm run build`, output directory `dist`.
-   (Note: `npm run build:workbench` is the *artifact* build — do not use it for the site.)
-3. Add `forfontsake.xyz` as a custom domain and follow the host's DNS instructions
-   (usually a CNAME, or A/AAAA records at the apex). TLS is automatic on all three.
-4. Check the deployed page actually exports a font — that is the one thing worth clicking
-   before announcing anything.
+1. Build: `npm run build` → `dist/`. (Note: `npm run build:workbench` is the *artifact*
+   build — do not use it for the site.)
+2. A GitHub Actions workflow that builds and publishes `dist/` to Pages on push to `main`.
+   The Python venv is not needed in CI — it is only for `verify:font` and for recutting the
+   preview subsets, and both outputs are committed.
+3. Add `forfontsake.xyz` in the repo's Pages settings, commit a `CNAME` file, and point DNS
+   at GitHub (four `A` records at the apex, or `ALIAS`/`ANAME` if the registrar supports it;
+   `www` as a `CNAME`). Enable *Enforce HTTPS* once the certificate is issued.
+4. Then click Download on the deployed site. It is the one thing worth checking before
+   telling anyone the site exists.
 
 ---
 
