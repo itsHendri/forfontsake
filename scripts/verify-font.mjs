@@ -3,7 +3,7 @@
 // round-trip (better diagnostics when OTS only says "invalid"), plus the
 // Reserved Font Name byte scan the OFL requires of a renamed derivative.
 import { execFileSync } from 'node:child_process'
-import { existsSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 
@@ -107,19 +107,68 @@ step('naming fields + reserved font names', () => {
 if (report) {
   const src = process.env.VERIFY_AGAINST
   if (src && existsSync(src)) {
+    // Glyph *count* is not parity: --alts=N adds real glyphs by design. What has
+    // to hold is the em square, the characters the font still renders, and the
+    // width of every glyph the two fonts share.
     step('metrics match source', () => {
       const PY = join(root, '.venv/bin/python3')
-      const srcReport = JSON.parse(
-        execFileSync(PY, [join(root, 'scripts/name_check.py'), src], { stdio: ['ignore', 'pipe', 'pipe'] }).toString(),
+      const m = JSON.parse(
+        execFileSync(PY, [join(root, 'scripts/metrics_check.py'), fontPath, src], {
+          stdio: ['ignore', 'pipe', 'pipe'],
+        }).toString(),
       )
+      const some = (list, render, max = 6) =>
+        list
+          .slice(0, max)
+          .map(render)
+          .join(', ') + (list.length > max ? `, +${list.length - max} more` : '')
+
       const diffs = []
-      if (srcReport.unitsPerEm !== report.unitsPerEm)
-        diffs.push(`unitsPerEm ${report.unitsPerEm} != ${srcReport.unitsPerEm}`)
-      if (srcReport.glyphCount !== report.glyphCount)
-        diffs.push(`glyphCount ${report.glyphCount} != ${srcReport.glyphCount}`)
-      if (srcReport.cmapCount !== report.cmapCount) diffs.push(`cmap ${report.cmapCount} != ${srcReport.cmapCount}`)
+      if (m.unitsPerEm.source !== m.unitsPerEm.derivative)
+        diffs.push(`unitsPerEm ${m.unitsPerEm.derivative} != ${m.unitsPerEm.source}`)
+      if (m.lostCodepoints.length)
+        diffs.push(`cmap lost ${m.lostCodepoints.length} codepoints: ${some(m.lostCodepoints, (c) => c)}`)
+      if (m.retargetedCodepoints.length)
+        diffs.push(
+          `cmap retargeted ${m.retargetedCodepoints.length}: ` +
+            some(m.retargetedCodepoints, (r) => `${r.codepoint} ${r.source}→${r.derivative}`),
+        )
+      if (m.missingGlyphs.length)
+        diffs.push(`${m.missingGlyphs.length} source glyphs dropped: ${some(m.missingGlyphs, (g) => g)}`)
+      // A treatment that declares growth() widens the advance by (params,
+      // strokeWidth) — the same constant for every glyph it touches. So one
+      // uniform positive shift is the pipeline working as designed, and is
+      // reported; widths that moved by differing amounts are the text
+      // reflowing unevenly, which is the failure this check exists for.
+      const grown = m.advanceDeltas.filter((d) => d.delta !== 0)
+      const uniform = grown.length === 1 && grown[0].delta > 0 ? grown[0] : null
+      if (grown.length > 1)
+        diffs.push(
+          `advance widths drifted unevenly — ${m.advanceDiffs.length} glyphs across ` +
+            `${grown.length} different shifts (${some(grown, (d) => `${d.delta > 0 ? '+' : ''}${d.delta}×${d.glyphs}`, 4)}): ` +
+            some(m.advanceDiffs, (d) => `${d.glyph} ${d.source}→${d.derivative}`, 4),
+        )
+      else if (grown.length === 1 && !uniform)
+        diffs.push(
+          `advance widths shrank by ${-grown[0].delta} units on ${grown[0].glyphs} glyphs — ` +
+            `treatments may grow a glyph, never narrow it`,
+        )
+      if (m.alternateAdvanceDiffs.length)
+        diffs.push(
+          `${m.alternateAdvanceDiffs.length} alternates do not match their base width: ` +
+            some(m.alternateAdvanceDiffs, (d) => `${d.glyph} ${d.baseAdvance}→${d.derivative}`),
+        )
       if (diffs.length) throw new Error(diffs.join('; '))
-      return `upm ${report.unitsPerEm}, ${report.glyphCount} glyphs, ${report.cmapCount} mapped`
+
+      return (
+        `upm ${m.unitsPerEm.derivative}, ${m.matchedGlyphs} source glyphs matched` +
+        (m.alternatesAdded > 0 ? `, ${m.alternatesAdded} alternates added` : '') +
+        (uniform ? `, advances grown +${uniform.delta} on ${uniform.glyphs} (growing treatment)` : '') +
+        `, ${m.cmapCount.derivative} codepoints mapped` +
+        (m.addedCodepoints.length ? ` (${m.addedCodepoints.length} new)` : '') +
+        (m.unaccountedGlyphs.length ? `, ${m.unaccountedGlyphs.length} extra glyphs unaccounted for` : '') +
+        (m.matchedByName ? '' : ' — source has no glyph names, matched by codepoint only')
+      )
     })
   }
 }

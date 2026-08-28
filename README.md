@@ -94,6 +94,29 @@ subsets the workbench's specimen field needs. The app itself needs none of it at
 Checks 5 and 6 exist because a GSUB table can be structurally valid and still substitute
 nothing.
 
+Metric parity is not glyph count. `--alts=N` adds real glyphs — three cuts of Pirata One
+is 1144 glyphs against the source's 386 — so check 7 compares unitsPerEm, cmap coverage,
+and the advance width of every glyph the two fonts share, and reports the alternates as
+the additions they are:
+
+```
+ok  metrics match source — upm 1000, 386 source glyphs matched, 758 alternates added, 382 codepoints mapped
+```
+
+It still fails on width drift, because a treatment that reflows the text it is applied to
+has failed however good it looks. Treatments that declare `growth()` (bleed, bubble,
+extrude, outline) widen the advance to match the fatter outline, and do so by one constant
+across every glyph they touch — so a single uniform widening is reported rather than
+failed, and widths that moved by *differing* amounts are the failure:
+
+```
+FAIL advance widths drifted unevenly — 379 glyphs across 2 different shifts (+42×378, +49×1)
+```
+
+Glyphs are paired by name, falling back to codepoint for fonts whose `post` table keeps no
+names. Alternates are held to their own base glyph's width, since a drifted one would make
+the rotation jitter.
+
 ## Architecture
 
 ```
