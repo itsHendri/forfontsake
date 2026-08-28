@@ -249,6 +249,31 @@ controls on every treatment that has them rather than part of any particular eff
 disappear entirely on deterministic treatments instead of sitting there implying an effect
 they cannot have.
 
+## The download runs in the page
+
+Exporting was a command-line step for a long time while the page only previewed. That split
+was untenable for a tool whose whole positioning is *the download works*: every competitor
+ships a broken money step, so ours has to be the most visible control on the page, not a
+README instruction.
+
+It is the same `buildTreatedFont` the CLI calls, given the same source bytes, so the file is
+the one the verified build path produces. Three things make it work in a browser:
+
+- **A Web Worker.** Treating a whole face takes seconds — 7 s in Node for Anton's 1,373
+  glyphs — which is fine to wait for and not fine to freeze the page for. The worker is
+  inlined at build time so the published single file still works.
+- **The source fonts ride along.** The preview deliberately ships outlines as data and no
+  font parser, but an export has to rewrite the original binary. The published page carries
+  those binaries inline; everywhere else they are fetched on demand, so nobody downloads a
+  font just to look.
+- **Reserved Font Names are enforced in the field.** A derivative of Pirata One may not have
+  "Pirata" anywhere in its name, so the default name is generated to be safe and the button
+  disables while the typed one is not.
+
+**Progress has two phases, and saying so matters.** The glyph loop reports a fraction, but
+writing the substitutions and checksumming a few megabytes afterwards takes as long again on
+a big face. A bar sitting at 100% for a minute reads as a hang, so assembly is named.
+
 ## Where to look next
 
 Highest value first, from the competitive research:
@@ -259,6 +284,5 @@ Highest value first, from the competitive research:
    is client-side and deterministic; expensive for everyone else.
 3. **Slider craft**: drag on the label not the number, `Shift` for fine. The tick on the
    track showing the default is done.
-4. **In-browser export**, so the workbench and the download are the same path.
 5. **Licence panel at font upload** — read the source's `name` table and `fsType`, show
    open / unknown / restricted. Nobody in the category does this.

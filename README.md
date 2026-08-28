@@ -29,6 +29,7 @@ button.
 | **Workbench** | The live page where you turn dials. A React app in `src/`. |
 | **Source font** | The font a treatment is applied to. Seven ship with the tool; all OFL. |
 | **Cut** | One randomised version of a letter. Several cuts per letter stop a word looking stamped. |
+| **Export** | Building the real font in the browser. Same engine as `build:font`, run in a worker. |
 | **Plate** | The specimen block at the top of the workbench: the type, and the two choices that define it. |
 
 ## Treatments
@@ -157,6 +158,13 @@ advance widths, the field and the outlines agree to the pixel on all seven faces
 The bundled fonts range from 11% to 20% of the em in weight, so an em-relative setting means
 something different on every face and no preset can travel.
 
+**The download is built in the page.** Pressing Download runs the same
+`buildTreatedFont` the CLI runs, in a Web Worker, over the real source bytes — so the file
+you get is the file `build:font` would have made. The worker keeps the font writer off the
+main thread and out of the initial parse; the published single-file page carries the source
+fonts inline, because a download button that cannot download is the exact failure this
+project exists to avoid.
+
 **The engine never calls `Math.random`.** Everything takes an injected PRNG, so a font is
 reproducible from `{treatment, params, seed}` — which is also what the URL encodes.
 
@@ -173,7 +181,6 @@ export path enforces OFL Reserved Font Name rules rather than leaving you to dis
 ## Known debt
 
 - **Treatments don't stack** in the interface, though the engine takes a chain.
-- **No in-browser font export yet** — the workbench previews, `build:font` exports.
 - **Uploading your own font** isn't wired up.
 
 See `docs/DECISIONS.md` for the reasoning behind the choices above, and the traps that cost

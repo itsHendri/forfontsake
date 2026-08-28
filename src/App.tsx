@@ -5,6 +5,7 @@ import { render, renderGlyphSet } from './lib/render'
 import { decodeState, encodeState, type WorkbenchState } from './lib/urlState'
 import { Panel } from './components/Panel'
 import { Plate } from './components/Plate'
+import { ExportBar } from './components/ExportBar'
 import { GlyphGrid } from './components/GlyphGrid'
 import { Waterfall } from './components/Waterfall'
 import { Shelf, type Kept } from './components/Shelf'
@@ -166,6 +167,14 @@ export default function App() {
             onFont={(fontId) => patch({ fontId })}
             onTreatment={changeTreatment}
             onText={(text) => patch({ text })}
+          />
+          <ExportBar
+            font={library[state.fontId]}
+            fontId={state.fontId}
+            treatment={treatment}
+            params={state.params}
+            seed={state.seed}
+            alternates={state.alternates}
           />
           {glyphSet && <GlyphGrid set={glyphSet} />}
         </main>

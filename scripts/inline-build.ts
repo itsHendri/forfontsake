@@ -62,12 +62,36 @@ html = html.replace(
   },
 )
 
-// the app reads this when present and falls back to fetching otherwise
-html = html.replace('</head>', `<script>window.__GLYPH_DATA__=${glyphData}</script></head>`)
+/**
+ * The exporter rewrites the original font, so the published page needs the
+ * original bytes. Fetching them is impossible with no server, and a download
+ * button that cannot download is the exact failure this project exists to
+ * avoid — so they ride along, keyed by the path the app would have fetched.
+ */
+const sources: Record<string, string> = {}
+let sourceBytes = 0
+for (const font of Object.values(JSON.parse(glyphData) as Record<string, { src?: string }>)) {
+  if (!font.src) continue
+  const path = join('public', font.src.replace(/^\//, ''))
+  if (!existsSync(path)) {
+    console.warn(`  missing ${font.src} — the published page cannot export that font`)
+    continue
+  }
+  const bytes = readFileSync(path)
+  sourceBytes += bytes.length
+  sources[font.src] = `data:font/ttf;base64,${bytes.toString('base64')}`
+}
+
+// the app reads these when present and falls back to fetching otherwise
+html = html.replace(
+  '</head>',
+  `<script>window.__GLYPH_DATA__=${glyphData};window.__FONT_SOURCES__=${JSON.stringify(sources)}</script></head>`,
+)
 
 mkdirSync('out', { recursive: true })
 writeFileSync(OUT, html)
 console.log(
   `wrote ${OUT} — ${(html.length / 1024).toFixed(0)} KB, ${inlined} assets inlined, ` +
-    `${fontsInlined} preview fonts, ${(glyphData.length / 1024).toFixed(0)} KB of outlines`,
+    `${fontsInlined} preview fonts, ${(glyphData.length / 1024).toFixed(0)} KB of outlines, ` +
+    `${Object.keys(sources).length} source fonts (${(sourceBytes / 1024).toFixed(0)} KB)`,
 )

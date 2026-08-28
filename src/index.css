@@ -250,6 +250,78 @@ h1 {
   border-radius: 2px;
 }
 
+/* ---------- export ---------- */
+
+/* The one control the whole tool is judged on, so it sits in the reading
+   column under the specimen rather than behind a menu. */
+.export {
+  margin-top: 14px;
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 12px 18px;
+}
+.export-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.export-name {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 7px 10px;
+  width: 15ch;
+  min-width: 0;
+}
+.export-name:focus-visible {
+  outline: 2px solid var(--mark);
+  outline-offset: 1px;
+}
+.export-name[aria-invalid='true'] {
+  border-color: var(--mark);
+}
+.export-go {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+  padding: 8px 14px;
+  font-variant-numeric: tabular-nums;
+}
+.export-go:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+.export-meta {
+  margin: 0;
+  flex: 1 1 16ch;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.export-meta b {
+  color: var(--ink);
+  font-weight: 500;
+}
+.export-checks {
+  margin: 0;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--mark);
+  white-space: nowrap;
+}
+.export-problem {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--mark);
+}
+
 /* ---------- glyphs ---------- */
 
 .glyphs,

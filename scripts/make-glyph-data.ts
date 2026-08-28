@@ -154,6 +154,10 @@ for (const src of SOURCES) {
     label: src.label,
     note: src.note,
     reserved: src.reserved,
+    // where the browser can fetch the original bytes when it builds a font
+    src: src.file.replace(/^public/, ''),
+    // the whole face, not just the preview charset — what an export will cost
+    sourceGlyphs: font.glyphs.length,
     unitsPerEm: font.info.unitsPerEm,
     strokeWidth,
     ascender: font.info.ascender ?? 800,
