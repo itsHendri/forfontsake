@@ -92,10 +92,12 @@ Figma: `https://www.figma.com/design/TKbuhH0KFYuVEagpqcweRC` — its document na
 > Monday. Once the account is deactivated the file goes with it, along with the Figma MCP
 > connection here, which authenticates as `hendri@swissborg.com`. Duplicate it to a personal
 > Figma account, or archive the frames to SVG, before then. The vector type is reproducible
-> from `scripts/figma-export.ts`; the layout work in it is not. Page *Build* is the shipped design; page *Variations* has
-three, of which **C (export + saved styles) was chosen and is what shipped**. Variation B's
-idea — plate full width, waterfall beside the rail — is still unbuilt and is the best
-candidate for the next layout pass.
+> from `scripts/figma-export.ts`; the layout work in it is not.
+
+Page *Build* is the shipped design; page *Variations* has three, of which **C (export +
+saved styles) was chosen and is what shipped**. Variation B's idea — plate full width,
+waterfall beside the rail — is still unbuilt and is the best candidate for the next layout
+pass.
 
 The type in that file is real vector from `scripts/figma-export.ts`, not screenshots.
 
