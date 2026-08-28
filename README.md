@@ -5,7 +5,9 @@ installable, correctly-licensed font.
 
 Everything runs client-side. No upload, no account, nothing leaves your machine.
 
-**forfontsake.xyz** (domain owned, not yet deployed)
+**forfontsake.xyz** (domain owned, not yet deployed — see [docs/DEPLOY.md](docs/DEPLOY.md))
+
+New here, or picking this up after a break? Start with **[docs/STATE.md](docs/STATE.md)**.
 
 ## Why
 
@@ -180,6 +182,11 @@ export path enforces OFL Reserved Font Name rules rather than leaving you to dis
 
 ## Known debt
 
+- **Not deployed.** The domain is owned; [docs/DEPLOY.md](docs/DEPLOY.md) has the plan.
+- **The bundle carries the font writer for everyone** — the export worker is inlined so the
+  published single-file page works, which costs every visitor ~877 KB of JS whether or not
+  they export. Splitting it is the first job in DEPLOY.md.
+- **Saved styles don't persist** across a reload.
 - **Treatments don't stack** in the interface, though the engine takes a chain.
 - **Uploading your own font** isn't wired up.
 
