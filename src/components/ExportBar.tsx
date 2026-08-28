@@ -15,7 +15,7 @@ interface Props {
 type State =
   | { phase: 'idle' }
   | { phase: 'building'; progress: number }
-  | { phase: 'done'; result: ExportResult }
+  | { phase: 'done'; result: ExportResult; saved: boolean }
   | { phase: 'failed'; message: string }
 
 const kb = (n: number) => `${Math.round(n / 1024)} KB`
@@ -71,8 +71,10 @@ export function ExportBar(p: Props) {
         (progress) => live.current && setState({ phase: 'building', progress }),
       )
       if (!live.current) return
-      save(result)
-      setState({ phase: 'done', result })
+      const outcome = await save(result)
+      if (!live.current) return
+      // a refused prompt is not a failure — the font is built and still here
+      setState({ phase: 'done', result, saved: outcome === 'saved' })
     } catch (e) {
       if (!live.current) return
       setState({ phase: 'failed', message: e instanceof Error ? e.message : String(e) })
@@ -105,7 +107,9 @@ export function ExportBar(p: Props) {
               and checksumming a few megabytes takes as long again on a big
               face, and a bar stuck at 100% reads as a hang */}
           {!busy
-            ? 'Download .ttf'
+            ? state.phase === 'done' && !state.saved
+              ? 'Download again'
+              : 'Download .ttf'
             : state.progress < 1
               ? `Treating… ${Math.round(state.progress * 100)}%`
               : 'Assembling…'}

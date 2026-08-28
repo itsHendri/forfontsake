@@ -108,8 +108,38 @@ export function buildFont(
   })
 }
 
-/** hand the finished font to the browser's downloader */
-export function save(result: ExportResult) {
+interface DownloadsNamespace {
+  save(req: { filename: string; data: Blob }): Promise<{ status: 'saved' }>
+}
+declare global {
+  interface Window {
+    claude?: { use?: (name: string) => Promise<DownloadsNamespace | null> }
+  }
+}
+
+export type SaveOutcome = 'saved' | 'declined'
+
+/**
+ * Hand the finished font over.
+ *
+ * A page published as an artifact is never allowed to start a download itself,
+ * so there it has to go through the host, which shows the viewer a prompt they
+ * can refuse. Everywhere else — the dev server, a real deployment — the plain
+ * anchor is the right path and needs no permission.
+ */
+export async function save(result: ExportResult): Promise<SaveOutcome> {
+  const downloads = await window.claude?.use?.('downloads').catch(() => null)
+  if (downloads) {
+    try {
+      await downloads.save({ filename: result.fileName, data: result.blob })
+      return 'saved'
+    } catch (e) {
+      const code = (e as { code?: string })?.code
+      if (code === 'declined' || code === 'rate_limited') return 'declined'
+      throw e instanceof Error ? e : new Error(String(e))
+    }
+  }
+
   const url = URL.createObjectURL(result.blob)
   const a = document.createElement('a')
   a.href = url
@@ -119,4 +149,5 @@ export function save(result: ExportResult) {
   a.remove()
   // revoked on the next turn of the loop, once the download has taken the URL
   setTimeout(() => URL.revokeObjectURL(url), 0)
+  return 'saved'
 }
