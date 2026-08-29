@@ -125,7 +125,9 @@ Neither can be done from here — one is a GitHub setting, the other is at the r
 
 1. **Enable Pages.** Repo → Settings → Pages → **Source: GitHub Actions**. That alone makes
    the next push deploy.
-2. **Point DNS at GitHub**, at whatever registrar holds `forfontsake.xyz`:
+2. **Point DNS at GitHub.** The domain is at **GoDaddy**, on their own nameservers
+   (`ns13/ns14.domaincontrol.com`), so the records are edited in GoDaddy's DNS panel:
+   *Domain portfolio → forfontsake.xyz → DNS → Records*.
 
    | Type | Name | Value |
    | --- | --- | --- |
@@ -135,9 +137,18 @@ Neither can be done from here — one is a GitHub setting, the other is at the r
    | `A` | `@` | `185.199.111.153` |
    | `CNAME` | `www` | `itshendri.github.io` |
 
-   An `ALIAS`/`ANAME` at the apex is better if the registrar offers it. Then Settings →
-   Pages → Custom domain → `forfontsake.xyz`, wait for the certificate, and tick **Enforce
-   HTTPS**.
+   Two GoDaddy-specific traps:
+
+   - **The apex already has an `A` record** pointing at GoDaddy's parking page
+     (`3.33.130.190` / `15.197.148.33` at the time of writing). Edit that one and delete any
+     other `@` records rather than adding alongside — leaving a parking record in place
+     means the domain resolves there part of the time, which looks like an intermittent
+     outage and is miserable to diagnose.
+   - **GoDaddy does not offer `ALIAS`/`ANAME` at the apex**, so the four `A` records are the
+     only route. That is why they are listed rather than offered as a fallback.
+
+   Then Settings → Pages → Custom domain → `forfontsake.xyz`, wait for the certificate, and
+   tick **Enforce HTTPS**.
 3. **Click Download on the deployed site.** The one check worth doing before telling anyone
    it exists.
 
