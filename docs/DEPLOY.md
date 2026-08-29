@@ -111,8 +111,16 @@ those absolute CSS URLs — changing one without the other reproduces exactly th
 - `.github/workflows/deploy.yml` builds and publishes `dist/` to Pages on every push to
   `main`. It runs `typecheck` and `test` first and will not publish a red build — for a
   project whose whole claim is that the download works, that gate is the point. It uses
-  `npm run build`, not `build:workbench`. The Python venv is not needed in CI; it is only
-  for `verify:font` and for recutting the preview subsets, and both outputs are committed.
+  `npm run build`, not `build:workbench`.
+- The Python venv is **not** needed in CI. It is only for `verify:font` and for recutting the
+  preview subsets; those subsets are committed, and `make-glyph-data` warns and carries on
+  when `fonttools` is missing rather than failing, leaving the committed ones in place.
+- **`npm run build` generates the glyph data itself** (`build:data`), because
+  `public/glyph-data.json` is gitignored and the page *fetches* it at runtime. The first
+  deploy went out without it and the site died on a 404 — `build` used to assume the file
+  was already lying around from a `build:workbench` run, which is true on a machine that has
+  built the artifact and false everywhere else. A post-build step in the workflow now asserts
+  that everything fetched at runtime is actually in `dist/`.
 - `public/CNAME` carries `forfontsake.xyz`, so the apex domain is attached from the first
   deploy rather than after a spell on the github.io subpath — which is the failure described
   above.
