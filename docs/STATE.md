@@ -108,19 +108,21 @@ sit in `public/`, where Vite shipped 4.4 MB of it to every visitor.
 
 ## Design source of truth
 
-Figma: `https://www.figma.com/design/TKbuhH0KFYuVEagpqcweRC` — its document name reads as
-"Document" because the API cannot set it.
+**There is no Figma file any more.** The original lived in the SwissBorg org and was deleted
+deliberately when that access ended; a new one gets made later, from wherever the design has
+got to by then. Do not go looking for it, and do not treat its absence as something to
+restore.
 
-> **Access warning.** This file sits in the **SwissBorg org**, and that employment ends
-> Monday. Once the account is deactivated the file goes with it, along with the Figma MCP
-> connection here, which authenticates as `hendri@swissborg.com`. Duplicate it to a personal
-> Figma account, or archive the frames to SVG, before then. The vector type is reproducible
-> from `scripts/figma-export.ts`; the layout work in it is not.
+**The code is the source of truth for the design.** That is the honest position now, and it
+mostly always was: `src/index.css` carries the type scale, the paper-and-ink palette and the
+8-pt grid, and `scripts/figma-export.ts` regenerates the treated type as real vector
+whenever a file is wanted again.
 
-Page *Build* is the shipped design; page *Variations* has three, of which **C (export +
-saved styles) was chosen and is what shipped**. Variation B's idea — plate full width,
-waterfall beside the rail — is still unbuilt and is the best candidate for the next layout
-pass.
+The one thing lost with the file is the layout exploration, which was never in the repo.
+Worth knowing that it existed and what it concluded: three variations were drawn, **C
+(export + saved styles) was chosen and is what shipped**. Variation B — plate full width,
+waterfall beside the rail — was never built and is still the best candidate for the next
+layout pass.
 
 The type in that file is real vector from `scripts/figma-export.ts`, not screenshots.
 
