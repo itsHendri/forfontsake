@@ -174,5 +174,8 @@ for (const src of SOURCES) {
 }
 
 const json = JSON.stringify(out)
+// out/ is gitignored, so on a clean checkout — CI, or anyone who has just
+// cloned — it does not exist yet and the write fails with ENOENT.
+mkdirSync('out', { recursive: true })
 writeFileSync('out/glyph-data.json', json)
 console.log(`\nwrote out/glyph-data.json — ${(json.length / 1024).toFixed(0)} KB`)
