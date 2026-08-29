@@ -1,4 +1,9 @@
-import BuildWorker from '../workers/buildFont.worker?worker&inline'
+// Plain `?worker`, so the web build emits the font writer as its own chunk and
+// only the people who press Download ever fetch it. The artifact build has no
+// server to fetch from, so `vite build --mode artifact` rewrites this specifier
+// to `?worker&inline` — see the plugin in vite.config.ts. Inlining is a property
+// of that build, not of this source.
+import BuildWorker from '../workers/buildFont.worker?worker'
 import type { BuildRequest, BuildResponse } from '../workers/buildFont.worker'
 import { violatesReservedNames } from '../engine/fontio'
 import { loadSource, type FontData } from './glyphData'

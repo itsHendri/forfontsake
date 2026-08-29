@@ -27,20 +27,26 @@ outlines.
 
 Ordered by whether it blocks going public.
 
-### 1. Split the export worker out of the main bundle — *blocks a good launch*
+### 1. Split the export worker out of the main bundle — *done*
 
-`src/lib/exportFont.ts` imports the worker with `?worker&inline`, which base64s the font
-writer into the main bundle so the single-file artifact works. Result: **877 KB of JS
-(266 KB gzipped)** delivered to everyone, including the majority who will never press
-Download.
+Inlining is now a property of the *artifact* build rather than of the source.
+`src/lib/exportFont.ts` imports plain `?worker`; a small plugin in `vite.config.ts` rewrites
+that to `?worker&inline` when built with `--mode artifact`, which is what `build:workbench`
+now passes.
 
-The fix is to make inlining a property of the *artifact* build rather than of the source:
-build the worker as a normal separate chunk for the web, and have `scripts/inline-build.ts`
-fold that chunk into the HTML for the artifact, as it already does for the script and
-stylesheet. Expect the initial bundle to land somewhere near 250 KB.
+| | main bundle | gzipped |
+| --- | --- | --- |
+| before | 896 KB | 273 KB |
+| after | **385 KB** | **122 KB** |
 
-Do this before launch, not after — it is the difference between the page feeling instant and
-feeling heavy, and it gets harder once the build has other consumers.
+The font writer is a separate 511 KB chunk, and the network log confirms it is fetched only
+when Download is pressed, not at page load. The artifact build is unchanged and still
+self-contained — checked by grepping the emitted HTML for external asset references and
+finding none.
+
+**Deploy with `npm run build`, never `build:workbench`.** The latter is the artifact build;
+shipping it to the web would put the whole font writer back into the initial load. The Pages
+workflow uses the right one.
 
 ### 2. An OG share image — *done*
 
@@ -52,14 +58,17 @@ is fixed, so regenerating is byte-identical.
 
 Re-run it if the poster layout or the palettes change.
 
-### 3. Decide what the front door is — *blocks nothing, changes everything*
+### 3. What the front door is — *decided: the workbench*
 
-Right now the workbench *is* the site: you land straight in the tool. That is a defensible
-choice and it is what the artifact does. The alternative is a short landing page that says
-what this is and why the download works, with the tool one click in.
+You land straight in the tool. No landing page, and no route for one.
 
-Worth deciding deliberately rather than by default, because it drives the OG image, the
-copy, and whether the tool needs its own route.
+The reasoning, so it does not get relitigated by default: the whole claim of this project is
+that the download produces a real font, and a landing page would *explain* that where the
+workbench *demonstrates* it. Landing someone in the working thing is the more confident
+move, and it is what the artifact already does.
+
+Revisit only if the tool starts needing explanation before it can be used — that is the
+signal a front door is earning its place, not traffic or taste.
 
 ### 4. Persist saved styles — *nice to have*
 
@@ -97,18 +106,40 @@ So attach the custom domain as part of the first deploy rather than testing on t
 URL first. If a subpath deploy is ever genuinely wanted, set Vite's `base` **and** convert
 those absolute CSS URLs — changing one without the other reproduces exactly this bug.
 
-### Roughly what it takes
+### What is already done
 
-1. Build: `npm run build` → `dist/`. (Note: `npm run build:workbench` is the *artifact*
-   build — do not use it for the site.)
-2. A GitHub Actions workflow that builds and publishes `dist/` to Pages on push to `main`.
-   The Python venv is not needed in CI — it is only for `verify:font` and for recutting the
-   preview subsets, and both outputs are committed.
-3. Add `forfontsake.xyz` in the repo's Pages settings, commit a `CNAME` file, and point DNS
-   at GitHub (four `A` records at the apex, or `ALIAS`/`ANAME` if the registrar supports it;
-   `www` as a `CNAME`). Enable *Enforce HTTPS* once the certificate is issued.
-4. Then click Download on the deployed site. It is the one thing worth checking before
-   telling anyone the site exists.
+- `.github/workflows/deploy.yml` builds and publishes `dist/` to Pages on every push to
+  `main`. It runs `typecheck` and `test` first and will not publish a red build — for a
+  project whose whole claim is that the download works, that gate is the point. It uses
+  `npm run build`, not `build:workbench`. The Python venv is not needed in CI; it is only
+  for `verify:font` and for recutting the preview subsets, and both outputs are committed.
+- `public/CNAME` carries `forfontsake.xyz`, so the apex domain is attached from the first
+  deploy rather than after a spell on the github.io subpath — which is the failure described
+  above.
+
+**The workflow is inert until Pages is switched on**, so nothing publishes by accident.
+
+### What still needs a human
+
+Neither can be done from here — one is a GitHub setting, the other is at the registrar.
+
+1. **Enable Pages.** Repo → Settings → Pages → **Source: GitHub Actions**. That alone makes
+   the next push deploy.
+2. **Point DNS at GitHub**, at whatever registrar holds `forfontsake.xyz`:
+
+   | Type | Name | Value |
+   | --- | --- | --- |
+   | `A` | `@` | `185.199.108.153` |
+   | `A` | `@` | `185.199.109.153` |
+   | `A` | `@` | `185.199.110.153` |
+   | `A` | `@` | `185.199.111.153` |
+   | `CNAME` | `www` | `itshendri.github.io` |
+
+   An `ALIAS`/`ANAME` at the apex is better if the registrar offers it. Then Settings →
+   Pages → Custom domain → `forfontsake.xyz`, wait for the certificate, and tick **Enforce
+   HTTPS**.
+3. **Click Download on the deployed site.** The one check worth doing before telling anyone
+   it exists.
 
 ---
 

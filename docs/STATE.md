@@ -23,7 +23,7 @@ installable font**, entirely in the browser.
 | Specimen sheet | Done. Poster overlay — roll, recolour, PNG/SVG, copy for Figma. |
 | Saved styles | Done, in-memory only — lost on reload. |
 | CLI export + verification | Done. `build:font` + `verify:font` (7 checks). |
-| Deployment | **Not started.** |
+| Deployment | Build, Pages workflow and `CNAME` in. **Waiting on two settings** — see DEPLOY.md. |
 
 Seven source fonts ship, all OFL: Pirata One, Anton, Archivo Black, Bebas Neue,
 UnifrakturCook, Abril Fatface, Pacifico.
@@ -77,17 +77,17 @@ bare-space form parses as the treatment named `true`.
 
 ## Debt, roughly in order of how much it matters
 
-1. **Not deployed.** The single biggest gap — see `docs/DEPLOY.md`.
-2. **Bundle is 896 KB** (273 KB gzipped) because the export worker is inlined
-   (`?worker&inline`) so the published single-file page works. Every visitor downloads the
-   font writer whether or not they export. Fix before launch; DEPLOY.md has the approach.
-3. **Saved styles do not persist.** In-memory only.
-4. Treatments do not stack in the UI, though the engine takes a chain.
-5. Uploading your own font is not wired up.
-6. Big faces are slow to export — Anton is ~1,373 glyphs and three cuts of it is a 4 MB
+1. **Not deployed — and now only two switches away.** The build, the Pages workflow and the
+   `CNAME` are all in. What is left is enabling Pages (Source: GitHub Actions) and pointing
+   DNS at GitHub; neither can be done from a shell. `docs/DEPLOY.md` has both, with the
+   records.
+2. **Saved styles do not persist.** In-memory only.
+3. Treatments do not stack in the UI, though the engine takes a chain.
+4. Uploading your own font is not wired up.
+5. Big faces are slow to export — Anton is ~1,373 glyphs and three cuts of it is a 4 MB
    file that takes ~a minute in-browser. Honest about it now (the strip shows the glyph
    count and names the assembly phase) but not fast.
-7. The specimen sheet has one layout. Book of Shapes ships several and lets you page
+6. The specimen sheet has one layout. Book of Shapes ships several and lets you page
    through them; the second layout is the cheapest good improvement here.
 
 ## Where things live
@@ -123,8 +123,6 @@ Worth knowing that it existed and what it concluded: three variations were drawn
 (export + saved styles) was chosen and is what shipped**. Variation B — plate full width,
 waterfall beside the rail — was never built and is still the best candidate for the next
 layout pass.
-
-The type in that file is real vector from `scripts/figma-export.ts`, not screenshots.
 
 ## Artifact
 

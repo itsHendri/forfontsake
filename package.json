@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "build:font": "tsx scripts/build-font.ts",
     "build:share": "tsx scripts/make-share-image.ts",
-    "build:workbench": "tsx scripts/make-glyph-data.ts && cp out/glyph-data.json public/glyph-data.json && vite build && tsx scripts/inline-build.ts",
+    "build:workbench": "tsx scripts/make-glyph-data.ts && cp out/glyph-data.json public/glyph-data.json && vite build --mode artifact && tsx scripts/inline-build.ts",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
     "verify:font": "node scripts/verify-font.mjs",

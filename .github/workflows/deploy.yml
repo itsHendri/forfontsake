@@ -1,0 +1,59 @@
+# Build the site and publish it to GitHub Pages.
+#
+# Deliberately `npm run build` and not `npm run build:workbench` — the latter is
+# the *artifact* build, which inlines the export worker into the main bundle and
+# more than doubles what a visitor downloads. See vite.config.ts.
+#
+# This does nothing until Pages is enabled on the repo with Source = GitHub
+# Actions. Until then it is inert.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Read the repo, mint the Pages token. Nothing else.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Let a running deploy finish rather than cancelling it half-published.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # The gate, not decoration: this is the project whose whole claim is that
+      # the download produces a real font, so a red build must not publish.
+      - run: npm run typecheck
+      - run: npm run test
+
+      - run: npm run build
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
