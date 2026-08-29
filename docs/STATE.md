@@ -22,7 +22,7 @@ installable font**, entirely in the browser.
 | Glyph grid, waterfall | Done. All 69 preview glyphs; 96→12 on the 8-pt grid. |
 | **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker. |
 | Specimen sheet | Done. Poster overlay — roll, recolour, PNG/SVG, copy for Figma. |
-| Saved styles | Done, in-memory only — lost on reload. |
+| Saved styles | Done, and kept across reloads in `localStorage`. |
 | CLI export + verification | Done. `build:font` + `verify:font` (7 checks). |
 | Deployment | **Live** at forfontsake.xyz. Pushes to `main` deploy; HTTPS enforced. |
 
@@ -49,7 +49,7 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
 
 ## Verified, and how
 
-- `npm run typecheck` · `npm run test` (43) — both green.
+- `npm run typecheck` · `npm run test` (49) — both green.
 - `npm run verify:font` — 7 checks: size, **ots-sanitize**, fontTools, **CoreText**,
   alternates actually substitute, ligatures still form, naming + Reserved Font Names.
 - The browser export was checked by loading the result with `FontFace.load()`, which *is*
@@ -61,6 +61,12 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
 - The specimen overlay (mechanism 1) was re-measured with Growth on its heaviest preset,
   since a *growing* treatment is the case most likely to break it: **-0.01 px** between the
   input's laid-out text and the drawn outlines.
+- The shelf's persistence is covered by tests that stub `localStorage`, including the paths
+  that are easy to get wrong: storage that throws outright (a private window), storage that
+  throws on write (quota), junk in the slot, and one corrupt entry among good ones — which
+  drops itself rather than emptying the shelf. Exercised in the browser too: seeded entries
+  survive a reload, entries naming a font or treatment that no longer exists are pruned
+  rather than crashing the page, and partial entries are backfilled from defaults.
 - **On the live site**, not just locally: `https://forfontsake.xyz` serves, `http` and `www`
   both 301 to the canonical apex, HTTPS is enforced, and pressing Download there produced
   `Growth-Regular.ttf` — 519 KB, sfntVersion `0x00010000`, 17 tables, accepted by
@@ -83,21 +89,19 @@ bare-space form parses as the treatment named `true`.
 
 ## Debt, roughly in order of how much it matters
 
-1. **Saved styles do not persist.** In-memory only. Now the most visible gap, since people
-   can actually reach the tool.
-2. Treatments do not stack in the UI, though the engine takes a chain.
-3. Uploading your own font is not wired up.
-4. Big faces are slow to export — Anton is ~1,373 glyphs and three cuts of it is a 4 MB
+1. Treatments do not stack in the UI, though the engine takes a chain.
+2. Uploading your own font is not wired up.
+3. Big faces are slow to export — Anton is ~1,373 glyphs and three cuts of it is a 4 MB
    file that takes ~a minute in-browser. Honest about it now (the strip shows the glyph
    count and names the assembly phase) but not fast.
-5. The specimen sheet has one layout. Book of Shapes ships several and lets you page
+4. The specimen sheet has one layout. Book of Shapes ships several and lets you page
    through them; the second layout is the cheapest good improvement here.
 
 ## Where things live
 
 ```
 src/engine/          pure geometry + font writing, no DOM (browser-safe)
-src/lib/             glyphData · render · urlState · exportFont · poster · clipboard
+src/lib/             glyphData · render · urlState · savedStyles · exportFont · poster · clipboard
 src/components/      Plate · ExportBar · GlyphGrid · Waterfall · Panel · Dial · Shelf · Poster
 src/workers/         buildFont.worker.ts — the export, off the main thread
 public/fonts/        7 sources + OFL.txt each; preview/ holds metrics-only subsets

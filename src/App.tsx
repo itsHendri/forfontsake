@@ -3,6 +3,7 @@ import { TREATMENTS, getTreatment, defaults, type ParamValues, type Preset } fro
 import { loadLibrary, type Library } from './lib/glyphData'
 import { render, renderGlyphSet } from './lib/render'
 import { decodeState, encodeState, type WorkbenchState } from './lib/urlState'
+import { loadShelf, saveShelf, SHELF_LIMIT } from './lib/savedStyles'
 import { Panel } from './components/Panel'
 import { Plate } from './components/Plate'
 import { ExportBar } from './components/ExportBar'
@@ -13,12 +14,22 @@ import { Poster } from './components/Poster'
 
 const FALLBACK_TEXT = 'Grittier letters'
 
+/**
+ * A state is usable only if the font and treatment it names still exist, since
+ * either can vanish between the link (or the shelf entry) being written and
+ * being opened. Missing parameters are filled from the treatment's defaults so
+ * an entry written before a dial was added still opens.
+ */
+function usable(state: WorkbenchState, library: Library): WorkbenchState | null {
+  if (!library[state.fontId]) return null
+  if (!TREATMENTS.some((t) => t.id === state.treatmentId)) return null
+  return { ...state, params: { ...defaults(getTreatment(state.treatmentId)), ...state.params } }
+}
+
 function initialState(library: Library): WorkbenchState {
   const fromUrl = decodeState(window.location.hash)
-  if (fromUrl && library[fromUrl.fontId] && TREATMENTS.some((t) => t.id === fromUrl.treatmentId)) {
-    // fill any parameter the URL omitted, so an older link still opens
-    return { ...fromUrl, params: { ...defaults(getTreatment(fromUrl.treatmentId)), ...fromUrl.params } }
-  }
+  const valid = fromUrl && usable(fromUrl, library)
+  if (valid) return valid
   const fontId = library.pirataone ? 'pirataone' : Object.keys(library)[0]
   return {
     fontId,
@@ -34,18 +45,28 @@ export default function App() {
   const [library, setLibrary] = useState<Library | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [state, setState] = useState<WorkbenchState | null>(null)
-  const [kept, setKept] = useState<Kept[]>([])
+  // The shelf is stored as states, not as rendered outlines — see savedStyles.
+  const [saved, setSaved] = useState<WorkbenchState[]>([])
   const [posterOpen, setPosterOpen] = useState(false)
-  const nextKeptId = useRef(1)
+  const hydrated = useRef(false)
 
   useEffect(() => {
     loadLibrary()
       .then((lib) => {
         setLibrary(lib)
         setState(initialState(lib))
+        // dropped rather than repaired if the font or treatment is gone
+        setSaved(loadShelf().flatMap((s) => usable(s, lib) ?? []))
+        hydrated.current = true
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
   }, [])
+
+  // Guarded on hydration: without it the first render writes its empty shelf
+  // over the stored one before the load has had a chance to fill it.
+  useEffect(() => {
+    if (hydrated.current) saveShelf(saved)
+  }, [saved])
 
   // the address bar mirrors the state rather than driving it, so typing stays
   // responsive and the link is always current
@@ -80,6 +101,39 @@ export default function App() {
       return null
     }
   }, [library, state])
+
+  /**
+   * The shelf's thumbnails, drawn from the stored states.
+   *
+   * Rebuilt whenever the shelf changes rather than stored alongside it, so a
+   * thumbnail always shows what those settings produce *now*. An entry that
+   * throws is dropped instead of taking the shelf with it.
+   */
+  const kept = useMemo<Kept[]>(() => {
+    if (!library) return []
+    return saved.flatMap((s, i) => {
+      try {
+        return [
+          {
+            id: i,
+            state: s,
+            result: render({
+              library,
+              fontId: s.fontId,
+              treatmentId: s.treatmentId,
+              text: s.text.trim() || FALLBACK_TEXT,
+              params: s.params,
+              seed: s.seed,
+              alternates: s.alternates,
+            }),
+            treatmentName: getTreatment(s.treatmentId).name,
+          },
+        ]
+      } catch {
+        return []
+      }
+    })
+  }, [library, saved])
 
   // The grid treats every glyph in the face, which is far more work than one
   // line — deferring it lets typing and dragging stay smooth while the grid
@@ -142,12 +196,11 @@ export default function App() {
   }
 
   const save = () => {
-    setKept((list) =>
-      [
-        { id: nextKeptId.current++, state, result: specimen, treatmentName: treatment.name },
-        ...list,
-      ].slice(0, 12),
-    )
+    // Saving the same settings twice is a slip, not an intent, and on a shelf
+    // that now outlives the session the duplicates would accumulate. The
+    // existing copy moves to the front rather than a second one appearing.
+    const key = encodeState(state)
+    setSaved((list) => [state, ...list.filter((s) => encodeState(s) !== key)].slice(0, SHELF_LIMIT))
   }
 
   return (
@@ -203,7 +256,7 @@ export default function App() {
       <Shelf
         kept={kept}
         onRestore={(s) => setState(s)}
-        onForget={(id) => setKept((list) => list.filter((k) => k.id !== id))}
+        onForget={(id) => setSaved((list) => list.filter((_, i) => i !== id))}
       />
 
       {posterOpen && (

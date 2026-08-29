@@ -1,7 +1,8 @@
-# Getting it onto forfontsake.xyz
+# How forfontsake.xyz is deployed
 
-The plan for moving off the artifact and onto the real domain, and the work that has to
-happen first. Nothing here is done yet.
+**It is live.** This was the plan for getting there and is now the record of how it works —
+what was decided, what bit, and what to do again on the next host or domain. The pre-launch
+checklist is kept rather than deleted because each item explains a live setting.
 
 ---
 
@@ -23,9 +24,9 @@ outlines.
 
 ---
 
-## Do this before launch
+## The pre-launch checklist, and how each item landed
 
-Ordered by whether it blocks going public.
+Ordered by how much it blocked going public. All four are done.
 
 ### 1. Split the export worker out of the main bundle — *done*
 
@@ -70,11 +71,10 @@ move, and it is what the artifact already does.
 Revisit only if the tool starts needing explanation before it can be used — that is the
 signal a front door is earning its place, not traffic or taste.
 
-### 4. Persist saved styles — *nice to have*
+### 4. Persist saved styles — *done*
 
-They are in-memory and lost on reload. `localStorage` is the obvious fix, needs no backend,
-and makes the shelf worth using. The whole workbench state already encodes into the URL, so
-the pieces are there.
+The shelf survives a reload, in `localStorage`, with no backend. What is stored is the
+state and not the rendered outlines — see `src/lib/savedStyles.ts` for why that matters.
 
 ---
 
@@ -125,15 +125,17 @@ those absolute CSS URLs — changing one without the other reproduces exactly th
   deploy rather than after a spell on the github.io subpath — which is the failure described
   above.
 
-**The workflow is inert until Pages is switched on**, so nothing publishes by accident.
+Before Pages was switched on the workflow was inert — the build ran and the deploy step
+failed with "Ensure GitHub Pages has been enabled", which is the harmless half of the run.
 
-### What still needs a human
+### The two settings a human had to flip — both done
 
-Neither can be done from here — one is a GitHub setting, the other is at the registrar.
+Neither could be done from a shell. Recorded because they are the live configuration, and
+because the same two are the whole job on any future host or domain.
 
-1. **Enable Pages.** Repo → Settings → Pages → **Source: GitHub Actions**. That alone makes
-   the next push deploy.
-2. **Point DNS at GitHub.** The domain is at **GoDaddy**, on their own nameservers
+1. **Pages enabled.** Repo → Settings → Pages → **Source: GitHub Actions**. Custom domain
+   `forfontsake.xyz`, *Enforce HTTPS* on. `http://` and `www.` both 301 to the apex.
+2. **DNS pointed at GitHub.** The domain is at **GoDaddy**, on their own nameservers
    (`ns13/ns14.domaincontrol.com`), so the records are edited in GoDaddy's DNS panel:
    *Domain portfolio → forfontsake.xyz → DNS → Records*.
 
