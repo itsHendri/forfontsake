@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "build:font": "tsx scripts/build-font.ts",
+    "build:share": "tsx scripts/make-share-image.ts",
     "build:workbench": "tsx scripts/make-glyph-data.ts && cp out/glyph-data.json public/glyph-data.json && vite build && tsx scripts/inline-build.ts",
     "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
@@ -25,6 +26,7 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "@types/d3-delaunay": "^6.0.4",
     "@types/node": "^24.13.3",
     "@types/opentype.js": "^1.3.10",

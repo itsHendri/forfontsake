@@ -13,6 +13,11 @@ export const mosaic: Treatment = {
   id: 'mosaic',
   name: 'Mosaic',
   blurb: 'Each stroke cut across its width into tiles, grout between them.',
+  story:
+    'Each stroke is sliced across its width into ribbons and the ribbons into tiles, so '+
+    'the courses follow the letter rather than a grid laid over it — the logic of '+
+    'Portuguese calçada paving, where the setts turn to follow the pattern. Grout jitter '+
+    'and irregularity are what keep it from reading as tile-effect filter.',
   params: [
     { key: 'tileSize', label: 'Tile', min: 15, max: 220, step: 1, default: 37, note: '% of stroke width', primary: true },
     { key: 'aspect', label: 'Aspect', min: 0.5, max: 2, step: 0.05, default: 1, note: '1 is square', primary: true },

@@ -85,6 +85,13 @@ export function Panel(p: Props) {
         ))}
       </div>
 
+      {p.treatment.story && (
+        <details className="story">
+          <summary>How this works</summary>
+          <p>{p.treatment.story}</p>
+        </details>
+      )}
+
       {rest.length > 0 && (
         <details>
           <summary>More dials</summary>

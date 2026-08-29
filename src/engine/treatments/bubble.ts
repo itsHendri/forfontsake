@@ -18,6 +18,12 @@ export const bubble: Treatment = {
   name: 'Bubble',
   deterministic: true,
   blurb: 'Fattened and rounded, the way a marker nib turns a corner.',
+  story:
+    'Inflate the letter, then round the corners in both directions at once — shrink-'+
+    'then-grow to round the outside, grow-then-shrink to fill the notches. A single '+
+    'offset only ever rounds one of the two, which leaves the joints sharp exactly where '+
+    'a bullet nib would have softened them. Counters close up fast as the weight rises, '+
+    'so the last pass reopens the holes on their own.',
   params: [
     { key: 'weight', label: 'Weight', min: 0, max: 150, step: 1, default: 28, note: 'added width, as % of stroke', primary: true },
     { key: 'rounding', label: 'Rounding', min: 0, max: 150, step: 1, default: 33, note: 'softness of the turns', primary: true },

@@ -4,9 +4,10 @@ import { bleed } from './bleed'
 import { outline } from './outline'
 import { extrude } from './extrude'
 import { mosaic } from './mosaic-treatment'
+import { growth } from './growth'
 import type { Treatment } from './types'
 
-export const TREATMENTS: Treatment[] = [grit, bubble, bleed, outline, extrude, mosaic]
+export const TREATMENTS: Treatment[] = [grit, bubble, bleed, outline, extrude, mosaic, growth]
 
 export function getTreatment(id: string): Treatment {
   const t = TREATMENTS.find((x) => x.id === id)

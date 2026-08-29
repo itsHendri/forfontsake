@@ -9,6 +9,7 @@ import { ExportBar } from './components/ExportBar'
 import { GlyphGrid } from './components/GlyphGrid'
 import { Waterfall } from './components/Waterfall'
 import { Shelf, type Kept } from './components/Shelf'
+import { Poster } from './components/Poster'
 
 const FALLBACK_TEXT = 'Grittier letters'
 
@@ -34,6 +35,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null)
   const [state, setState] = useState<WorkbenchState | null>(null)
   const [kept, setKept] = useState<Kept[]>([])
+  const [posterOpen, setPosterOpen] = useState(false)
   const nextKeptId = useRef(1)
 
   useEffect(() => {
@@ -175,6 +177,8 @@ export default function App() {
             params={state.params}
             seed={state.seed}
             alternates={state.alternates}
+            specimen={specimen}
+            onPoster={() => setPosterOpen(true)}
           />
           {glyphSet && <GlyphGrid set={glyphSet} />}
         </main>
@@ -201,6 +205,19 @@ export default function App() {
         onRestore={(s) => setState(s)}
         onForget={(id) => setKept((list) => list.filter((k) => k.id !== id))}
       />
+
+      {posterOpen && (
+        <Poster
+          font={library[state.fontId]}
+          fontId={state.fontId}
+          treatment={treatment}
+          params={state.params}
+          seed={state.seed}
+          // one word sets a sheet; a sentence would come out too small to read
+          word={specimenText.split(/\s+/)[0] || treatment.name}
+          onClose={() => setPosterOpen(false)}
+        />
+      )}
     </div>
   )
 }

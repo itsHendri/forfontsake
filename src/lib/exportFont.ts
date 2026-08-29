@@ -127,11 +127,11 @@ export type SaveOutcome = 'saved' | 'declined'
  * can refuse. Everywhere else — the dev server, a real deployment — the plain
  * anchor is the right path and needs no permission.
  */
-export async function save(result: ExportResult): Promise<SaveOutcome> {
+export async function saveFile(blob: Blob, fileName: string): Promise<SaveOutcome> {
   const downloads = await window.claude?.use?.('downloads').catch(() => null)
   if (downloads) {
     try {
-      await downloads.save({ filename: result.fileName, data: result.blob })
+      await downloads.save({ filename: fileName, data: blob })
       return 'saved'
     } catch (e) {
       const code = (e as { code?: string })?.code
@@ -140,14 +140,18 @@ export async function save(result: ExportResult): Promise<SaveOutcome> {
     }
   }
 
-  const url = URL.createObjectURL(result.blob)
+  const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = result.fileName
+  a.download = fileName
   document.body.appendChild(a)
   a.click()
   a.remove()
   // revoked on the next turn of the loop, once the download has taken the URL
   setTimeout(() => URL.revokeObjectURL(url), 0)
   return 'saved'
+}
+
+export function save(result: ExportResult): Promise<SaveOutcome> {
+  return saveFile(result.blob, result.fileName)
 }

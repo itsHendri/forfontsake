@@ -274,6 +274,46 @@ the one the verified build path produces. Three things make it work in a browser
 writing the substitutions and checksumming a few megabytes afterwards takes as long again on
 a big face. A bar sitting at 100% for a minute reads as a hang, so assembly is named.
 
+## Growth grows the curve; without insertion it only trembles
+
+Growth is differential growth run on the glyph's own contours — repulsion between nearby
+points, attraction toward the neighbour midpoint, and a leash tying every point to where it
+started. It came out of the "Reaction Diffusion Typography" sketch, which despite the name
+runs no reaction-diffusion at all; `docs/RESEARCH-2026-08.md` has the full teardown.
+
+**The first cut of it did nothing, and the reason is worth remembering.** It followed the
+sketch exactly: resample the outline densely once, then iterate the two forces on a fixed set
+of points. That looked like a faint wobble at any setting. Measured, the perimeter grew 5.7%
+over sixty steps — because a closed curve whose point count is fixed, with a smoothing term
+holding the spacing even, *cannot get longer*. A curve that cannot lengthen cannot fold, and
+folding is the entire effect. Adding node insertion took the same sixty steps to a ~50%
+longer perimeter and produced real ruffling.
+
+So the rule: **the insertion is not an optimisation detail of differential growth, it is the
+mechanism.** The sketch gets away without it by running many hundreds of frames on a very
+densely sampled bitmap contour; we cannot, and should not want to.
+
+What is ours rather than the algorithm's:
+
+- **A point budget per glyph**, capped at 700. Folding is unbounded and every point is bytes
+  in the exported file. This is the line between a treatment and a glyph nobody can install —
+  an untreated glyph runs to a couple of hundred points, and a Pirata One export at the Coral
+  preset with three cuts lands at 715 KB with a 448-point worst glyph, which is fine.
+- **The leash is what `growth()` reports**, so the builder widens advance widths by exactly
+  the distance a point is allowed to travel.
+- **A seeded jitter before the first step.** A resampled straight edge is perfectly symmetric
+  and symmetric forces cancel, so without it a stem would sit still while a round letter
+  buckled — the same word coming out half-grown.
+- **Presets are cut back until the word still reads as the word.** The dials go far past all
+  of them. At full spread and step count the letters dissolve into a genuine brain-coral maze,
+  which is a fine thing to arrive at by turning a dial and a bad thing to hand somebody as a
+  starting point.
+
+The force strength was tuned by measurement, not taste: at half the point spacing per step it
+gives a monotonic, non-saturating response across the Steps dial. Stronger (1.2×) reads better
+on the perimeter graph and destroys legibility at the preset values; weaker lets the attraction
+term win and the shape *shrinks*.
+
 ## Where to look next
 
 Highest value first, from the competitive research:

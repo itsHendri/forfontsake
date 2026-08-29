@@ -60,6 +60,16 @@ export interface Treatment {
   name: string
   /** one line, shown on the style card */
   blurb: string
+  /**
+   * A paragraph on what the treatment actually does and where it comes from,
+   * shown under the dials.
+   *
+   * Knowing that Grit draws its piece sizes log-uniformly, or that Growth is
+   * differential growth on a leash, changes how somebody reaches for the dials
+   * — and it is the difference between a control panel and a thing with an
+   * opinion. Credit borrowed algorithms here.
+   */
+  story?: string
   params: ParamSpec[]
   presets?: Preset[]
   /**

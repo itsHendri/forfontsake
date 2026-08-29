@@ -19,6 +19,13 @@ export const extrude: Treatment = {
   name: 'Extrude',
   deterministic: true,
   blurb: 'A block shadow swept behind the letter.',
+  story:
+    'The solid is the letter swept along a direction: copies translated in small steps '+
+    'and unioned. Sweeping rather than offsetting is what matters — an offset grows the '+
+    'shape every way at once, where a sweep only fills the corridor the letter travels '+
+    'through, and that is where the flat sides of a sign-painted block shadow come from. '+
+    'Face and shade can be built separately, so the two-colour version is two exports '+
+    'stacked.',
   params: [
     { key: 'depth', label: 'Depth', min: 0, max: 400, step: 1, default: 58, note: '% of stroke width', primary: true },
     { key: 'angle', label: 'Angle', min: 0, max: 359, step: 1, default: 315, note: 'degrees, 315 throws it down-right', primary: true },

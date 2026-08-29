@@ -322,6 +322,80 @@ h1 {
   color: var(--mark);
 }
 
+/* the two ways out that are not the font — kept under the strip and quieter
+   than it, so the download stays the loudest thing on the page */
+.export-aside {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+.export-aside button {
+  font-size: 12px;
+  padding: 5px 11px;
+  background: transparent;
+}
+
+/* ---------- specimen sheet ---------- */
+
+.poster-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--ink) 72%, transparent);
+}
+.poster {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 26px;
+  align-items: start;
+  max-width: 900px;
+  max-height: 100%;
+  overflow: auto;
+  padding: 22px;
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+.poster-sheet {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: min(78vh, 900px);
+  object-fit: contain;
+  /* the sheet has its own paper colour, so it needs a shadow rather than a
+     border to sit on the panel without a second frame around it */
+  box-shadow: 0 2px 18px color-mix(in srgb, var(--ink) 28%, transparent);
+}
+.poster-side h2 {
+  margin: 0 0 6px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 500;
+}
+.poster-side p {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.poster-side .row {
+  margin-bottom: 8px;
+}
+
+@media (max-width: 720px) {
+  .poster {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ---------- glyphs ---------- */
 
 .glyphs,
@@ -541,6 +615,17 @@ details[open] summary::before {
 }
 details .group {
   margin-top: 14px;
+}
+
+/* the lineage note under the dials — set narrow and quiet, so it reads as an
+   aside about the algorithm rather than another control */
+.story p {
+  margin: 12px 0 0;
+  max-width: 46ch;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--muted);
+  text-wrap: pretty;
 }
 
 .row {

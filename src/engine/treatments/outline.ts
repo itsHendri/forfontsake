@@ -16,6 +16,11 @@ export const outline: Treatment = {
   name: 'Outline',
   deterministic: true,
   blurb: 'Hollow the letter, or run a stripe inside the strokes.',
+  story:
+    'One operation, three results. Offset the shape twice and subtract one copy from '+
+    'the other; which two copies you pick decides whether the line sits outside the '+
+    'letter, on its boundary, or within its strokes — the inline stripe of Bungee and '+
+    'Neutraface Inline.',
   params: [
     { key: 'mode', label: 'Style', min: 0, max: 2, step: 1, default: 0, note: '0 outline · 1 hairline · 2 inline stripe', primary: true },
     { key: 'weight', label: 'Line weight', min: 3, max: 150, step: 1, default: 22, note: '% of stroke width', primary: true },

@@ -16,10 +16,11 @@ installable font**, entirely in the browser.
 
 | Piece | State |
 | --- | --- |
-| Engine (6 treatments) | Done. Grit, Bubble, Bleed, Outline, Extrude, Mosaic. |
+| Engine (7 treatments) | Done. Grit, Bubble, Bleed, Outline, Extrude, Mosaic, Growth. |
 | Live preview | Done. Type into the specimen itself. |
 | Glyph grid, waterfall | Done. All 69 preview glyphs; 96→12 on the 8-pt grid. |
 | **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker. |
+| Specimen sheet | Done. Poster overlay — roll, recolour, PNG/SVG, copy for Figma. |
 | Saved styles | Done, in-memory only — lost on reload. |
 | CLI export + verification | Done. `build:font` + `verify:font` (7 checks). |
 | Deployment | **Not started.** |
@@ -27,9 +28,9 @@ installable font**, entirely in the browser.
 Seven source fonts ship, all OFL: Pirata One, Anton, Archivo Black, Bebas Neue,
 UnifrakturCook, Abril Fatface, Pacifico.
 
-## The two non-obvious mechanisms
+## The three non-obvious mechanisms
 
-Both are explained fully in `DECISIONS.md`; know they exist before touching either.
+All are explained fully in `DECISIONS.md`; know they exist before touching any of them.
 
 1. **You type into the specimen.** A transparent `<input>` sits over the treated outlines.
    It only lines up because treatments preserve advance widths *and* the source faces ship
@@ -40,43 +41,65 @@ Both are explained fully in `DECISIONS.md`; know they exist before touching eith
    runs — executes in a Web Worker over the real source bytes. Verified equal to the CLI
    output on Pirata One (1144 glyphs) and Anton (4095), and accepted by the browser's own
    sanitiser.
+3. **Growth only works because it inserts points.** It is differential growth on the glyph's
+   own contours, and the node insertion *is* the effect — the fixed-point-count version of it
+   grows the perimeter 5.7% over sixty steps and looks like nothing. A per-glyph point budget
+   caps it at 700, because folding is unbounded and points are bytes in the export.
 
 ## Verified, and how
 
-- `npm run typecheck` · `npm run test` (32) — both green.
+- `npm run typecheck` · `npm run test` (43) — both green.
 - `npm run verify:font` — 7 checks: size, **ots-sanitize**, fontTools, **CoreText**,
   alternates actually substitute, ligatures still form, naming + Reserved Font Names.
 - The browser export was checked by loading the result with `FontFace.load()`, which *is*
-  OTS, and confirming glyphs draw.
+  OTS, and confirming glyphs draw. Re-checked on Growth over Archivo Black: a 692 KB
+  `font/ttf` blob, 1268 glyphs including 842 alternates, sfntVersion `0x00010000`, 18
+  tables, accepted by `FontFace.load()`.
+- All seven treatments were built at `--alts=2` and put through `verify:font` in one sweep —
+  7/7 checks each, no regressions from the `story` field being added across the set.
+- The specimen overlay (mechanism 1) was re-measured with Growth on its heaviest preset,
+  since a *growing* treatment is the case most likely to break it: **-0.01 px** between the
+  input's laid-out text and the drawn outlines.
 
-**Known-failing, and why it is not a regression:** `verify:font`'s metric-parity check
-compares raw glyph counts, so it always fails when built with `--alts > 1` (386 source vs
-1144 with three cuts). All seven pass at `--alts=1`. A task to fix the check properly was
-spun off separately.
+The metric-parity check that used to fail on `--alts > 1` has been fixed — it compares the em
+square, the mapped codepoints and the shared glyphs' advances rather than raw glyph counts,
+and it understands a growing treatment. It only runs when `VERIFY_AGAINST` points at the
+source font:
+
+```
+VERIFY_AGAINST=public/fonts/pirata-one/PirataOne-Regular.ttf \
+  npm run verify:font -- out/CoralOne-Regular.ttf Pirata
+```
+
+Growth passes all eight at `--alts=3` — on the defaults that is 519.4 KB, 1144 glyphs,
+"advances grown +36 on 379". Note the CLI wants `--treatment=growth`, with the `=`; the
+bare-space form parses as the treatment named `true`.
 
 ## Debt, roughly in order of how much it matters
 
 1. **Not deployed.** The single biggest gap — see `docs/DEPLOY.md`.
-2. **Bundle is 877 KB** (266 KB gzipped) because the export worker is inlined
+2. **Bundle is 896 KB** (273 KB gzipped) because the export worker is inlined
    (`?worker&inline`) so the published single-file page works. Every visitor downloads the
    font writer whether or not they export. Fix before launch; DEPLOY.md has the approach.
 3. **Saved styles do not persist.** In-memory only.
-4. **No OG share image.** `index.html` points at `/share.png`, which does not exist yet.
-5. Treatments do not stack in the UI, though the engine takes a chain.
-6. Uploading your own font is not wired up.
-7. Big faces are slow to export — Anton is ~1,373 glyphs and three cuts of it is a 4 MB
+4. Treatments do not stack in the UI, though the engine takes a chain.
+5. Uploading your own font is not wired up.
+6. Big faces are slow to export — Anton is ~1,373 glyphs and three cuts of it is a 4 MB
    file that takes ~a minute in-browser. Honest about it now (the strip shows the glyph
    count and names the assembly phase) but not fast.
+7. The specimen sheet has one layout. Book of Shapes ships several and lets you page
+   through them; the second layout is the cheapest good improvement here.
 
 ## Where things live
 
 ```
 src/engine/          pure geometry + font writing, no DOM (browser-safe)
-src/lib/             glyphData · render · urlState · exportFont
-src/components/      Plate · ExportBar · GlyphGrid · Waterfall · Panel · Dial · Shelf
+src/lib/             glyphData · render · urlState · exportFont · poster · clipboard
+src/components/      Plate · ExportBar · GlyphGrid · Waterfall · Panel · Dial · Shelf · Poster
 src/workers/         buildFont.worker.ts — the export, off the main thread
 public/fonts/        7 sources + OFL.txt each; preview/ holds metrics-only subsets
 scripts/             make-glyph-data · build-font · verify-font · inline-build · figma-export
+                     make-share-image (regenerates public/share.png from poster.ts)
 out/                 build output and scratch — gitignored, safe to delete
 ```
 

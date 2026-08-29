@@ -22,6 +22,12 @@ export const bleed: Treatment = {
   name: 'Bleed',
   deterministic: false,
   blurb: 'Wet ink spreading unevenly into the paper, pooling where strokes meet.',
+  story:
+    'Growing a letter evenly just makes it heavier. Ink does not spread evenly: it '+
+    'creeps further into some fibres than others, so the swelling here is lumps of '+
+    'varying size unioned along the outline. And it pools where two wet edges feed the '+
+    'same spot, which is why the blobs at concave turns are enlarged — that detail is '+
+    'the whole difference between printed heavy and printed wet.',
   params: [
     { key: 'amount', label: 'Spread', min: 0, max: 120, step: 1, default: 22, note: 'how far ink creeps, as % of stroke', primary: true },
     { key: 'unevenness', label: 'Unevenness', min: 0, max: 100, step: 1, default: 65, note: 'how much the spread varies', primary: true },

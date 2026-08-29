@@ -72,6 +72,13 @@ export const grit: Treatment = {
   id: 'grit',
   name: 'Grit',
   blurb: 'Erosion — chunks bitten out of the edge, holes eaten through the strokes.',
+  story:
+    'Two kinds of loss, because damage never comes in one size. Blobs straddling the '+
+    'outline take chunks out of the silhouette; blobs inside the strokes eat holes '+
+    'through them. The sizes are drawn log-uniformly rather than from a narrow band — '+
+    'equal weight to each octave of scale — which is what gives a few big losses, more '+
+    'middling ones and a scatter of small ones. Erosion that arrives in one size reads '+
+    'as a texture laid over the letter rather than as damage done to it.',
   params: [
     { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, default: 55, note: 'how much is eaten away', primary: true },
     { key: 'scale', label: 'Piece size', min: 8, max: 250, step: 1, default: 58, note: 'size of a loss, as % of stroke width', primary: true },
