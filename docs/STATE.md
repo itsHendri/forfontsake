@@ -4,7 +4,8 @@ Read this first in a new session, then `README.md` for how to run it and
 `docs/DECISIONS.md` for why it is built the way it is.
 
 **Repo:** `/Users/hendri/forfontsake` → `github.com/itsHendri/forfontsake` (public, `main`)
-**Domain:** forfontsake.xyz — owned, **not deployed yet**. See `docs/DEPLOY.md`.
+**Live:** https://forfontsake.xyz — GitHub Pages, deployed from `main` by
+`.github/workflows/deploy.yml`. See `docs/DEPLOY.md`.
 **Licence:** GPL-3.0-only (forced by `font-flux-js`; deliberate — see DECISIONS).
 
 ---
@@ -23,7 +24,7 @@ installable font**, entirely in the browser.
 | Specimen sheet | Done. Poster overlay — roll, recolour, PNG/SVG, copy for Figma. |
 | Saved styles | Done, in-memory only — lost on reload. |
 | CLI export + verification | Done. `build:font` + `verify:font` (7 checks). |
-| Deployment | Build, Pages workflow and `CNAME` in. **Waiting on two settings** — see DEPLOY.md. |
+| Deployment | **Live** at forfontsake.xyz. Pushes to `main` deploy; HTTPS enforced. |
 
 Seven source fonts ship, all OFL: Pirata One, Anton, Archivo Black, Bebas Neue,
 UnifrakturCook, Abril Fatface, Pacifico.
@@ -60,6 +61,11 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
 - The specimen overlay (mechanism 1) was re-measured with Growth on its heaviest preset,
   since a *growing* treatment is the case most likely to break it: **-0.01 px** between the
   input's laid-out text and the drawn outlines.
+- **On the live site**, not just locally: `https://forfontsake.xyz` serves, `http` and `www`
+  both 301 to the canonical apex, HTTPS is enforced, and pressing Download there produced
+  `Growth-Regular.ttf` — 519 KB, sfntVersion `0x00010000`, 17 tables, accepted by
+  `FontFace.load()`. That last one is the check worth repeating after any deploy that
+  touches the build, because it is the claim the whole project rests on.
 
 The metric-parity check that used to fail on `--alts > 1` has been fixed — it compares the em
 square, the mapped codepoints and the shared glyphs' advances rather than raw glyph counts,
@@ -77,17 +83,14 @@ bare-space form parses as the treatment named `true`.
 
 ## Debt, roughly in order of how much it matters
 
-1. **Not deployed — and now only two switches away.** The build, the Pages workflow and the
-   `CNAME` are all in. What is left is enabling Pages (Source: GitHub Actions) and pointing
-   DNS at GitHub; neither can be done from a shell. `docs/DEPLOY.md` has both, with the
-   records.
-2. **Saved styles do not persist.** In-memory only.
-3. Treatments do not stack in the UI, though the engine takes a chain.
-4. Uploading your own font is not wired up.
-5. Big faces are slow to export — Anton is ~1,373 glyphs and three cuts of it is a 4 MB
+1. **Saved styles do not persist.** In-memory only. Now the most visible gap, since people
+   can actually reach the tool.
+2. Treatments do not stack in the UI, though the engine takes a chain.
+3. Uploading your own font is not wired up.
+4. Big faces are slow to export — Anton is ~1,373 glyphs and three cuts of it is a 4 MB
    file that takes ~a minute in-browser. Honest about it now (the strip shows the glyph
    count and names the assembly phase) but not fast.
-6. The specimen sheet has one layout. Book of Shapes ships several and lets you page
+5. The specimen sheet has one layout. Book of Shapes ships several and lets you page
    through them; the second layout is the cheapest good improvement here.
 
 ## Where things live
