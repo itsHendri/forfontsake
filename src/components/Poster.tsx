@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { buildPoster, chainName, POSTER_PALETTES } from '../lib/poster'
+import { buildPoster, chainName, LAYOUTS, POSTER_PALETTES } from '../lib/poster'
 import { saveFile } from '../lib/exportFont'
 import { copyText } from '../lib/clipboard'
 import type { FontData } from '../lib/glyphData'
@@ -26,6 +26,7 @@ interface Props {
 export function Poster(p: Props) {
   const [sheetSeed, setSheetSeed] = useState(p.seed)
   const [paletteIndex, setPaletteIndex] = useState(0)
+  const [layoutIndex, setLayoutIndex] = useState(0)
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
 
@@ -36,6 +37,7 @@ export function Poster(p: Props) {
   }, [p])
 
   const palette = POSTER_PALETTES[paletteIndex % POSTER_PALETTES.length]
+  const layout = LAYOUTS[layoutIndex % LAYOUTS.length]
   // the number is the seed's, so the same sheet always carries the same one
   const number = (sheetSeed % 999) + 1
 
@@ -47,14 +49,15 @@ export function Poster(p: Props) {
         chain: p.chain,
         seed: sheetSeed,
         word: p.word,
+        layout: layout.id,
         palette,
         number,
       }),
-    [p.font, p.fontId, p.chain, sheetSeed, p.word, palette, number],
+    [p.font, p.fontId, p.chain, sheetSeed, p.word, layout.id, palette, number],
   )
 
   const src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
-  const stem = `forfontsake-${p.chain.map((c) => c.id).join('-')}-${String(number).padStart(3, '0')}`
+  const stem = `forfontsake-${p.chain.map((c) => c.id).join('-')}-${layout.id}-${String(number).padStart(3, '0')}`
 
   const downloadSvg = async () => {
     await saveFile(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), `${stem}.svg`)
@@ -99,6 +102,22 @@ export function Poster(p: Props) {
           <p className="muted">
             {chainName(p.chain)} on {p.font.label}, exactly as you have it set.
           </p>
+
+          {/* The sheets, paged rather than listed — two is not a menu. */}
+          <div className="sheets">
+            {LAYOUTS.map((l, i) => (
+              <button
+                type="button"
+                key={l.id}
+                className={i === layoutIndex % LAYOUTS.length ? 'chip is-on' : 'chip'}
+                onClick={() => setLayoutIndex(i)}
+                title={l.note}
+              >
+                {l.name}
+              </button>
+            ))}
+          </div>
+          <p className="muted sheet-note">{layout.note}</p>
 
           <div className="row">
             <button type="button" onClick={() => setSheetSeed(Math.floor(Math.random() * 9999) + 1)}>

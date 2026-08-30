@@ -22,8 +22,9 @@ installable font**, entirely in the browser.
 | Live preview | Done. Type into the specimen itself. |
 | Glyph grid, waterfall | Done. All 69 preview glyphs; 96→12 on the 8-pt grid. |
 | **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker. |
-| Specimen sheet | Done. Poster overlay — roll, recolour, PNG/SVG, copy for Figma. |
+| Specimen sheet | Done. Two sheets — word and character set — roll, recolour, PNG/SVG, Figma. |
 | Saved styles | Done, and kept across reloads in `localStorage`. |
+| Bring your own font | Done. Read in the worker, licence reported, held in memory. |
 | CLI export + verification | Done. `build:font` + `verify:font` (7 checks). |
 | Deployment | **Live** at forfontsake.xyz. Pushes to `main` deploy; HTTPS enforced. |
 
@@ -35,10 +36,13 @@ UnifrakturCook, Abril Fatface, Pacifico.
 All are explained fully in `DECISIONS.md`; know they exist before touching any of them.
 
 1. **You type into the specimen.** A transparent `<input>` sits over the treated outlines.
-   It only lines up because treatments preserve advance widths *and* the source faces ship
-   as metrics-only woff2 subsets in `public/fonts/preview/` (cut by `make-glyph-data`, never
-   seen). Measured delta across all seven faces: **0.0 px**. The vertical position is
-   measured from a hidden probe, not derived from font metrics.
+   It only lines up because treatments preserve advance widths, the source faces ship as
+   metrics-only woff2 subsets in `public/fonts/preview/` (cut by `make-glyph-data`, never
+   seen), **and every layout feature is switched off on that field** — kerning in particular.
+   The subsets are cut with `--layout-features=` so they had nothing to apply and that last
+   part went unnoticed until upload brought in a whole font: Pacifico sat 11 px adrift over
+   one line. Measured delta now, shipped and uploaded alike: **-0.01 px**. The vertical
+   position comes from a hidden probe, not from font metrics.
 2. **The download is built in the page.** `buildTreatedFont` — the same function the CLI
    runs — executes in a Web Worker over the real source bytes. Verified equal to the CLI
    output on Pirata One (1144 glyphs) and Anton (4095), and accepted by the browser's own
@@ -57,7 +61,7 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
 
 ## Verified, and how
 
-- `npm run typecheck` · `npm run test` (56) — both green.
+- `npm run typecheck` · `npm run test` (64) — both green.
 - `npm run verify:font` — 7 checks: size, **ots-sanitize**, fontTools, **CoreText**,
   alternates actually substitute, ligatures still form, naming + Reserved Font Names.
 - The browser export was checked by loading the result with `FontFace.load()`, which *is*
@@ -110,21 +114,22 @@ so every older invocation still means what it did.
 
 ## Debt, roughly in order of how much it matters
 
-1. Uploading your own font is not wired up.
-2. Big faces are still not fast to export. Pacifico, the heaviest of the seven, takes 26s
+1. Big faces are still not fast to export. Pacifico, the heaviest of the seven, takes 26s
    in-browser for a 2.7 MB file — better than the 6.5 MB it was, and honest while it runs,
    but a wait. What is left is genuinely proportional work; the next real gain would be
    splitting the glyphs across several workers.
-3. The specimen sheet has one layout. Book of Shapes ships several and lets you page
-   through them; the second layout is the cheapest good improvement here.
+2. The specimen sheet has two layouts. A third is a function in `poster.ts` and an entry in
+   `LAYOUTS`; a waterfall is the obvious one, though it repeats what the workbench shows.
 
 ## Where things live
 
 ```
 src/engine/          pure geometry + font writing, no DOM (browser-safe)
-src/lib/             glyphData · render · urlState · savedStyles · exportFont · poster · clipboard
+src/engine/extract   one font → outlines + licence; shared by the build script and the page
+src/lib/             glyphData · render · urlState · savedStyles · exportFont · importFont
+                     poster · clipboard
 src/components/      Plate · ExportBar · GlyphGrid · Waterfall · Panel · Dial · Shelf · Poster
-src/workers/         buildFont.worker.ts — the export, off the main thread
+src/workers/         buildFont.worker.ts — the export *and* reading an uploaded font
 public/fonts/        7 sources + OFL.txt each; preview/ holds metrics-only subsets
 scripts/             make-glyph-data · build-font · verify-font · inline-build · figma-export
                      make-share-image (regenerates public/share.png from poster.ts)

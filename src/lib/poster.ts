@@ -49,6 +49,8 @@ export interface PosterRequest {
   palette: PosterPalette
   /** the sheet's number, shown in the margin */
   number: number
+  /** which of LAYOUTS to set it in; out of range falls back to the first */
+  layout?: string
 }
 
 const SHEET_W = 1200
@@ -107,18 +109,106 @@ function drawWord(req: PosterRequest) {
   return { d, width: penX, ascender: data.ascender, descender: data.descender }
 }
 
+/**
+ * Every glyph on its own, for the character-set sheet.
+ *
+ * Separate from drawWord because a grid needs each letter's own box to centre
+ * it in, which a single run of path data cannot give back.
+ */
+function drawGlyphs(req: PosterRequest, chars: string) {
+  const data = req.font
+  const out: { ch: string; d: string; adv: number }[] = []
+  for (const ch of chars) {
+    const g = data.glyphs[ch]
+    if (!g || g.rings.length === 0) continue
+    const ctx = {
+      rng: mulberry32(req.seed + (ch.codePointAt(0) ?? 0) * 7919),
+      unitsPerEm: data.unitsPerEm,
+      strokeWidth: data.strokeWidth || data.unitsPerEm * 0.1,
+      advanceWidth: g.adv,
+      penX: 0,
+    }
+    out.push({ ch, d: ringsToPathD(applyChain(toRings(g.rings), req.chain, ctx), 0, 0), adv: g.adv })
+  }
+  return out
+}
+
 /** "Grit + Bleed" — what the sheet calls the stack */
 export function chainName(chain: Step[]): string {
   return chain.map((s) => getTreatment(s.id).name).join(' + ')
 }
 
-export function buildPoster(req: PosterRequest): string {
-  const word = drawWord(req)
+/**
+ * The sheets this can be set in.
+ *
+ * Two, and a way to page between them, because one layout makes the sheet a
+ * template and several make it a specimen series — which is what a foundry
+ * actually publishes and is the difference between an output and an artefact.
+ * They share all their furniture and differ only in the band between the rules,
+ * so a third is a function and nothing else.
+ */
+export interface PosterLayout {
+  id: string
+  name: string
+  /** one line for the control, saying what this sheet is for */
+  note: string
+}
 
-  const mono = "'Roboto Mono', ui-monospace, monospace"
-  const footTop = SHEET_H - MARGIN - 300
-  const bandTop = MARGIN + 114
-  const bandBottom = footTop - 60
+export const LAYOUTS: PosterLayout[] = [
+  { id: 'word', name: 'Word', note: 'One word, set as large as the sheet allows' },
+  { id: 'chars', name: 'Character set', note: 'The whole alphabet, treated' },
+]
+
+const mono = "'Roboto Mono', ui-monospace, monospace"
+
+const esc2 = esc
+
+/** the marks every sheet carries, whatever is set in the band */
+function chrome(req: PosterRequest, bandTop: number, footTop: number) {
+  const small = (x: number, y: number, text: string, fill: string, size = 19, anchor = 'start') =>
+    `<text x="${x}" y="${y}" font-family="${mono}" font-size="${size}" letter-spacing="2.4" ` +
+    `fill="${fill}" text-anchor="${anchor}">${esc2(text.toUpperCase())}</text>`
+
+  const number = String(req.number).padStart(3, '0')
+
+  // The story, wrapped by hand — SVG will not do it, and a foreignObject would
+  // not survive being rasterised by every tool people drop an SVG into. Cut to
+  // whole sentences rather than to a line count: a caption that stops mid-
+  // clause reads as a rendering bug, which on a specimen sheet is worse than
+  // saying less.
+  // With a stack there is no single story to tell, so the sheet carries the
+  // last step's — it is the one that shaped what you are looking at.
+  const last = getTreatment(req.chain[req.chain.length - 1].id)
+  const lines = wrap(firstSentences(last.story ?? last.blurb, 300), 76)
+
+  const head =
+    `<line x1="${MARGIN}" y1="${bandTop - 60}" x2="${SHEET_W - MARGIN}" y2="${bandTop - 60}" ` +
+    `stroke="${req.palette.ink}" stroke-width="2"/>` +
+    small(MARGIN, bandTop - 80, "For Font's Sake", req.palette.ink) +
+    small(SHEET_W - MARGIN, bandTop - 80, `No. ${number}`, req.palette.mark, 19, 'end')
+
+  const foot =
+    `<line x1="${MARGIN}" y1="${footTop}" x2="${SHEET_W - MARGIN}" y2="${footTop}" ` +
+    `stroke="${req.palette.ink}" stroke-width="2"/>` +
+    small(MARGIN, footTop + 40, `${chainName(req.chain)} on ${req.font.label}`, req.palette.ink, 23) +
+    small(MARGIN, footTop + 74, settingsLine(req.chain), req.palette.mark, 17) +
+    small(MARGIN, footTop + 104, `Seed ${req.seed}`, req.palette.mark, 17) +
+    lines
+      .map(
+        (line, i) =>
+          `<text x="${MARGIN}" y="${footTop + 146 + i * 26}" font-family="${mono}" ` +
+          `font-size="16" fill="${req.palette.ink}" opacity="0.62">${esc2(line)}</text>`,
+      )
+      .join('') +
+    small(SHEET_W - MARGIN, SHEET_H - MARGIN, 'forfontsake.xyz', req.palette.ink, 17, 'end') +
+    small(MARGIN, SHEET_H - MARGIN, 'Built in the browser · OFL source', req.palette.ink, 17)
+
+  return { head, foot, small }
+}
+
+/** one word, set as large as the sheet will take it */
+function bandWord(req: PosterRequest, bandTop: number, bandBottom: number) {
+  const word = drawWord(req)
 
   // The type is set to the sheet rather than the sheet to the type. Fitting to
   // the measure alone would set a three-letter word at a size the sheet cannot
@@ -135,58 +225,83 @@ export function buildPoster(req: PosterRequest): string {
   const blockTop = bandTop + (band - capHeight) / 2
   const baseline = blockTop + word.ascender * scale
 
-  const small = (x: number, y: number, text: string, fill: string, size = 19, anchor = 'start') =>
-    `<text x="${x}" y="${y}" font-family="${mono}" font-size="${size}" letter-spacing="2.4" ` +
-    `fill="${fill}" text-anchor="${anchor}">${esc(text.toUpperCase())}</text>`
+  return (
+    `<g transform="translate(${MARGIN}, ${baseline}) scale(${scale}, ${-scale})">` +
+    `<path d="${word.d}" fill="${req.palette.ink}" fill-rule="evenodd"/></g>` +
+    // the cap-height mark: a foundry sheet says how big the thing on it is
+    `<line x1="${SHEET_W - MARGIN + 22}" y1="${blockTop}" x2="${SHEET_W - MARGIN + 22}" ` +
+    `y2="${blockTop + capHeight}" stroke="${req.palette.mark}" stroke-width="2"/>`
+  )
+}
 
-  const number = String(req.number).padStart(3, '0')
+/**
+ * The whole alphabet, on a grid.
+ *
+ * Every glyph is drawn in its own cell at one size, so the sheet reads as a
+ * comparison rather than a composition — which is the point of a character set
+ * and is where an uneven treatment shows itself. The columns are chosen to fill
+ * the band rather than fixed, so a face with fewer glyphs still fills the sheet.
+ */
+function bandChars(req: PosterRequest, bandTop: number, bandBottom: number) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?&'-"
+  const glyphs = drawGlyphs(req, chars)
+  if (glyphs.length === 0) return ''
 
-  // The story, wrapped by hand — SVG will not do it, and a foreignObject would
-  // not survive being rasterised by every tool people drop an SVG into. Cut to
-  // whole sentences rather than to a line count: a caption that stops mid-
-  // clause reads as a rendering bug, which on a specimen sheet is worse than
-  // saying less.
-  // With a stack there is no single story to tell, so the sheet carries the
-  // last step's — it is the one that shaped what you are looking at.
-  const last = getTreatment(req.chain[req.chain.length - 1].id)
-  const lines = wrap(firstSentences(last.story ?? last.blurb, 300), 76)
+  const measure = SHEET_W - MARGIN * 2
+  const band = bandBottom - bandTop
+  // Square-ish cells: pick the column count whose resulting grid comes closest
+  // to filling the band without overflowing it.
+  let best = { cols: 8, cell: 0 }
+  for (let cols = 6; cols <= 12; cols++) {
+    const rows = Math.ceil(glyphs.length / cols)
+    const cell = Math.min(measure / cols, band / rows)
+    if (cell > best.cell) best = { cols, cell }
+  }
+  const { cols, cell } = best
+  const rows = Math.ceil(glyphs.length / cols)
+  const gridW = cols * cell
+  const gridH = rows * cell
+  const originX = MARGIN + (measure - gridW) / 2
+  const originY = bandTop + (band - gridH) / 2
+
+  const em = req.font.unitsPerEm
+  // 62% of the cell leaves the letters room to breathe and keeps a descender
+  // from touching the row beneath it
+  const scale = (cell * 0.62) / em
+  const asc = req.font.ascender
+
+  return glyphs
+    .map((g, i) => {
+      const cx = originX + (i % cols) * cell
+      const cy = originY + Math.floor(i / cols) * cell
+      // centred on its own advance width, so a narrow letter is not left-aligned
+      // in a cell it does not fill
+      const x = cx + (cell - g.adv * scale) / 2
+      const y = cy + cell / 2 + (asc * scale) / 2
+      return (
+        `<g transform="translate(${x.toFixed(1)}, ${y.toFixed(1)}) scale(${scale.toFixed(5)}, ${(-scale).toFixed(5)})">` +
+        `<path d="${g.d}" fill="${req.palette.ink}" fill-rule="evenodd"/></g>`
+      )
+    })
+    .join('')
+}
+
+export function buildPoster(req: PosterRequest): string {
+  const footTop = SHEET_H - MARGIN - 300
+  const bandTop = MARGIN + 114
+  const bandBottom = footTop - 60
+
+  const layout = LAYOUTS.find((l) => l.id === req.layout) ?? LAYOUTS[0]
+  const { head, foot } = chrome(req, bandTop, footTop)
+  const band = layout.id === 'chars' ? bandChars(req, bandTop, bandBottom) : bandWord(req, bandTop, bandBottom)
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SHEET_W} ${SHEET_H}" ` +
     `width="${SHEET_W}" height="${SHEET_H}">` +
     `<rect width="${SHEET_W}" height="${SHEET_H}" fill="${req.palette.paper}"/>` +
-    // top rule and the foundry line
-    `<line x1="${MARGIN}" y1="${MARGIN + 54}" x2="${SHEET_W - MARGIN}" y2="${MARGIN + 54}" ` +
-    `stroke="${req.palette.ink}" stroke-width="2"/>` +
-    small(MARGIN, MARGIN + 34, "For Font's Sake", req.palette.ink) +
-    small(SHEET_W - MARGIN, MARGIN + 34, `No. ${number}`, req.palette.mark, 19, 'end') +
-    // the specimen
-    `<g transform="translate(${MARGIN}, ${baseline}) scale(${scale}, ${-scale})">` +
-    `<path d="${word.d}" fill="${req.palette.ink}" fill-rule="evenodd"/></g>` +
-    // caption block
-    `<line x1="${MARGIN}" y1="${footTop}" x2="${SHEET_W - MARGIN}" y2="${footTop}" ` +
-    `stroke="${req.palette.ink}" stroke-width="2"/>` +
-    small(MARGIN, footTop + 40, `${chainName(req.chain)} on ${req.font.label}`, req.palette.ink, 23) +
-    small(MARGIN, footTop + 74, settingsLine(req.chain), req.palette.mark, 17) +
-    small(MARGIN, footTop + 104, `Seed ${req.seed}`, req.palette.mark, 17) +
-    lines
-      .map((line, i) =>
-        `<text x="${MARGIN}" y="${footTop + 146 + i * 26}" font-family="${mono}" ` +
-        `font-size="16" fill="${req.palette.ink}" opacity="0.62">${esc(line)}</text>`,
-      )
-      .join('') +
-    small(
-      SHEET_W - MARGIN,
-      SHEET_H - MARGIN,
-      'forfontsake.xyz',
-      req.palette.ink,
-      17,
-      'end',
-    ) +
-    small(MARGIN, SHEET_H - MARGIN, 'Built in the browser · OFL source', req.palette.ink, 17) +
-    // the cap-height mark: a foundry sheet says how big the thing on it is
-    `<line x1="${SHEET_W - MARGIN + 22}" y1="${blockTop}" x2="${SHEET_W - MARGIN + 22}" ` +
-    `y2="${blockTop + capHeight}" stroke="${req.palette.mark}" stroke-width="2"/>` +
+    head +
+    band +
+    foot +
     `</svg>`
   )
 }
