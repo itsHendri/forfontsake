@@ -304,6 +304,9 @@ export function buildTreatedFont({
   const strokeWidth = medianStrokeWidth(strokeSamples, font.info.unitsPerEm * 0.1)
 
   const allowed = only ? new Set([...only].map((c) => c.codePointAt(0)!)) : null
+  // known before the main loop only so the progress it reports can leave room
+  // for the alternates pass that follows it
+  const willVary = Math.max(1, Math.round(alternates)) > 1 && chain.length > 0
   // validated up front so an unknown id fails before any glyph is touched
   chain.forEach((s) => getTreatment(s.id))
 
@@ -359,7 +362,9 @@ export function buildTreatedFont({
     }
 
     penX += g.advanceWidth
-    onProgress?.((i + 1) / glyphs.length)
+    // Halved when an alternates pass will follow, so the bar covers the whole
+    // build rather than filling up during the first half and starting again.
+    onProgress?.(((i + 1) / glyphs.length) * (willVary ? 0.5 : 1))
   }
 
   font.setInfo({

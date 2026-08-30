@@ -155,7 +155,7 @@ export function ExportBar(p: Props) {
           ) : (
             <>
               {p.font.label} · {p.chainName} ·{' '}
-              {varies ? `${p.alternates} cuts per letter` : 'one cut per letter'}{' '}
+              {varies ? `${p.alternates} cuts on the Latin letters` : 'one cut per letter'}{' '}
               {/* the whole face gets treated, not just what is on screen, so
                   say how much of it there is before the wait starts */}
               · from {p.font.sourceGlyphs.toLocaleString()} glyphs · OFL

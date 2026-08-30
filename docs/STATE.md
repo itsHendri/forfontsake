@@ -66,6 +66,11 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
   tables, accepted by `FontFace.load()`.
 - All seven treatments were built at `--alts=2` and put through `verify:font` in one sweep —
   7/7 checks each.
+- Alternates are cut only for Basic Latin and Latin-1 (`worthVarying`), which halved the
+  heavy faces: Pacifico 6.5 MB / 12.6s → **2.7 MB / 5.2s** in the CLI and 26s in the page,
+  Anton 4 MB → **1.75 MB**. The verifier still shows the rotation working
+  (`a a.alt1 a.alt2 a.alt1`) and ligatures still forming, which is the pair that had to
+  survive it.
 - A **stacked** font (`--treatment=grit+bubble`) passes all eight against the source, with
   the advances grown by the sum of both steps. Collapsing the three copies of the chain loop
   into `applyChain` was checked by rebuilding that font and diffing: **byte-identical**.
@@ -106,9 +111,10 @@ so every older invocation still means what it did.
 ## Debt, roughly in order of how much it matters
 
 1. Uploading your own font is not wired up.
-2. Big faces are slow to export — Anton is ~1,373 glyphs and three cuts of it is a 4 MB
-   file that takes ~a minute in-browser. Honest about it now (the strip shows the glyph
-   count and names the assembly phase) but not fast.
+2. Big faces are still not fast to export. Pacifico, the heaviest of the seven, takes 26s
+   in-browser for a 2.7 MB file — better than the 6.5 MB it was, and honest while it runs,
+   but a wait. What is left is genuinely proportional work; the next real gain would be
+   splitting the glyphs across several workers.
 3. The specimen sheet has one layout. Book of Shapes ships several and lets you page
    through them; the second layout is the cheapest good improvement here.
 

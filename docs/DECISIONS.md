@@ -343,6 +343,28 @@ per step, joined by `+`, so a link written before stacking existed has no `+` an
 as a one-step chain. Those links were the thing people were told to keep, and there is a test
 pinning the old shape.
 
+## Alternates are only cut for letters people set
+
+Three cuts of every glyph is the obvious reading of "three cuts per letter" and it is
+wasteful to the point of being a bug. Pacifico carries 1,528 outlines, most of them
+Vietnamese tone-mark composites; cutting three of each tripled the export for variation
+nobody will ever see. The file was 6.5 MB and took 12.6 seconds, and roughly eight-ninths of
+the alternates work was for glyphs that will never appear twice in a line of display type.
+
+Alternates exist for exactly one reason: so a letter repeating in a word does not read as
+stamped. That is a property of the few dozen characters people actually set. So they are cut
+for Basic Latin and Latin-1 Supplement — which keeps é, ñ, ü and å, characters that do turn
+up — and everything past that is still treated, still in the font, and gets one cut. Pacifico
+came to 2.7 MB and 5.2 seconds; Anton went from 4 MB to 1.75.
+
+The pair that had to survive it is the rotation and the ligatures, because both live in the
+GSUB we write. The verifier checks both, and both still hold.
+
+Profiling is what found it. The glyph loop was 4.1 seconds of a 12.6 second build — the other
+8.5 were the alternates pass, which also reported no progress at all, so the bar filled up
+during the first third and then sat at full. It reports now, and the main loop was rescaled
+to the first half so the bar covers the whole build instead of filling twice.
+
 ## Where to look next
 
 Highest value first, from the competitive research:
