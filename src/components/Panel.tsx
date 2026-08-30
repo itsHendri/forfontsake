@@ -21,6 +21,15 @@ interface Props {
   onRandomise: () => void
   onReset: () => void
   onSave: () => void
+  /** the glyphs the dials are editing — empty means the whole face */
+  scope: string[]
+  /** dial keys the scoped glyphs override at the active step */
+  overriddenKeys: Set<string>
+  /** whether anything in the scope carries its own settings */
+  scopeHasOverrides: boolean
+  onClearScope: () => void
+  onResetOverrides: () => void
+  onReroll: () => void
 }
 
 /** a preset is only "on" while the dials still match it exactly */
@@ -47,8 +56,48 @@ export function Panel(p: Props) {
   const random = p.chain.some((step) => !getTreatment(step.id).deterministic)
   const stacked = p.chain.length > 1
 
+  const scoped = p.scope.length > 0
+  const scopeLabel =
+    p.scope.length <= 6 ? p.scope.join(' ') : `${p.scope.slice(0, 6).join(' ')} +${p.scope.length - 6}`
+
   return (
     <form className="panel" onSubmit={(e) => e.preventDefault()}>
+      {/*
+        Which glyphs the dials below are editing. The scope switcher, not a
+        mode: selection in the grid opens it, clearing the selection closes it,
+        and everything global stays exactly where it always is.
+      */}
+      {scoped && (
+        <div className="group scope">
+          <h2>
+            Editing {scopeLabel} ({p.scope.length})
+          </h2>
+          <div className="row">
+            <button type="button" onClick={p.onClearScope}>
+              All glyphs
+            </button>
+            <button
+              type="button"
+              onClick={p.onReroll}
+              disabled={!random}
+              title={
+                random
+                  ? 'New randomness for just these glyphs'
+                  : 'Nothing in this stack is random'
+              }
+            >
+              Reroll these
+            </button>
+            {p.scopeHasOverrides && (
+              <button type="button" onClick={p.onResetOverrides} title="Back to the global settings">
+                Reset to global
+              </button>
+            )}
+          </div>
+          <p className="note">Dials below set just these glyphs. Untouched dials follow the global settings.</p>
+        </div>
+      )}
+
       {/*
         The stack, and the selector for which step the dials below belong to.
         Shown as soon as there is more than one step, or as the single "+" when
@@ -138,6 +187,7 @@ export function Panel(p: Props) {
             spec={spec}
             value={p.params[spec.key]}
             onChange={(v) => p.onParam(spec.key, v)}
+            accent={p.overriddenKeys.has(spec.key)}
           />
         ))}
       </div>
@@ -159,6 +209,7 @@ export function Panel(p: Props) {
                 spec={spec}
                 value={p.params[spec.key]}
                 onChange={(v) => p.onParam(spec.key, v)}
+                accent={p.overriddenKeys.has(spec.key)}
               />
             ))}
           </div>

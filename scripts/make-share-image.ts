@@ -13,7 +13,7 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { Resvg } from '@resvg/resvg-js'
-import { buildPoster, POSTER_PALETTES } from '../src/lib/poster'
+import { buildPoster, POSTER_PALETTES, SHEET_W, SHEET_H } from '../src/lib/poster'
 import { defaults, getTreatment } from '../src/engine/treatments/registry'
 import type { Library } from '../src/lib/glyphData'
 
@@ -45,8 +45,8 @@ const sheet = buildPoster({
 
 // strip the outer <svg> wrapper so the sheet can be placed as a group
 const inner = sheet.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '')
-const sheetScale = (CARD_H * 0.86) / 1600
-const sheetW = 1200 * sheetScale
+const sheetScale = (CARD_H * 0.86) / SHEET_H
+const sheetW = SHEET_W * sheetScale
 const card =
   `<svg xmlns="http://www.w3.org/2000/svg" width="${CARD_W}" height="${CARD_H}" ` +
   `viewBox="0 0 ${CARD_W} ${CARD_H}">` +

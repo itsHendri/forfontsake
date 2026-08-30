@@ -22,6 +22,7 @@ export interface BuildRequest {
   names: BuildOptions['names']
   seed: number
   alternates: number
+  overrides?: BuildOptions['overrides']
 }
 
 export interface ExtractRequest {
@@ -76,6 +77,7 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       names: req.names,
       seed: req.seed,
       alternates: req.alternates,
+      overrides: req.overrides,
       onProgress: (fraction) => post({ progress: fraction } as BuildResponse),
     })
     const { bytes, ...stats } = result

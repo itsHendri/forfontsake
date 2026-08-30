@@ -80,6 +80,11 @@ export function Plate(p: Props) {
 
   const family = `"ffs-${p.fontId}", ui-monospace, monospace`
   const scale = metrics.px / p.result.unitsPerEm
+  // The drawn outlines advance by the source width plus the stack's growth
+  // (matching the exported font); the field lays out on the raw metrics-only
+  // subset, so the growth is restored as letter-spacing — the one CSS property
+  // that adds the same amount after every glyph, spaces included.
+  const spacing = p.result.letterGrowth * scale
   const inkWidth = Math.max(1, p.result.width * scale)
   const inkHeight = Math.max(1, (p.result.ascender - p.result.descender) * scale)
   // the field is stretched to the ink so it never scrolls independently — the
@@ -171,7 +176,7 @@ export function Plate(p: Props) {
             type="text"
             value={p.text}
             onChange={(e) => p.onText(e.target.value)}
-            style={{ fontFamily: family }}
+            style={{ fontFamily: family, letterSpacing: spacing || undefined }}
             placeholder="Type here"
             aria-label="Specimen text"
             autoComplete="off"

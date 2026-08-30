@@ -54,14 +54,33 @@ describe('poster', () => {
     it(`builds the ${layout.name} sheet`, () => {
       const svg = buildPoster(req(layout.id))
       wellFormed(svg)
+      // the sheet is made to be posted: Instagram portrait, 4:5
+      expect(svg).toContain('viewBox="0 0 1080 1350"')
       // the marks every sheet carries, whichever band it sets
       expect(svg).toContain('FOR FONT&#39;S SAKE'.replace('&#39;', "'"))
       expect(svg).toContain('NO. 007')
       expect(svg).toContain('SEED 1337')
       expect(svg).toContain('FORFONTSAKE.XYZ')
       expect(svg).toContain('GRIT ON TEST FACE')
+      // furniture the redesign removed stays removed
+      expect(svg).not.toContain('BUILT IN THE BROWSER')
     })
   }
+
+  it('places the word where the user has put it', () => {
+    const base = buildPoster(req('word'))
+    const moved = buildPoster({ ...req('word'), wordTransform: { dx: 120, dy: -80, scale: 0.5 } })
+    wellFormed(moved)
+    expect(moved).not.toBe(base)
+    // identity transform is the same sheet, byte for byte
+    expect(buildPoster({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 1 } })).toBe(base)
+    // the word group is addressable, for the overlay's drag handling
+    expect(base).toContain('data-part="word"')
+    // the character-set sheet ignores it
+    expect(buildPoster({ ...req('chars'), wordTransform: { dx: 120, dy: -80, scale: 0.5 } })).toBe(
+      buildPoster(req('chars')),
+    )
+  })
 
   it('sets something different in the band for each sheet', () => {
     const word = buildPoster(req('word'))

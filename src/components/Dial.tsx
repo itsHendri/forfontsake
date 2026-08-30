@@ -4,20 +4,22 @@ interface Props {
   spec: ParamSpec
   value: number
   onChange: (value: number) => void
+  /** this dial deviates from the global settings — the per-glyph accent */
+  accent?: boolean
 }
 
 /**
  * One parameter. The default is marked on the track so "is this a lot?" is
  * answerable at a glance rather than only by dragging.
  */
-export function Dial({ spec, value, onChange }: Props) {
+export function Dial({ spec, value, onChange, accent }: Props) {
   const id = `dial-${spec.key}`
   const range = spec.max - spec.min
   const defaultAt = range > 0 ? ((spec.default - spec.min) / range) * 100 : 0
   const atDefault = value === spec.default
 
   return (
-    <div className="ctl">
+    <div className={accent ? 'ctl is-override' : 'ctl'}>
       <div className="ctl-head">
         <label htmlFor={id}>{spec.label}</label>
         <output htmlFor={id} className={atDefault ? 'is-default' : undefined}>

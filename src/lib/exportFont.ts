@@ -7,7 +7,7 @@ import BuildWorker from '../workers/buildFont.worker?worker'
 import type { BuildRequest, BuildResponse } from '../workers/buildFont.worker'
 import { violatesReservedNames } from '../engine/fontio'
 import { loadSource, type FontData } from './glyphData'
-import type { Step } from './urlState'
+import type { Overrides, Step } from './urlState'
 
 export interface ExportRequest {
   font: FontData
@@ -19,6 +19,8 @@ export interface ExportRequest {
   seed: number
   alternates: number
   familyName: string
+  /** per-character exceptions to the chain — the worker takes them as-is */
+  overrides?: Overrides
 }
 
 export interface ExportResult {
@@ -95,6 +97,7 @@ export function buildFont(
         chain: req.chain,
         seed: req.seed,
         alternates: req.alternates,
+        overrides: req.overrides,
         names: {
           familyName: req.familyName.trim(),
           styleName: 'Regular',

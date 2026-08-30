@@ -53,6 +53,55 @@ export function chainGrowth(chain: Step[], ctx: TreatmentContext): number {
   return chain.reduce((sum, s) => sum + (getTreatment(s.id).growth?.(s.params, ctx) ?? 0), 0)
 }
 
+/**
+ * One glyph's exceptions to the global chain.
+ *
+ * Overrides are sparse dial deltas, never a different stack: the steps and
+ * their order always come from the global chain, and `params[i]` holds only
+ * the dials the user moved for this glyph at step `i`. A global slider still
+ * flows through every dial the glyph has not overridden — the CSS-cascade
+ * model, which is what keeps "what am I looking at" answerable.
+ */
+export interface GlyphOverride {
+  /** per-step sparse dial values, aligned with the chain by index */
+  params: ParamValues[]
+  /** moves this glyph's seed off the global one — the per-glyph reroll */
+  nudge?: number
+}
+
+export type Overrides = Record<string, GlyphOverride>
+
+/**
+ * The chain as it applies to one character.
+ *
+ * This is the only place an override is merged, for the same reason applyChain
+ * is the only place a chain runs: preview, sheet and font writer must agree on
+ * what a glyph's settings are, or they quietly stop matching. Returns the
+ * global chain itself when the character has no deltas, so callers can keep
+ * cheap identity checks.
+ */
+export function resolveChain(chain: Step[], overrides: Overrides | undefined, ch: string): Step[] {
+  const o = overrides?.[ch]
+  if (!o) return chain
+  let changed = false
+  const merged = chain.map((step, i) => {
+    const delta = o.params[i]
+    if (!delta || Object.keys(delta).length === 0) return step
+    changed = true
+    return { id: step.id, params: { ...step.params, ...delta } }
+  })
+  return changed ? merged : chain
+}
+
+// a large prime, so nudged seeds land nowhere near their neighbours
+const NUDGE_PRIME = 104651
+
+/** the seed as it applies to one character — reroll moves it, nothing else */
+export function effectiveSeed(seed: number, overrides: Overrides | undefined, ch: string): number {
+  const nudge = overrides?.[ch]?.nudge ?? 0
+  return nudge ? seed + nudge * NUDGE_PRIME : seed
+}
+
 /** id, name and blurb only — for building a picker without pulling in the engine */
 export function listTreatments() {
   return TREATMENTS.map((t) => ({ id: t.id, name: t.name, blurb: t.blurb }))

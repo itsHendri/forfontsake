@@ -3,7 +3,14 @@ import { TREATMENTS, getTreatment, defaults, type ParamValues, type Preset } fro
 import { loadLibrary, type Library } from './lib/glyphData'
 import { importFont, type Imported } from './lib/importFont'
 import { render, renderGlyphSet } from './lib/render'
-import { decodeState, encodeState, type WorkbenchState, type Step } from './lib/urlState'
+import {
+  decodeState,
+  encodeState,
+  type GlyphOverride,
+  type Overrides,
+  type WorkbenchState,
+  type Step,
+} from './lib/urlState'
 import { loadShelf, saveShelf, SHELF_LIMIT } from './lib/savedStyles'
 import { Panel } from './components/Panel'
 import { Plate } from './components/Plate'
@@ -35,16 +42,37 @@ const MAX_STEPS = 3
  * quietly applied without that step — silently showing something other than
  * what the link says is worse than not opening it.
  */
+/** an override that says nothing is noise in the URL and the shelf — drop it */
+function overrideEmpty(o: GlyphOverride): boolean {
+  return !o.nudge && o.params.every((p) => !p || Object.keys(p).length === 0)
+}
+
+/** overrides trimmed to the chain and stripped of empty entries, or absent */
+function pruneOverrides(overrides: Overrides | undefined, chainLength: number): Overrides | undefined {
+  if (!overrides) return undefined
+  const out: Overrides = {}
+  for (const [ch, o] of Object.entries(overrides)) {
+    const trimmed: GlyphOverride = {
+      params: o.params.slice(0, chainLength).map((p) => p ?? {}),
+      ...(o.nudge ? { nudge: o.nudge } : {}),
+    }
+    if (!overrideEmpty(trimmed)) out[ch] = trimmed
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
 function usable(state: WorkbenchState, library: Library): WorkbenchState | null {
   if (!library[state.fontId]) return null
   if (state.chain.length === 0) return null
   if (!state.chain.every((step) => TREATMENTS.some((t) => t.id === step.id))) return null
+  const overrides = pruneOverrides(state.overrides, state.chain.length)
   return {
     ...state,
     chain: state.chain.map((step) => ({
       id: step.id,
       params: { ...defaults(getTreatment(step.id)), ...step.params },
     })),
+    ...(overrides ? { overrides } : { overrides: undefined }),
   }
 }
 
@@ -71,6 +99,8 @@ export default function App() {
   const [posterOpen, setPosterOpen] = useState(false)
   // which step in the stack the dials are editing
   const [active, setActive] = useState(0)
+  // which glyphs the dials are editing — empty means the whole face
+  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [importing, setImporting] = useState(false)
   // what the last uploaded font said about its own licence
   const [licence, setLicence] = useState<Imported['licence'] | null>(null)
@@ -116,6 +146,36 @@ export default function App() {
     )
   }, [])
 
+  /**
+   * Edit the overrides map as one unit, pruning as it goes so an override that
+   * has been dialled back to nothing disappears from the URL and the shelf
+   * rather than lingering as an empty exception.
+   */
+  const patchOverrides = useCallback(
+    (fn: (overrides: Overrides, chainLength: number) => void) => {
+      setState((s) => {
+        if (!s) return s
+        const next: Overrides = Object.fromEntries(
+          Object.entries(s.overrides ?? {}).map(([ch, o]) => [
+            ch,
+            { ...o, params: o.params.map((p) => ({ ...p })) },
+          ]),
+        )
+        fn(next, s.chain.length)
+        return { ...s, overrides: pruneOverrides(next, s.chain.length) }
+      })
+    },
+    [],
+  )
+
+  /** one glyph's override, grown to the chain's length on demand */
+  const overrideFor = (overrides: Overrides, ch: string, chainLength: number): GlyphOverride => {
+    const o = overrides[ch] ?? { params: [] }
+    while (o.params.length < chainLength) o.params.push({})
+    overrides[ch] = o
+    return o
+  }
+
   // Restoring a shorter stack from the shelf can leave the selection past the
   // end of it, which would read as the dials editing nothing.
   const step = state ? Math.min(active, state.chain.length - 1) : 0
@@ -131,6 +191,7 @@ export default function App() {
         text: state.text,
         seed: state.seed,
         alternates: state.alternates,
+        overrides: state.overrides,
       })
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -160,6 +221,7 @@ export default function App() {
               text: s.text.trim() || FALLBACK_TEXT,
               seed: s.seed,
               alternates: s.alternates,
+              overrides: s.overrides,
             }),
             treatmentName: s.chain.map((c) => getTreatment(c.id).name).join(' + '),
           },
@@ -173,16 +235,30 @@ export default function App() {
   // The grid treats every glyph in the face, which is far more work than one
   // line — deferring it lets typing and dragging stay smooth while the grid
   // catches up a beat later.
-  const gridKey = state ? { fontId: state.fontId, chain: state.chain, seed: state.seed } : null
+  const gridKey = state
+    ? { fontId: state.fontId, chain: state.chain, seed: state.seed, overrides: state.overrides }
+    : null
   const deferredKey = useDeferredValue(gridKey)
   const glyphSet = useMemo(() => {
     if (!library || !deferredKey) return null
     try {
-      return renderGlyphSet(library, deferredKey.fontId, deferredKey.chain, deferredKey.seed)
+      return renderGlyphSet(
+        library,
+        deferredKey.fontId,
+        deferredKey.chain,
+        deferredKey.seed,
+        deferredKey.overrides,
+      )
     } catch {
       return null // the line above is the one worth surfacing an error for
     }
   }, [library, deferredKey])
+
+  // the glyphs carrying their own settings — the grid's corner dots
+  const overriddenChars = useMemo(
+    () => new Set(Object.keys(state?.overrides ?? {})),
+    [state?.overrides],
+  )
 
   if (error) {
     return (
@@ -211,15 +287,96 @@ export default function App() {
           text: FALLBACK_TEXT,
           seed: state.seed,
           alternates: state.alternates,
+          overrides: state.overrides,
         })
 
-  const applyPreset = (preset: Preset) =>
-    patchStep(step, { params: { ...state.chain[step].params, ...preset.values } })
+  // With glyphs selected, the dials write per-glyph deltas instead of the
+  // global chain — the scope switcher. Everything else stays global.
+  const scoped = selected.size > 0
+  const scopeChars = [...selected].sort()
+
+  const setParam = (key: string, value: number) => {
+    if (!scoped) {
+      patchStep(step, { params: { ...state.chain[step].params, [key]: value } })
+      return
+    }
+    patchOverrides((overrides, chainLength) => {
+      for (const ch of scopeChars) {
+        const o = overrideFor(overrides, ch, chainLength)
+        // a delta equal to the global value says nothing — remove it instead
+        if (state.chain[step].params[key] === value) delete o.params[step][key]
+        else o.params[step][key] = value
+      }
+    })
+  }
+
+  const applyPreset = (preset: Preset) => {
+    if (!scoped) {
+      patchStep(step, { params: { ...state.chain[step].params, ...preset.values } })
+      return
+    }
+    patchOverrides((overrides, chainLength) => {
+      for (const ch of scopeChars) {
+        const o = overrideFor(overrides, ch, chainLength)
+        for (const [key, value] of Object.entries(preset.values)) {
+          if (state.chain[step].params[key] === value) delete o.params[step][key]
+          else o.params[step][key] = value
+        }
+      }
+    })
+  }
+
+  const resetDials = () => {
+    if (!scoped) {
+      patchStep(step, { params: defaults(treatment) })
+      return
+    }
+    // reset for a selection means "back to the global settings", not defaults
+    patchOverrides((overrides) => {
+      for (const ch of scopeChars) if (overrides[ch]) overrides[ch].params[step] = {}
+    })
+  }
+
+  /** drop every exception the selected glyphs carry, reroll nudge included */
+  const resetOverrides = () => {
+    patchOverrides((overrides) => {
+      for (const ch of scopeChars) delete overrides[ch]
+    })
+  }
+
+  /** new randomness for just the selected glyphs — everything else stays put */
+  const reroll = () => {
+    patchOverrides((overrides, chainLength) => {
+      for (const ch of scopeChars) {
+        const o = overrideFor(overrides, ch, chainLength)
+        o.nudge = (o.nudge ?? 0) + 1
+      }
+    })
+  }
 
   const changeTreatment = (id: string) => {
     // parameters mean different things per treatment, so carrying values across
-    // would land on settings nobody chose
+    // would land on settings nobody chose — the per-glyph deltas at this step
+    // go for the same reason
     patchStep(step, { id, params: defaults(getTreatment(id)) })
+    patchOverrides((overrides) => {
+      for (const o of Object.values(overrides)) o.params[step] = {}
+    })
+  }
+
+  // What the dials show. For a selection it is the first glyph's effective
+  // values — predictable, and any slider you then move applies to all of them.
+  const panelParams = scoped
+    ? { ...state.chain[step].params, ...(state.overrides?.[scopeChars[0]]?.params[step] ?? {}) }
+    : state.chain[step].params
+
+  // which dials deviate somewhere in the selection — the panel's accents
+  const overriddenKeys = new Set<string>()
+  if (scoped) {
+    for (const ch of scopeChars) {
+      const delta = state.overrides?.[ch]?.params[step]
+      if (delta) for (const k of Object.keys(delta)) overriddenKeys.add(k)
+    }
   }
 
   /**
@@ -237,6 +394,10 @@ export default function App() {
   const removeStep = (i: number) => {
     if (state.chain.length <= 1) return
     patch({ chain: state.chain.filter((_, j) => j !== i) })
+    // per-glyph deltas are aligned with the chain by index, so they move too
+    patchOverrides((overrides) => {
+      for (const o of Object.values(overrides)) o.params.splice(i, 1)
+    })
     setActive((a) => (a > i || a >= state.chain.length - 1 ? Math.max(0, a - 1) : a))
   }
 
@@ -318,10 +479,18 @@ export default function App() {
             chainName={chainName}
             seed={state.seed}
             alternates={state.alternates}
+            overrides={state.overrides}
             specimen={specimen}
             onPoster={() => setPosterOpen(true)}
           />
-          {glyphSet && <GlyphGrid set={glyphSet} />}
+          {glyphSet && (
+            <GlyphGrid
+              set={glyphSet}
+              selected={selected}
+              overridden={overriddenChars}
+              onSelect={setSelected}
+            />
+          )}
         </main>
 
         <Panel
@@ -329,12 +498,10 @@ export default function App() {
           chain={state.chain}
           active={step}
           canAdd={state.chain.length < MAX_STEPS}
-          params={state.chain[step].params}
+          params={panelParams}
           seed={state.seed}
           alternates={state.alternates}
-          onParam={(key, value) =>
-            patchStep(step, { params: { ...state.chain[step].params, [key]: value } })
-          }
+          onParam={setParam}
           onPreset={applyPreset}
           onSelectStep={setActive}
           onAddStep={addStep}
@@ -342,8 +509,14 @@ export default function App() {
           onSeed={(seed) => patch({ seed })}
           onAlternates={(alternates) => patch({ alternates })}
           onRandomise={() => patch({ seed: Math.floor(Math.random() * 9999) + 1 })}
-          onReset={() => patchStep(step, { params: defaults(treatment) })}
+          onReset={resetDials}
           onSave={save}
+          scope={scopeChars}
+          overriddenKeys={overriddenKeys}
+          scopeHasOverrides={scopeChars.some((ch) => overriddenChars.has(ch))}
+          onClearScope={() => setSelected(new Set())}
+          onResetOverrides={resetOverrides}
+          onReroll={reroll}
         />
       </div>
 
@@ -360,6 +533,7 @@ export default function App() {
           font={library[state.fontId]}
           fontId={state.fontId}
           chain={state.chain}
+          overrides={state.overrides}
           seed={state.seed}
           // one word sets a sheet; a sentence would come out too small to read
           word={specimenText.split(/\s+/)[0] || treatment.name}

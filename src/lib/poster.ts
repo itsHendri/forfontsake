@@ -1,7 +1,14 @@
-import { getTreatment, applyChain } from '../engine/treatments/registry'
+import {
+  getTreatment,
+  applyChain,
+  resolveChain,
+  effectiveSeed,
+  type Overrides,
+} from '../engine/treatments/registry'
 import { mulberry32 } from '../engine/prng'
 import { ringsToPathD } from '../engine/svg'
 import { toRings, type FontData } from './glyphData'
+import { letterGrowth } from './render'
 import type { Step } from './urlState'
 
 /**
@@ -39,6 +46,19 @@ export const POSTER_PALETTES: PosterPalette[] = [
   { ink: '#f2ede2', paper: '#2b2440', mark: '#e9a13b' },
 ]
 
+/**
+ * Where the user has dragged and resized the word, in sheet pixels.
+ *
+ * Applied on top of the auto-fit: `scale` multiplies the fitted size about the
+ * word's visual centre, then `dx`/`dy` move it. Absent (or identity) means the
+ * sheet lays the word out exactly as it always has.
+ */
+export interface WordTransform {
+  dx: number
+  dy: number
+  scale: number
+}
+
 export interface PosterRequest {
   font: FontData
   fontId: string
@@ -51,11 +71,16 @@ export interface PosterRequest {
   number: number
   /** which of LAYOUTS to set it in; out of range falls back to the first */
   layout?: string
+  /** the user's placement of the word; only the word layout reads it */
+  wordTransform?: WordTransform
+  /** per-character exceptions to the chain, exactly as the workbench has them */
+  overrides?: Overrides
 }
 
-const SHEET_W = 1200
-const SHEET_H = 1600
-const MARGIN = 92
+// Instagram portrait, 4:5 — the sheet is made to be posted.
+export const SHEET_W = 1080
+export const SHEET_H = 1350
+const MARGIN = 76
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -88,23 +113,26 @@ export function settingsLine(chain: Step[]): string {
  */
 function drawWord(req: PosterRequest) {
   const data = req.font
+  // grown advances, as the exported font sets them — see render.ts
+  const grow = letterGrowth(data, req.chain, req.seed)
   let d = ''
   let penX = 0
   for (const ch of req.word) {
     const g = data.glyphs[ch]
     if (!g) continue
+    const rchain = resolveChain(req.chain, req.overrides, ch)
     if (g.rings.length > 0) {
       // one context across the stack, as everywhere else — see render.ts
       const ctx = {
-        rng: mulberry32(req.seed + (ch.codePointAt(0) ?? 0) * 7919),
+        rng: mulberry32(effectiveSeed(req.seed, req.overrides, ch) + (ch.codePointAt(0) ?? 0) * 7919),
         unitsPerEm: data.unitsPerEm,
         strokeWidth: data.strokeWidth || data.unitsPerEm * 0.1,
         advanceWidth: g.adv,
         penX,
       }
-      d += ringsToPathD(applyChain(toRings(g.rings), req.chain, ctx), penX, 0)
+      d += ringsToPathD(applyChain(toRings(g.rings), rchain, ctx), penX, 0)
     }
-    penX += g.adv
+    penX += g.adv + (rchain === req.chain ? grow : letterGrowth(data, rchain, req.seed))
   }
   return { d, width: penX, ascender: data.ascender, descender: data.descender }
 }
@@ -117,18 +145,21 @@ function drawWord(req: PosterRequest) {
  */
 function drawGlyphs(req: PosterRequest, chars: string) {
   const data = req.font
+  const grow = letterGrowth(data, req.chain, req.seed)
   const out: { ch: string; d: string; adv: number }[] = []
   for (const ch of chars) {
     const g = data.glyphs[ch]
     if (!g || g.rings.length === 0) continue
+    const rchain = resolveChain(req.chain, req.overrides, ch)
     const ctx = {
-      rng: mulberry32(req.seed + (ch.codePointAt(0) ?? 0) * 7919),
+      rng: mulberry32(effectiveSeed(req.seed, req.overrides, ch) + (ch.codePointAt(0) ?? 0) * 7919),
       unitsPerEm: data.unitsPerEm,
       strokeWidth: data.strokeWidth || data.unitsPerEm * 0.1,
       advanceWidth: g.adv,
       penX: 0,
     }
-    out.push({ ch, d: ringsToPathD(applyChain(toRings(g.rings), req.chain, ctx), 0, 0), adv: g.adv })
+    const gGrow = rchain === req.chain ? grow : letterGrowth(data, rchain, req.seed)
+    out.push({ ch, d: ringsToPathD(applyChain(toRings(g.rings), rchain, ctx), 0, 0), adv: g.adv + gGrow })
   }
   return out
 }
@@ -163,45 +194,32 @@ const mono = "'Roboto Mono', ui-monospace, monospace"
 
 const esc2 = esc
 
-/** the marks every sheet carries, whatever is set in the band */
+/**
+ * The marks every sheet carries, whatever is set in the band.
+ *
+ * Deliberately spare: the sheet is a post before it is a datasheet, so it says
+ * what it is, which number it is, one caption line, and where it came from —
+ * and leaves the rest of the surface to the type. The dial values still travel
+ * with the sheet as the URL state, not as furniture.
+ */
 function chrome(req: PosterRequest, bandTop: number, footTop: number) {
-  const small = (x: number, y: number, text: string, fill: string, size = 19, anchor = 'start') =>
+  const small = (x: number, y: number, text: string, fill: string, size = 17, anchor = 'start') =>
     `<text x="${x}" y="${y}" font-family="${mono}" font-size="${size}" letter-spacing="2.4" ` +
     `fill="${fill}" text-anchor="${anchor}">${esc2(text.toUpperCase())}</text>`
 
   const number = String(req.number).padStart(3, '0')
 
-  // The story, wrapped by hand — SVG will not do it, and a foreignObject would
-  // not survive being rasterised by every tool people drop an SVG into. Cut to
-  // whole sentences rather than to a line count: a caption that stops mid-
-  // clause reads as a rendering bug, which on a specimen sheet is worse than
-  // saying less.
-  // With a stack there is no single story to tell, so the sheet carries the
-  // last step's — it is the one that shaped what you are looking at.
-  const last = getTreatment(req.chain[req.chain.length - 1].id)
-  const lines = wrap(firstSentences(last.story ?? last.blurb, 300), 76)
-
   const head =
     `<line x1="${MARGIN}" y1="${bandTop - 60}" x2="${SHEET_W - MARGIN}" y2="${bandTop - 60}" ` +
     `stroke="${req.palette.ink}" stroke-width="2"/>` +
     small(MARGIN, bandTop - 80, "For Font's Sake", req.palette.ink) +
-    small(SHEET_W - MARGIN, bandTop - 80, `No. ${number}`, req.palette.mark, 19, 'end')
+    small(SHEET_W - MARGIN, bandTop - 80, `No. ${number}`, req.palette.mark, 17, 'end')
 
   const foot =
     `<line x1="${MARGIN}" y1="${footTop}" x2="${SHEET_W - MARGIN}" y2="${footTop}" ` +
     `stroke="${req.palette.ink}" stroke-width="2"/>` +
-    small(MARGIN, footTop + 40, `${chainName(req.chain)} on ${req.font.label}`, req.palette.ink, 23) +
-    small(MARGIN, footTop + 74, settingsLine(req.chain), req.palette.mark, 17) +
-    small(MARGIN, footTop + 104, `Seed ${req.seed}`, req.palette.mark, 17) +
-    lines
-      .map(
-        (line, i) =>
-          `<text x="${MARGIN}" y="${footTop + 146 + i * 26}" font-family="${mono}" ` +
-          `font-size="16" fill="${req.palette.ink}" opacity="0.62">${esc2(line)}</text>`,
-      )
-      .join('') +
-    small(SHEET_W - MARGIN, SHEET_H - MARGIN, 'forfontsake.xyz', req.palette.ink, 17, 'end') +
-    small(MARGIN, SHEET_H - MARGIN, 'Built in the browser · OFL source', req.palette.ink, 17)
+    small(MARGIN, footTop + 38, `${chainName(req.chain)} on ${req.font.label} · Seed ${req.seed}`, req.palette.ink, 15) +
+    small(SHEET_W - MARGIN, footTop + 38, 'forfontsake.xyz', req.palette.mark, 15, 'end')
 
   return { head, foot, small }
 }
@@ -225,12 +243,21 @@ function bandWord(req: PosterRequest, bandTop: number, bandBottom: number) {
   const blockTop = bandTop + (band - capHeight) / 2
   const baseline = blockTop + word.ascender * scale
 
+  // The user's placement rides on top of the auto-fit. Scaling is about the
+  // word's visual centre so growing it does not shove it off the sheet.
+  const t = req.wordTransform
+  let placed = ''
+  if (t && (t.dx !== 0 || t.dy !== 0 || t.scale !== 1)) {
+    const cx = MARGIN + (word.width * scale) / 2
+    const cy = blockTop + capHeight / 2
+    placed =
+      `translate(${t.dx}, ${t.dy}) translate(${cx}, ${cy}) ` +
+      `scale(${t.scale}) translate(${-cx}, ${-cy}) `
+  }
+
   return (
-    `<g transform="translate(${MARGIN}, ${baseline}) scale(${scale}, ${-scale})">` +
-    `<path d="${word.d}" fill="${req.palette.ink}" fill-rule="evenodd"/></g>` +
-    // the cap-height mark: a foundry sheet says how big the thing on it is
-    `<line x1="${SHEET_W - MARGIN + 22}" y1="${blockTop}" x2="${SHEET_W - MARGIN + 22}" ` +
-    `y2="${blockTop + capHeight}" stroke="${req.palette.mark}" stroke-width="2"/>`
+    `<g data-part="word" transform="${placed}translate(${MARGIN}, ${baseline}) scale(${scale}, ${-scale})">` +
+    `<path d="${word.d}" fill="${req.palette.ink}" fill-rule="evenodd"/></g>`
   )
 }
 
@@ -287,9 +314,9 @@ function bandChars(req: PosterRequest, bandTop: number, bandBottom: number) {
 }
 
 export function buildPoster(req: PosterRequest): string {
-  const footTop = SHEET_H - MARGIN - 300
-  const bandTop = MARGIN + 114
-  const bandBottom = footTop - 60
+  const footTop = SHEET_H - MARGIN - 64
+  const bandTop = MARGIN + 96
+  const bandBottom = footTop - 48
 
   const layout = LAYOUTS.find((l) => l.id === req.layout) ?? LAYOUTS[0]
   const { head, foot } = chrome(req, bandTop, footTop)
@@ -304,31 +331,4 @@ export function buildPoster(req: PosterRequest): string {
     foot +
     `</svg>`
   )
-}
-
-/** as many whole sentences as fit the budget, and never fewer than one */
-function firstSentences(text: string, budget: number): string {
-  const parts = text.split(/(?<=\.)\s+/)
-  let out = ''
-  for (const part of parts) {
-    if (out && out.length + part.length + 1 > budget) break
-    out = out ? `${out} ${part}` : part
-  }
-  return out
-}
-
-/** greedy wrap, because SVG text does not do it and the paragraph is short */
-function wrap(text: string, cols: number): string[] {
-  const out: string[] = []
-  let line = ''
-  for (const word of text.split(/\s+/)) {
-    if (line.length + word.length + 1 > cols) {
-      out.push(line)
-      line = word
-    } else {
-      line = line ? `${line} ${word}` : word
-    }
-  }
-  if (line) out.push(line)
-  return out
 }

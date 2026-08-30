@@ -4,7 +4,7 @@ import { copyText } from '../lib/clipboard'
 import type { FontData } from '../lib/glyphData'
 import type { RenderResult } from '../lib/render'
 import { getTreatment } from '../engine/treatments/registry'
-import type { Step } from '../lib/urlState'
+import type { Overrides, Step } from '../lib/urlState'
 
 interface Props {
   font: FontData
@@ -14,6 +14,8 @@ interface Props {
   chainName: string
   seed: number
   alternates: number
+  /** per-character exceptions, carried into the export as-is */
+  overrides?: Overrides
   /** the line as drawn, for handing to a drawing tool rather than a font menu */
   specimen: RenderResult
   onPoster: () => void
@@ -55,7 +57,7 @@ export function ExportBar(p: Props) {
   // any change to the geometry makes a finished build stale
   useEffect(() => {
     setState((s) => (s.phase === 'done' || s.phase === 'failed' ? { phase: 'idle' } : s))
-  }, [p.fontId, p.chain, p.seed, p.alternates])
+  }, [p.fontId, p.chain, p.seed, p.alternates, p.overrides])
 
   const problem = nameProblem(name, p.font)
   const busy = state.phase === 'building'
@@ -96,6 +98,7 @@ export function ExportBar(p: Props) {
           treatmentName: p.chainName,
           seed: p.seed,
           alternates: p.alternates,
+          overrides: p.overrides,
           familyName: name,
         },
         (progress) => live.current && setState({ phase: 'building', progress }),

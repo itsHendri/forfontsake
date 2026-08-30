@@ -66,4 +66,51 @@ describe('urlState', () => {
     const tricky = { ...base, text: 'a|b+c%d' }
     expect(decodeState('#' + encodeState(tricky))!.text).toBe('a|b+c%d')
   })
+
+  it('round-trips per-glyph overrides in a seventh field', () => {
+    const withOverrides: WorkbenchState = {
+      ...base,
+      chain: [
+        { id: 'grit', params: { amount: 55, scale: 58 } },
+        { id: 'bleed', params: { amount: 40 } },
+      ],
+      overrides: {
+        q: { params: [{ amount: 90 }, {}], nudge: 2 },
+        t: { params: [{}, { amount: 12 }] },
+      },
+    }
+    const encoded = encodeState(withOverrides)
+    expect(encoded.split('|')).toHaveLength(7)
+    expect(decodeState('#' + encoded)).toEqual(withOverrides)
+  })
+
+  it('round-trips overrides on the punctuation the format itself uses', () => {
+    const tricky: WorkbenchState = {
+      ...base,
+      overrides: {
+        ';': { params: [{ amount: 70 }] },
+        '&': { params: [{ amount: 20 }] },
+        '=': { params: [{}], nudge: 1 },
+      },
+    }
+    expect(decodeState('#' + encodeState(tricky))).toEqual(tricky)
+  })
+
+  it('leaves the six-field shape untouched when there are no overrides', () => {
+    expect(encodeState(base).split('|')).toHaveLength(6)
+    // an override that says nothing does not travel either
+    const empty: WorkbenchState = { ...base, overrides: { a: { params: [{}] } } }
+    expect(encodeState(empty).split('|')).toHaveLength(6)
+    expect(decodeState('#' + encodeState(empty))!.overrides).toBeUndefined()
+  })
+
+  it('ignores a mangled override group without dropping the rest', () => {
+    const good = encodeState({
+      ...base,
+      overrides: { q: { params: [{ amount: 90 }] } },
+    })
+    const back = decodeState('#' + good.replace('q=', 'q'))
+    expect(back).not.toBeNull()
+    expect(back!.overrides).toBeUndefined()
+  })
 })

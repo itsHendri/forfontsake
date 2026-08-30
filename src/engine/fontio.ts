@@ -8,6 +8,9 @@ import {
   getTreatment,
   applyChain,
   chainGrowth,
+  resolveChain,
+  effectiveSeed,
+  type Overrides,
   type Step,
   type TreatmentContext,
 } from './treatments/registry'
@@ -82,6 +85,12 @@ export interface BuildOptions {
   alternates?: number
   /** restrict treatment to these characters — for fast single-glyph runs */
   only?: string | null
+  /**
+   * Per-character exceptions to the chain, keyed by the character itself.
+   * Composite and unmapped glyphs have no character, so they take the global
+   * chain — same rule as the preview.
+   */
+  overrides?: Overrides
   onProgress?: (fraction: number) => void
 }
 
@@ -281,6 +290,7 @@ export function buildTreatedFont({
   seed,
   alternates = 1,
   only,
+  overrides,
   onProgress,
 }: BuildOptions): BuildResult {
   const font = FontFlux.open(source)
@@ -310,6 +320,26 @@ export function buildTreatedFont({
   // validated up front so an unknown id fails before any glyph is touched
   chain.forEach((s) => getTreatment(s.id))
 
+  // What the stack grows every advance by. Constant across glyphs — every
+  // growth() depends only on params and the median stroke — and applied to
+  // *all* advances including space and the untreated, so the plate's uniform
+  // letter-spacing compensation matches this font exactly.
+  const uniformGrowth =
+    chain.length > 0
+      ? Math.max(
+          0,
+          Math.round(
+            chainGrowth(chain, {
+              rng: mulberry32(seed),
+              unitsPerEm: font.info.unitsPerEm,
+              strokeWidth,
+              advanceWidth: 0,
+              penX: 0,
+            }),
+          ),
+        )
+      : 0
+
   const treatedIndices = new Set<number>()
   const sourceRings = new Map<number, Ring[]>()
   let treatedCount = 0
@@ -323,11 +353,16 @@ export function buildTreatedFont({
     const skip = allowed !== null && !(g.unicode !== undefined && allowed.has(g.unicode))
     const hasShape = (g.contours?.length ?? 0) > 0 || (g.components?.length ?? 0) > 0
 
+    // the character this glyph maps to, which is how overrides are keyed;
+    // composites and unmapped glyphs have none and take the global chain
+    const ch = g.unicode !== undefined ? String.fromCodePoint(g.unicode) : null
+    const rchain = ch ? resolveChain(chain, overrides, ch) : chain
+
     if (!skip && hasShape) {
       const ctx: TreatmentContext = {
         // per-glyph seed, so a glyph looks the same wherever it appears and the
         // whole font is reproducible from one number
-        rng: mulberry32(seed + i * 7919),
+        rng: mulberry32((ch ? effectiveSeed(seed, overrides, ch) : seed) + i * 7919),
         unitsPerEm: font.info.unitsPerEm,
         strokeWidth,
         advanceWidth: g.advanceWidth,
@@ -336,8 +371,8 @@ export function buildTreatedFont({
 
       const original = decomposeGlyph(g, (i) => glyphs[i])
       // the same function the preview and the specimen sheet run, so all three
-      // agree on what a stack produces — see applyChain
-      const rings = applyChain(original, chain, ctx)
+      // agree on what a stack produces — see applyChain and resolveChain
+      const rings = applyChain(original, rchain, ctx)
 
       if (rings.length > 0) {
         treatedIndices.add(i)
@@ -354,12 +389,28 @@ export function buildTreatedFont({
           maxPointsGlyph = g.name
         }
 
-        // treatments that grow a glyph need the advance to grow with them, or
-        // the font sets solid
-        const growth = chainGrowth(chain, ctx)
-        if (growth > 0) g.advanceWidth = Math.round(g.advanceWidth + growth)
       }
     }
+
+    // treatments that grow a glyph need the advance to grow with them, or the
+    // font sets solid — applied to every glyph, spaces included. A glyph with
+    // its own dials can grow by its own amount.
+    const glyphGrowth =
+      rchain === chain
+        ? uniformGrowth
+        : Math.max(
+            0,
+            Math.round(
+              chainGrowth(rchain, {
+                rng: mulberry32(seed),
+                unitsPerEm: font.info.unitsPerEm,
+                strokeWidth,
+                advanceWidth: 0,
+                penX: 0,
+              }),
+            ),
+          )
+    if (glyphGrowth > 0) g.advanceWidth = Math.round(g.advanceWidth + glyphGrowth)
 
     penX += g.advanceWidth
     // Halved when an alternates pass will follow, so the bar covers the whole
@@ -458,16 +509,21 @@ export function buildTreatedFont({
       // longer than it had taken to get there, which reads as a hang.
       onProgress?.(0.5 + (0.5 * cut++) / Math.max(1, candidates.length))
 
+      // the same per-character resolution as the main loop, so an overridden
+      // glyph's alternates carry its own dials too
+      const ch = g.unicode !== undefined ? String.fromCodePoint(g.unicode) : null
+      const rchain = ch ? resolveChain(chain, overrides, ch) : chain
+
       const variants: number[] = []
       for (let v = 1; v < cuts; v++) {
         const ctx: TreatmentContext = {
-          rng: mulberry32(seed + i * 7919 + v * 104729),
+          rng: mulberry32((ch ? effectiveSeed(seed, overrides, ch) : seed) + i * 7919 + v * 104729),
           unitsPerEm: font.info.unitsPerEm,
           strokeWidth,
           advanceWidth: g.advanceWidth,
           penX: 0,
         }
-        const rings = applyChain(sourceRings.get(i) ?? [], chain, ctx)
+        const rings = applyChain(sourceRings.get(i) ?? [], rchain, ctx)
         if (rings.length === 0) break
 
         const contours = ringsToContours(rings)

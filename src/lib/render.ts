@@ -1,4 +1,11 @@
-import { getTreatment, applyChain } from '../engine/treatments/registry'
+import {
+  getTreatment,
+  applyChain,
+  chainGrowth,
+  resolveChain,
+  effectiveSeed,
+  type Overrides,
+} from '../engine/treatments/registry'
 import { mulberry32 } from '../engine/prng'
 import { ringsToPathD } from '../engine/svg'
 import type { Ring } from '../engine/flatten'
@@ -13,6 +20,12 @@ export interface RenderResult {
   descender: number
   unitsPerEm: number
   contours: number
+  /**
+   * What the stack adds to every advance width, in font units. The exported
+   * font widens its advances by this much, so the preview must too — and the
+   * transparent input over the plate compensates with letter-spacing.
+   */
+  letterGrowth: number
   ms: number
 }
 
@@ -44,6 +57,8 @@ export interface RenderRequest {
    * three they cycle and the line stops looking stamped.
    */
   alternates?: number
+  /** per-character exceptions to the chain — see resolveChain */
+  overrides?: Overrides
 }
 
 /**
@@ -57,6 +72,25 @@ export interface RenderRequest {
  * rng here would make the preview and the exported font disagree about the same
  * settings, which is the one thing this tool cannot afford.
  */
+/**
+ * What the stack grows every advance by, in font units.
+ *
+ * Constant across a font's glyphs — every treatment's `growth()` depends only
+ * on its params and the font's median stroke width — so it is computed once and
+ * added to each advance, exactly as the font writer does.
+ */
+export function letterGrowth(data: FontData, chain: Step[], seed: number): number {
+  if (chain.length === 0) return 0
+  const ctx = {
+    rng: mulberry32(seed),
+    unitsPerEm: data.unitsPerEm,
+    strokeWidth: data.strokeWidth || data.unitsPerEm * 0.1,
+    advanceWidth: 0,
+    penX: 0,
+  }
+  return Math.max(0, Math.round(chainGrowth(chain, ctx)))
+}
+
 function treat(
   data: FontData,
   chain: Step[],
@@ -85,6 +119,7 @@ export function render({
   text,
   seed,
   alternates = 1,
+  overrides,
 }: RenderRequest): RenderResult {
   const t0 = performance.now()
   const data = library[fontId] ?? Object.values(library)[0]
@@ -96,6 +131,14 @@ export function render({
 
   const seen = new Map<string, number>()
   const cache = new Map<string, { rings: Ring[]; contours: number }>()
+  // grown advances, as the exported font will set them — spaces included. An
+  // overridden character can grow by a different amount, so its own chain is
+  // measured; everything else shares the global figure.
+  const grow = letterGrowth(data, chain, seed)
+  const growFor = (ch: string) => {
+    const rchain = resolveChain(chain, overrides, ch)
+    return rchain === chain ? grow : letterGrowth(data, rchain, seed)
+  }
   let penX = 0
   let d = ''
   let contours = 0
@@ -112,14 +155,16 @@ export function render({
       const key = `${ch}/${variant}`
       let entry = cache.get(key)
       if (!entry) {
-        const rings = treat(data, chain, g.rings, g.adv, seed, ch, variant, penX)
+        const rchain = resolveChain(chain, overrides, ch)
+        const eseed = effectiveSeed(seed, overrides, ch)
+        const rings = treat(data, rchain, g.rings, g.adv, eseed, ch, variant, penX)
         entry = { rings, contours: rings.length }
         cache.set(key, entry)
       }
       contours += entry.contours
       d += ringsToPathD(entry.rings, penX, 0)
     }
-    penX += g.adv
+    penX += g.adv + growFor(ch)
   }
 
   return {
@@ -129,6 +174,7 @@ export function render({
     descender: data.descender,
     unitsPerEm: data.unitsPerEm,
     contours,
+    letterGrowth: grow,
     ms: performance.now() - t0,
   }
 }
@@ -154,6 +200,7 @@ export function renderGlyphSet(
   fontId: string,
   chain: Step[],
   seed: number,
+  overrides?: Overrides,
 ): GlyphSet {
   const t0 = performance.now()
   const data = library[fontId] ?? Object.values(library)[0]
@@ -161,11 +208,17 @@ export function renderGlyphSet(
 
   // Iterated in specimen order rather than the object's own: JavaScript hoists
   // integer-like keys to the front, which would open the grid on the digits.
+  const grow = letterGrowth(data, chain, seed)
   for (const ch of GLYPH_ORDER) {
     const g = data.glyphs[ch]
     if (!g || g.rings.length === 0) continue // absent, or space and its like
-    const rings = treat(data, chain, g.rings, g.adv, seed, ch, 0, 0)
-    glyphs.push({ ch, d: ringsToPathD(rings, 0, 0), adv: g.adv })
+    const rchain = resolveChain(chain, overrides, ch)
+    const eseed = effectiveSeed(seed, overrides, ch)
+    const rings = treat(data, rchain, g.rings, g.adv, eseed, ch, 0, 0)
+    // the grown advance, so a cell gives a grown glyph the room it will
+    // actually take up in the exported font
+    const gGrow = rchain === chain ? grow : letterGrowth(data, rchain, seed)
+    glyphs.push({ ch, d: ringsToPathD(rings, 0, 0), adv: g.adv + gGrow })
   }
 
   return {

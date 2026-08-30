@@ -178,8 +178,9 @@ function resupply(contours: Node[][], maxEdge: number, minEdge: number, budget: 
 }
 
 export const growth: Treatment = {
+  // The id stays 'growth' forever — it lives in URL hashes and saved styles.
   id: 'growth',
-  name: 'Growth',
+  name: 'Organic',
   blurb: 'The edge buckles as it grows — wet ink at a few steps, coral at many.',
   story:
     'Differential growth, after Anders Hoff\u2019s differential line. Every point on the '+

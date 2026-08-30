@@ -1,5 +1,5 @@
 import { union, difference, FillRule, type Paths64 } from 'clipper2-ts'
-import { normalise, pathsToRings, shift, simplify, SCALE } from '../paths'
+import { normalise, pathsToRings, shift, simplify, grow } from '../paths'
 import type { Ring } from '../flatten'
 import type { Treatment, ParamValues, TreatmentContext } from './types'
 
@@ -11,37 +11,49 @@ import type { Treatment, ParamValues, TreatmentContext } from './types'
  * the shape in every direction, where a sweep only fills the corridor the
  * letter travels through, which is what gives the flat-sided look.
  *
- * `layer` picks what comes out. Splitting face from shade is what makes the
- * two-colour version possible later: build the font twice, stack the results.
+ * Everything here is one colour, so the classic look is faked the way a
+ * one-colour print fakes it: the face is drawn as an outline and the shadow as
+ * a solid, and the eye supplies the rest. A merged face-plus-shadow silhouette
+ * — what this treatment used to produce — just reads as a slightly bolder
+ * letter, which is no shadow at all.
+ *
+ * `layer` picks what comes out. Shade and face alone are kept for the true
+ * two-colour version: build the font twice, stack the results.
  */
 export const extrude: Treatment = {
   id: 'extrude',
   name: 'Extrude',
   deterministic: true,
-  blurb: 'A block shadow swept behind the letter.',
+  blurb: 'An outlined face over a solid block shadow.',
   story:
-    'The solid is the letter swept along a direction: copies translated in small steps '+
+    'The shadow is the letter swept along a direction: copies translated in small steps '+
     'and unioned. Sweeping rather than offsetting is what matters — an offset grows the '+
     'shape every way at once, where a sweep only fills the corridor the letter travels '+
     'through, and that is where the flat sides of a sign-painted block shadow come from. '+
-    'Face and shade can be built separately, so the two-colour version is two exports '+
-    'stacked.',
+    'In one colour the face is drawn hollow so the shadow reads as behind it; face and '+
+    'shade can also be built separately, so the two-colour version is two exports stacked.',
   params: [
-    { key: 'depth', label: 'Depth', min: 0, max: 400, step: 1, default: 58, note: '% of stroke width', primary: true },
+    { key: 'depth', label: 'Depth', min: 0, max: 400, step: 1, default: 150, note: '% of stroke width', primary: true },
     { key: 'angle', label: 'Angle', min: 0, max: 359, step: 1, default: 315, note: 'degrees, 315 throws it down-right', primary: true },
-    { key: 'layer', label: 'Layer', min: 0, max: 2, step: 1, default: 0, note: '0 solid · 1 shade only · 2 face only', primary: true },
+    { key: 'layer', label: 'Layer', min: 0, max: 2, step: 1, default: 0, note: '0 outline + shade · 1 shade only · 2 face only', primary: true },
+    { key: 'line', label: 'Line weight', min: 4, max: 80, step: 1, default: 20, note: 'the face outline, % of stroke width' },
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.5 },
   ],
 
   presets: [
-    { name: 'Block', values: { depth: 58, angle: 315, layer: 0, simplify: 0.5 } },
-    { name: 'Long throw', values: { depth: 150, angle: 315, layer: 0, simplify: 0.6 } },
-    { name: 'Drop', values: { depth: 38, angle: 270, layer: 0, simplify: 0.5 } },
-    { name: 'Shade only', values: { depth: 75, angle: 315, layer: 1, simplify: 0.5 } },
+    { name: 'Block', values: { depth: 150, angle: 315, layer: 0, line: 20, simplify: 0.5 } },
+    { name: 'Long throw', values: { depth: 280, angle: 315, layer: 0, line: 20, simplify: 0.6 } },
+    { name: 'Drop', values: { depth: 110, angle: 270, layer: 0, line: 24, simplify: 0.5 } },
+    { name: 'Shade only', values: { depth: 150, angle: 315, layer: 1, line: 20, simplify: 0.5 } },
   ],
 
   growth(p, ctx) {
-    return Math.round((p.depth / 100) * ctx.strokeWidth)
+    const stem = ctx.strokeWidth / 100
+    const mode = Math.round(p.layer)
+    if (mode === 2) return 0
+    // the shadow's throw, plus (with a face) the outline band past the edge
+    const band = mode === 0 ? (p.line ?? 20) * stem : 0
+    return Math.round(p.depth * stem + band)
   },
 
   apply(rings: Ring[], p: ParamValues, ctx: TreatmentContext): Ring[] {
@@ -49,7 +61,16 @@ export const extrude: Treatment = {
     const glyph = simplify(normalise(rings), 1.5)
     if (glyph.length === 0) return rings
     const mode = Math.round(p.layer)
-    if (p.depth <= 0 || mode === 2) return pathsToRings(glyph)
+    if (mode === 2) return pathsToRings(glyph)
+
+    // the face as a band about its own edge, same construction as Outline
+    const half = ((p.line ?? 20) / 100) * ctx.strokeWidth / 2
+    const face = () => {
+      const band = difference(grow(glyph, +half), grow(glyph, -half), FillRule.NonZero)
+      return band.length > 0 ? band : glyph
+    }
+
+    if (p.depth <= 0) return pathsToRings(mode === 0 ? face() : glyph)
 
     // the throw is a multiple of the stroke, so the shadow stays in proportion
     // to the letter's weight rather than to the em
@@ -71,14 +92,18 @@ export const extrude: Treatment = {
     const swept = union(copies, FillRule.NonZero)
     if (swept.length === 0) return pathsToRings(glyph)
 
-    let result = swept
+    // the shade alone: everything the sweep covers that the letter does not
+    const shade = difference(swept, glyph, FillRule.NonZero)
+
+    let result: Paths64
     if (mode === 1) {
-      // the shade alone: everything the sweep covers that the letter does not
-      const shade = difference(swept, glyph, FillRule.NonZero)
       result = shade.length > 0 ? shade : swept
+    } else {
+      // hollow face over solid shadow — reads as depth even in one colour
+      result = union([...shade, ...face()], FillRule.NonZero)
+      if (result.length === 0) result = swept
     }
 
-    void SCALE
     result = simplify(result, p.simplify)
     return pathsToRings(result)
   },

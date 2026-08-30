@@ -1,9 +1,9 @@
-import type { ParamValues, Step } from '../engine/treatments/registry'
+import type { GlyphOverride, Overrides, ParamValues, Step } from '../engine/treatments/registry'
 
 // One definition of a stack entry, in the engine, re-exported for the app —
 // the URL, the shelf, the preview and the font writer are all describing the
 // same thing and must not drift into three shapes of it.
-export type { Step }
+export type { GlyphOverride, Overrides, Step }
 
 export interface WorkbenchState {
   fontId: string
@@ -12,6 +12,8 @@ export interface WorkbenchState {
   text: string
   /** applied in order, each one working on what the last one produced */
   chain: Step[]
+  /** per-character exceptions to the chain — absent means none */
+  overrides?: Overrides
 }
 
 /**
@@ -24,6 +26,10 @@ export interface WorkbenchState {
  * by `+`. A link written before stacking existed has no `+` in either, so it
  * reads as a one-step chain and still opens — which matters, because these
  * links are the thing people were told to keep.
+ *
+ * Per-glyph overrides ride in a seventh field, appended only when any exist:
+ * a state without them encodes to the same six fields it always did, and an
+ * old build reading a new link simply ignores the extra field.
  */
 const STEP_SEP = '+'
 
@@ -45,15 +51,66 @@ function decodeParams(raw: string): ParamValues {
   return params
 }
 
+/** an override that says nothing should not travel */
+function overrideEmpty(o: GlyphOverride): boolean {
+  return !o.nudge && o.params.every((p) => !p || Object.keys(p).length === 0)
+}
+
+/**
+ * `ch=nudge&params+params;ch=…` — the characters are percent-encoded, because
+ * the glyph set itself contains this format's punctuation, and `;`, `=` and
+ * `&` are all characters encodeURIComponent never leaves bare.
+ */
+function encodeOverrides(overrides: Overrides): string {
+  return Object.keys(overrides)
+    .sort()
+    .flatMap((ch) => {
+      const o = overrides[ch]
+      if (overrideEmpty(o)) return []
+      const steps = o.params.map((p) => encodeParams(p ?? {})).join(STEP_SEP)
+      return [`${encodeURIComponent(ch)}=${o.nudge ?? 0}&${steps}`]
+    })
+    .join(';')
+}
+
+function decodeOverrides(raw: string): Overrides | undefined {
+  if (!raw) return undefined
+  const out: Overrides = {}
+  for (const group of raw.split(';')) {
+    const eq = group.indexOf('=')
+    if (eq <= 0) continue
+    try {
+      const ch = decodeURIComponent(group.slice(0, eq))
+      const payload = group.slice(eq + 1)
+      const amp = payload.indexOf('&')
+      if (!ch || amp < 0) continue
+      const nudge = Number(payload.slice(0, amp))
+      if (Number.isNaN(nudge)) continue
+      const params = payload
+        .slice(amp + 1)
+        .split(STEP_SEP)
+        .map(decodeParams)
+      const o: GlyphOverride = { params, ...(nudge ? { nudge } : {}) }
+      if (!overrideEmpty(o)) out[ch] = o
+    } catch {
+      // one mangled group should not drop the rest
+    }
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
 export function encodeState(s: WorkbenchState): string {
-  return [
+  const bits = [
     s.fontId,
     s.chain.map((step) => step.id).join(STEP_SEP),
-    s.seed,
-    s.alternates,
+    String(s.seed),
+    String(s.alternates),
     s.chain.map((step) => encodeParams(step.params)).join(STEP_SEP),
     encodeURIComponent(s.text),
-  ].join('|')
+  ]
+  const overrides = s.overrides ? encodeOverrides(s.overrides) : ''
+  if (overrides) bits.push(overrides)
+  return bits.join('|')
 }
 
 export function decodeState(hash: string): WorkbenchState | null {
@@ -74,12 +131,14 @@ export function decodeState(hash: string): WorkbenchState | null {
   if (Number.isNaN(seed) || Number.isNaN(alternates)) return null
 
   try {
+    const overrides = decodeOverrides(bits[6] ?? '')
     return {
       fontId: bits[0],
       seed,
       alternates,
       text: decodeURIComponent(bits[5]),
       chain,
+      ...(overrides ? { overrides } : {}),
     }
   } catch {
     // a hand-mangled URL should not take the page down
