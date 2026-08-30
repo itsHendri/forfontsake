@@ -365,6 +365,80 @@ Profiling is what found it. The glyph loop was 4.1 seconds of a 12.6 second buil
 during the first third and then sat at full. It reports now, and the main loop was rescaled
 to the first half so the bar covers the whole build instead of filling twice.
 
+## Overrides are dial deltas, never a different stack
+
+Per-glyph customisation could have meant per-glyph *chains* — select a q, give it Bubble
+while the rest wears Grit. It deliberately does not. An override is a sparse set of dial
+values over the global chain: same steps, same order, only the numbers a person moved for
+those letters. Three reasons, in order of weight.
+
+First, "what am I looking at" must stay answerable. With deltas, a global slider still
+flows through every dial a glyph has not overridden — the CSS-cascade model — and the
+grid's corner dots plus the panel's accented dials account for every exception. With
+forked stacks, the stack tabs would mean something different per selection and the answer
+would be "it depends where you click".
+
+Second, the three-caller rule. Preview, sheet and font writer already must agree through
+`applyChain`; overrides add `resolveChain` beside it as the *only* place a delta merges,
+keyed by character (the writer maps `glyph.unicode` back to one; composites and unmapped
+glyphs take the global chain). A resolution model any more expressive than "merge these
+numbers" would have three chances to diverge.
+
+Third, GSUB. Every varied glyph must carry the same variant count or the rotation jitters,
+so seed and cuts stay global — "sliders are intent, the seed is chance" survives per-glyph
+scope. The reroll is a per-character *nudge* added to the seed, not a second seed.
+
+The map rides a seventh `|` field in the URL. A state with no overrides encodes to the
+same six fields it always did — old links byte-identical, old builds reading new links
+simply ignore the extra field — and the shelf gets it for free because shelf entries are
+encoded states. The characters themselves are percent-encoded, since the glyph set
+contains the format's own punctuation.
+
+## The sheet is a performance, not an animation
+
+Sound does not touch the geometry directly and never touches the seed. It modulates the
+treatments' primary dials around their set points — bass (with a kick on the beat), mids,
+highs and level, one dial each in declared order — so a captured frame is exactly
+reproducible from the values it was drawn with, which is the same promise the rest of the
+tool makes.
+
+Three decisions make it feel alive rather than broken. The values are *not* snapped to
+the dial's step: the seed is fixed, so geometry is a continuous function of the values,
+and quantising clicked through increments. The modulation runs through a second set of
+followers far slower than the analyser's own (which are tuned for light shows — 12 ms
+attack, made to twitch), each band on its own clock so the drives never move in lockstep;
+the Speed dial is time dilation on those clocks alone, analysis untouched. And every
+geometry rebuild is covered by an opaque cross-fade — the outgoing sheet lingering over
+the incoming one — because the rebuild rate is honest about cost (adaptive, ~30fps for a
+light chain, ~7 for Organic) and the fade is what turns the gap between frames into a
+morph.
+
+The bubble loop is synthesised in the page from a seeded PRNG — a low pulse for the beat
+detector to latch onto, sine pops gliding down an octave, band-passed fizz — so no audio
+asset ships and every visitor hears the same thirty seconds. The mic path disables the
+browser's echo cancellation and noise suppression, which would eat exactly the transients
+the detectors listen for. Recording paints each new sheet onto a canvas at 30fps, muxes
+the analyser's tap alongside, and prefers MP4 because that is what Instagram and iMessage
+accept without complaint. Nothing about closing the overlay may cost a take: the backdrop
+stops closing while sound or recording runs, and Close and Escape finish and save.
+
+The analysis stack (envelope followers, spectral-flux onset detection, band splitting) is
+lifted from FLUX — the author's own audio-visual instrument, MIT — rather than rewritten,
+attribution kept in the headers.
+
+## Advances widen everywhere, or the caret lies
+
+Growing treatments used to widen only the glyphs they touched, and only in the export —
+the preview advanced on raw widths, so the downloaded font was spaced differently from
+the plate that sold it. Now the chain's growth is added to *every* advance — spaces and
+untreated glyphs included — in the preview, the sheet and the writer alike, and the
+plate's transparent input compensates with letter-spacing, the one CSS property that adds
+the same amount after every glyph. Uniformity is what makes that compensation exact;
+measured against the drawn ink it is pixel-for-pixel. A glyph with its own override can
+grow by its own amount, which diverges from the input only in the exported file — the
+plate compensates with the global figure, and the divergence is recorded as debt rather
+than hidden.
+
 ## Where to look next
 
 Highest value first, from the competitive research:
@@ -375,5 +449,10 @@ Highest value first, from the competitive research:
    is client-side and deterministic; expensive for everyone else.
 3. **Slider craft**: drag on the label not the number, `Shift` for fine. The tick on the
    track showing the default is done.
-5. **Licence panel at font upload** — read the source's `name` table and `fsType`, show
-   open / unknown / restricted. Nobody in the category does this.
+5. ~~**Licence panel at font upload**~~ — shipped: the upload path reads the licence and
+   reports open / unknown / restricted in the workbench.
+
+A later look at typograph.studio (AI parametric typeface generator, adjacent not
+competing) confirmed the positioning: nothing in the niche outputs specimen sheets or
+audio-reactive video, and its signup wall is the anti-pattern this tool's no-login,
+URL-as-state instant play is the counter to. Nothing else there worth borrowing.

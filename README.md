@@ -1,7 +1,8 @@
 # FOR FONT'S SAKE
 
-A browser type foundry. Pick a font, apply a treatment, tweak it live, and export a real,
-installable, correctly-licensed font.
+A browser type foundry. Pick a font, apply a treatment, tweak it live — down to a single
+letter — and export a real, installable, correctly-licensed font. Then set it on a
+specimen sheet, drive the dials with sound, and take the sheet away as an image or a clip.
 
 Everything runs client-side. No account, no server, nothing leaves your machine — a font you
 bring is read in the page and never sent anywhere.
@@ -35,7 +36,9 @@ button.
 | **Source font** | The font a treatment is applied to. Seven ship with the tool, all OFL, and you can bring your own. |
 | **Cut** | One randomised version of a letter. Several cuts per letter stop a word looking stamped. |
 | **Export** | Building the real font in the browser. Same engine as `build:font`, run in a worker. |
-| **Plate** | The specimen block at the top of the workbench: the type, and the two choices that define it. |
+| **Plate** | The specimen block at the top of the workbench: the type, the two choices that define it, and the door to the sheet. |
+| **Override** | One glyph's exceptions to the stack — sparse dial deltas over the global chain, set by selecting letters in the glyph grid. Never a different stack. |
+| **Sheet** | The specimen sheet: Instagram-portrait SVG, word draggable and resizable, downloadable as PNG/SVG — or recorded as video while sound drives the dials. |
 
 ## Treatments
 
@@ -48,8 +51,9 @@ PRNG so any result is reproducible from its parameters.
 | **Bubble** | Fattened and rounded, the way a marker nib turns a corner. |
 | **Bleed** | Wet ink spreading unevenly, pooling where strokes meet. |
 | **Outline** | Hollow, hairline, or an inline stripe within the strokes. |
-| **Extrude** | A block shadow swept behind the letter. |
+| **Extrude** | An outlined face over a solid block shadow, swept behind the letter. |
 | **Mosaic** | Each stroke cut across its width into tiles, with grout between. |
+| **Organic** | Differential growth — wet ink at a few steps, brain coral at many. |
 
 Treatments expose 3–4 primary dials with the rest behind a disclosure, and ship named presets
 (Photocopy, Sandblast, Rust, Marker, Balloon, Wet ink…).
@@ -111,9 +115,11 @@ ok  metrics match source — upm 1000, 386 source glyphs matched, 758 alternates
 
 It still fails on width drift, because a treatment that reflows the text it is applied to
 has failed however good it looks. Treatments that declare `growth()` (bleed, bubble,
-extrude, outline) widen the advance to match the fatter outline, and do so by one constant
-across every glyph they touch — so a single uniform widening is reported rather than
-failed, and widths that moved by *differing* amounts are the failure:
+extrude, outline, organic) widen the advance to match the fatter outline, and do so by one
+constant across *every* glyph — spaces and untreated glyphs included, so the plate's
+uniform letter-spacing compensation matches the exported font exactly. A single uniform
+widening is reported rather than failed, and widths that moved by *differing* amounts are
+the failure:
 
 ```
 FAIL advance widths drifted unevenly — 379 glyphs across 2 different shifts (+42×378, +49×1)
@@ -122,6 +128,10 @@ FAIL advance widths drifted unevenly — 379 glyphs across 2 different shifts (+
 Glyphs are paired by name, falling back to codepoint for fonts whose `post` table keeps no
 names. Alternates are held to their own base glyph's width, since a drifted one would make
 the rotation jitter.
+
+One honest caveat: a font carrying per-glyph overrides can *legitimately* grow different
+glyphs by different amounts, which the uneven-drift rule will flag under `VERIFY_AGAINST`.
+That is the check working as designed on an input it predates — see Known debt.
 
 ## Architecture
 
@@ -137,6 +147,10 @@ src/engine/
   extract.ts      one font → outlines + licence; the build script and the page share it
   gsub.ts         our own GSUB writer
   sfnt.ts         add and remove tables from a finished binary
+src/audio/
+  AudioEngine.ts  one AudioContext + analyser → {bass, mid, high, level, beat, onset}
+  sources.ts      the mic (browser DSP off), and the synthesized bubble loop — no asset
+  EnvelopeFollower / OnsetDetector / bands — the analysis stack, from FLUX (MIT)
 src/lib/
   glyphData.ts    outlines shipped as data, so no font parser reaches the browser
   importFont.ts   a font off a file input: read, register for metrics, keep the bytes
@@ -144,15 +158,16 @@ src/lib/
   urlState.ts     the whole workbench state, encoded into the address bar
   savedStyles.ts  the shelf, kept across reloads — states, never rendered outlines
   poster.ts       the specimen sheet, as standalone SVG; also makes share.png
+  videoRecorder.ts the pulsing sheet to MP4/WebM — canvas frames + the audio tap
   exportFont.ts   drives the worker, and hands the finished font over
 src/components/
   Plate.tsx       the specimen — and the field you type it into
-  Panel.tsx       the stack, presets and dials, in one order for every treatment
-  GlyphGrid.tsx   every glyph in the face, on shared baselines
+  Panel.tsx       the stack, presets and dials — global, or scoped to selected glyphs
+  GlyphGrid.tsx   every glyph on shared baselines; also the selection surface for overrides
   Waterfall.tsx   the same line at seven sizes
   Dial.tsx        one parameter, with its default marked on the track
   Shelf.tsx       saved styles
-  Poster.tsx      the specimen sheet overlay — sheets, roll, recolour, download
+  Poster.tsx      the sheet overlay — layouts, word placement, sound, recording, download
 src/workers/      buildFont.worker.ts — the export, and reading an uploaded font
 public/fonts/preview/   metrics-only subsets — never seen, see below
 scripts/          build, verify and comparison tooling
@@ -188,6 +203,20 @@ function. The random stream is shared across the steps rather than renewed per s
 step given a fresh PRNG draws different geometry, and the specimen and the download would
 quietly stop matching.
 
+**Overrides are dial deltas, never a different stack.** Select glyphs in the grid and the
+dials write per-glyph exceptions — sparse values over the global chain, merged in exactly one
+place (`resolveChain`, beside `applyChain`, for the same reason). A global slider still flows
+through every dial a glyph has not overridden. The seed stays global; the per-glyph reroll is
+a nudge on top of it, and the whole map rides a seventh URL field that old links simply never
+had.
+
+**The sheet is a performance.** Sound — the mic, or a bubble loop synthesized in the page —
+drives each treatment's primary dials around their set points, through deliberately slow
+followers whose pace is the Speed dial. The seed never moves, so any captured frame is
+exactly reproducible from the values it was drawn with. Downloads take the current frame;
+Record clip takes up to fifteen seconds of it, sound included, as MP4 where the browser can
+write one.
+
 ## Licence
 
 GPL-3.0-only. The font engine builds on
@@ -205,6 +234,9 @@ export path enforces OFL Reserved Font Name rules rather than leaving you to dis
   workers.
 - **The specimen sheet has two layouts.** A third is a function in `poster.ts` and an entry
   in `LAYOUTS`.
+- **Metric parity and per-glyph overrides disagree.** `VERIFY_AGAINST`'s uneven-drift rule
+  predates overrides, which can legitimately grow different glyphs differently. The check
+  needs to learn to read the override map before it can gate such a font.
 
 `docs/STATE.md` carries the current list; this one goes stale first.
 

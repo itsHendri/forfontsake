@@ -17,21 +17,23 @@ installable font**, entirely in the browser.
 
 | Piece | State |
 | --- | --- |
-| Engine (7 treatments) | Done. Grit, Bubble, Bleed, Outline, Extrude, Mosaic, Growth. |
+| Engine (7 treatments) | Done. Grit, Bubble, Bleed, Outline, Extrude, Mosaic, Organic (id `growth`). |
 | Stacking | Done. Up to three treatments in a row, in the UI, the URL and the export. |
 | Live preview | Done. Type into the specimen itself. |
-| Glyph grid, waterfall | Done. All 69 preview glyphs; 96→12 on the 8-pt grid. |
-| **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker. |
-| Specimen sheet | Done. Two sheets — word and character set — roll, recolour, PNG/SVG, Figma. |
+| Glyph grid, waterfall | Done. All 69 preview glyphs; the grid is also the override selection surface. |
+| **Per-glyph overrides** | **Done.** Select glyphs → dial deltas over the global chain, per-glyph reroll; in the URL (7th field), the shelf and the export. |
+| **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker; overrides included. |
+| Specimen sheet | Done. Instagram portrait 1080×1350, word and character set; word draggable/resizable; randomise, recolour, PNG/SVG/copy. |
+| **Sound + clip** | **Done.** Bubble loop (synthesised) or mic drives the dials; Speed dial; Record clip → MP4/WebM with audio. |
 | Saved styles | Done, and kept across reloads in `localStorage`. |
-| Bring your own font | Done. Read in the worker, licence reported, held in memory. |
+| Bring your own font | Done, from the font menu. Read in the worker, licence reported, held in memory. |
 | CLI export + verification | Done. `build:font` + `verify:font` (7 checks). |
 | Deployment | **Live** at forfontsake.xyz. Pushes to `main` deploy; HTTPS enforced. |
 
 Seven source fonts ship, all OFL: Pirata One, Anton, Archivo Black, Bebas Neue,
 UnifrakturCook, Abril Fatface, Pacifico.
 
-## The four non-obvious mechanisms
+## The non-obvious mechanisms
 
 All are explained fully in `DECISIONS.md`; know they exist before touching any of them.
 
@@ -42,7 +44,9 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
    The subsets are cut with `--layout-features=` so they had nothing to apply and that last
    part went unnoticed until upload brought in a whole font: Pacifico sat 11 px adrift over
    one line. Measured delta now, shipped and uploaded alike: **-0.01 px**. The vertical
-   position comes from a hidden probe, not from font metrics.
+   position comes from a hidden probe, not from font metrics. Growing treatments widen every
+   advance uniformly (spaces included) and the field compensates with letter-spacing — the
+   uniformity is what keeps the compensation exact.
 2. **The download is built in the page.** `buildTreatedFont` — the same function the CLI
    runs — executes in a Web Worker over the real source bytes. Verified equal to the CLI
    output on Pirata One (1144 glyphs) and Anton (4095), and accepted by the browser's own
@@ -54,14 +58,24 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
    stream in it, is shared across the steps rather than renewed per step; a second step given
    a fresh rng draws different geometry, and if one caller did that the specimen and the
    downloaded font would quietly stop matching.
-4. **Growth only works because it inserts points.** It is differential growth on the glyph's
-   own contours, and the node insertion *is* the effect — the fixed-point-count version of it
-   grows the perimeter 5.7% over sixty steps and looks like nothing. A per-glyph point budget
-   caps it at 700, because folding is unbounded and points are bytes in the export.
+4. **Organic only works because it inserts points.** It is differential growth on the glyph's
+   own contours (id stays `growth` — it lives in URLs and shelves), and the node insertion
+   *is* the effect — the fixed-point-count version of it grows the perimeter 5.7% over sixty
+   steps and looks like nothing. A per-glyph point budget caps it at 700, because folding is
+   unbounded and points are bytes in the export.
+5. **Overrides merge in one place, like chains run in one place.** `resolveChain` in the
+   registry is the only spot a per-glyph delta meets the global chain; preview, sheet and
+   writer all call it. Seed and cuts stay global (GSUB needs uniform variant counts); the
+   per-glyph reroll is a nudge on the seed, never a second seed.
+6. **Sound modulates values, never the seed.** The sheet's sound mode drives primary dials
+   through slow per-band envelope followers (the Speed dial scales their clock), un-snapped
+   so the geometry morphs; every frame is reproducible from its values. The audio analysis
+   is FLUX's (MIT, same author), kept in `src/audio/` with attribution.
 
 ## Verified, and how
 
-- `npm run typecheck` · `npm run test` (64) — both green.
+- `npm run typecheck` · `npm run test` (76, including override URL round-trips, the poster's
+  word transform, the audio maths and the recorder's container choice) — both green.
 - `npm run verify:font` — 7 checks: size, **ots-sanitize**, fontTools, **CoreText**,
   alternates actually substitute, ligatures still form, naming + Reserved Font Names.
 - The browser export was checked by loading the result with `FontFace.load()`, which *is*
@@ -120,14 +134,22 @@ so every older invocation still means what it did.
    splitting the glyphs across several workers.
 2. The specimen sheet has two layouts. A third is a function in `poster.ts` and an entry in
    `LAYOUTS`; a waterfall is the obvious one, though it repeats what the workbench shows.
+3. `VERIFY_AGAINST`'s uneven-drift rule predates per-glyph overrides, which can legitimately
+   grow different glyphs by different amounts — the check would flag such a font. It needs to
+   learn to read the override map.
+4. Sound feel is tuned by ear so far only on one machine: the Speed default (0.5), the
+   modulation depth (35% of each dial's span) and the bubble loop's mix deserve a pass on a
+   phone and real speakers.
 
 ## Where things live
 
 ```
 src/engine/          pure geometry + font writing, no DOM (browser-safe)
 src/engine/extract   one font → outlines + licence; shared by the build script and the page
+src/audio/           AudioEngine · sources (mic + bubble loop) · EnvelopeFollower ·
+                     OnsetDetector · bands — FLUX's analysis stack (MIT), adapted
 src/lib/             glyphData · render · urlState · savedStyles · exportFont · importFont
-                     poster · clipboard
+                     poster · videoRecorder · clipboard
 src/components/      Plate · ExportBar · GlyphGrid · Waterfall · Panel · Dial · Shelf · Poster
 src/workers/         buildFont.worker.ts — the export *and* reading an uploaded font
 public/fonts/        7 sources + OFL.txt each; preview/ holds metrics-only subsets
