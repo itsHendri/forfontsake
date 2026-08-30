@@ -1,6 +1,7 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { TREATMENTS, getTreatment, defaults, type ParamValues, type Preset } from './engine/treatments/registry'
 import { loadLibrary, type Library } from './lib/glyphData'
+import { importFont, type Imported } from './lib/importFont'
 import { render, renderGlyphSet } from './lib/render'
 import { decodeState, encodeState, type WorkbenchState, type Step } from './lib/urlState'
 import { loadShelf, saveShelf, SHELF_LIMIT } from './lib/savedStyles'
@@ -70,6 +71,10 @@ export default function App() {
   const [posterOpen, setPosterOpen] = useState(false)
   // which step in the stack the dials are editing
   const [active, setActive] = useState(0)
+  const [importing, setImporting] = useState(false)
+  // what the last uploaded font said about its own licence
+  const [licence, setLicence] = useState<Imported['licence'] | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const hydrated = useRef(false)
 
   useEffect(() => {
@@ -237,6 +242,32 @@ export default function App() {
 
   const chainName = state.chain.map((c) => getTreatment(c.id).name).join(' + ')
 
+  /**
+   * Take a font off the file input.
+   *
+   * The library grows rather than being replaced, so an uploaded face sits
+   * beside the shipped ones and switching away and back does not lose it. It
+   * is not persisted: these are whole font binaries and somebody else's
+   * property as often as not.
+   */
+  const onUpload = async (file: File) => {
+    setImporting(true)
+    setNotice(null)
+    try {
+      const added = await importFont(file)
+      setLibrary((lib) => (lib ? { ...lib, [added.id]: added.data } : lib))
+      setLicence(added.licence)
+      patch({ fontId: added.id })
+    } catch (e) {
+      // a font that will not parse is an ordinary thing to hand a tool, not a
+      // crash — say so in the strip and leave the workbench as it was
+      setNotice(e instanceof Error ? e.message : String(e))
+      setLicence(null)
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const save = () => {
     // Saving the same settings twice is a slip, not an intent, and on a shelf
     // that now outlives the session the duplicates would accumulate. The
@@ -264,7 +295,22 @@ export default function App() {
             onFont={(fontId) => patch({ fontId })}
             onTreatment={changeTreatment}
             onText={(text) => patch({ text })}
+            onUpload={onUpload}
+            importing={importing}
           />
+          {notice && <p className="notice is-bad">{notice}</p>}
+          {licence && state.fontId.startsWith('upload') && (
+            <p className={`notice licence-${licence.verdict}`}>
+              <strong>
+                {licence.verdict === 'open'
+                  ? 'Licence looks open'
+                  : licence.verdict === 'restricted'
+                    ? 'Licence is restricted'
+                    : 'Licence unknown'}
+              </strong>{' '}
+              {licence.note}
+            </p>
+          )}
           <ExportBar
             font={library[state.fontId]}
             fontId={state.fontId}

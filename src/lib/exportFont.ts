@@ -90,6 +90,7 @@ export function buildFont(
       worker.onerror = (e) => done(() => reject(new Error(e.message || 'the font builder failed')))
 
       const message: BuildRequest = {
+        kind: 'build',
         source,
         chain: req.chain,
         seed: req.seed,

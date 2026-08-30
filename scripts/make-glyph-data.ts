@@ -3,11 +3,7 @@
 // the engine without shipping a font parser.
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
-import { FontFlux } from 'font-flux-js'
-import { decomposeGlyph } from '../src/engine/fontio'
-import { medianStrokeWidth, STROKE_SAMPLE_CHARS } from '../src/engine/measure'
-
-const CHARSET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .,!?&'-"
+import { extractFont, PREVIEW_CHARSET } from '../src/engine/extract'
 
 interface Source {
   id: string
@@ -78,7 +74,7 @@ function subsetPreviewFont(src: Source): boolean {
       [
         'subset',
         src.file,
-        `--text=${CHARSET}`,
+        `--text=${PREVIEW_CHARSET}`,
         '--flavor=woff2',
         '--layout-features=',
         '--no-hinting',
@@ -108,47 +104,14 @@ for (const src of SOURCES) {
     continue
   }
   const bytes = readFileSync(src.file)
-  let font
+  let data
   try {
-    font = FontFlux.open(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
+    // the same extraction the page runs on an uploaded font — see engine/extract
+    data = extractFont(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
   } catch (e) {
     console.warn(`skipping ${src.id} — ${String(e).slice(0, 80)}`)
     continue
   }
-
-  const glyphs: Record<string, { adv: number; rings: number[][] }> = {}
-  let missing = 0
-  for (const ch of CHARSET) {
-    const cp = ch.codePointAt(0)!
-    if (!font.hasGlyph(cp)) {
-      missing++
-      continue
-    }
-    const g = font.getGlyph(cp)
-    // follow component references, or caps-only faces lose their whole
-    // lowercase and every accented character comes out blank
-    const rings = decomposeGlyph(g, (i) => font.glyphs[i])
-    glyphs[ch] = {
-      adv: g.advanceWidth,
-      // flat [x,y,x,y,…] per ring, rounded — a third the size of point objects
-      rings: rings.map((r) => r.flatMap((p) => [Math.round(p.x), Math.round(p.y)])),
-    }
-  }
-
-  // measured once per font and shipped with the data, so the page does not pay
-  // for it on load
-  const samples = [...STROKE_SAMPLE_CHARS]
-    .filter((c) => glyphs[c])
-    .map((c) => {
-      const rings: { x: number; y: number }[][] = []
-      for (const flat of glyphs[c].rings) {
-        const ring: { x: number; y: number }[] = []
-        for (let i = 0; i < flat.length; i += 2) ring.push({ x: flat[i], y: flat[i + 1] })
-        rings.push(ring)
-      }
-      return rings
-    })
-  const strokeWidth = medianStrokeWidth(samples, font.info.unitsPerEm * 0.1)
 
   out[src.id] = {
     label: src.label,
@@ -156,19 +119,18 @@ for (const src of SOURCES) {
     reserved: src.reserved,
     // where the browser can fetch the original bytes when it builds a font
     src: src.file.replace(/^public/, ''),
-    // the whole face, not just the preview charset — what an export will cost
-    sourceGlyphs: font.glyphs.length,
-    unitsPerEm: font.info.unitsPerEm,
-    strokeWidth,
-    ascender: font.info.ascender ?? 800,
-    descender: font.info.descender ?? -200,
-    glyphs,
+    sourceGlyphs: data.sourceGlyphs,
+    unitsPerEm: data.unitsPerEm,
+    strokeWidth: data.strokeWidth,
+    ascender: data.ascender,
+    descender: data.descender,
+    glyphs: data.glyphs,
   }
   const subset = subsetPreviewFont(src)
   console.log(
-    `${src.label.padEnd(16)} upm ${String(font.info.unitsPerEm).padStart(4)}  ` +
-      `stroke ${strokeWidth.toFixed(0).padStart(4)}  ` +
-      `${Object.keys(glyphs).length} glyphs${missing ? `, ${missing} missing` : ''}` +
+    `${src.label.padEnd(16)} upm ${String(data.unitsPerEm).padStart(4)}  ` +
+      `stroke ${data.strokeWidth.toFixed(0).padStart(4)}  ` +
+      `${Object.keys(data.glyphs).length} glyphs${data.missing ? `, ${data.missing} missing` : ''}` +
       `${subset ? '' : '  (no preview font)'}`,
   )
 }

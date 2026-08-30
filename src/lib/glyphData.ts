@@ -52,11 +52,42 @@ export function toRings(flat: number[][]): Ring[] {
 }
 
 /**
+ * Uploaded fonts, held for as long as the tab lives.
+ *
+ * The exporter rewrites the *original bytes*, not the outlines the preview
+ * draws with, so a font that came off a file input has to keep them somewhere —
+ * there is no URL to fetch them back from. Deliberately not persisted: these
+ * are whole font binaries, they are somebody else's licensed property as often
+ * as not, and a shelf entry pointing at one that no longer exists already
+ * degrades gracefully.
+ */
+const memorySources = new Map<string, ArrayBuffer>()
+
+export function rememberSource(id: string, bytes: ArrayBuffer): void {
+  memorySources.set(id, bytes)
+}
+
+/** the `src` an uploaded font carries, in place of a path */
+export function isMemorySource(src: string): boolean {
+  return src.startsWith('memory:')
+}
+
+/**
  * The original bytes of a source font, which the exporter rewrites into a new
- * one. A published single-file page carries them inline; everywhere else they
- * are fetched on demand, so nobody downloads a font binary just to look.
+ * one. An uploaded font has them in memory; a published single-file page
+ * carries the shipped ones inline; everywhere else they are fetched on demand,
+ * so nobody downloads a font binary just to look.
  */
 export async function loadSource(data: FontData): Promise<ArrayBuffer> {
+  if (isMemorySource(data.src)) {
+    const held = memorySources.get(data.src.slice('memory:'.length))
+    if (!held) {
+      throw new Error(`${data.label} is no longer loaded — add the file again.`)
+    }
+    // a copy, because the export transfers the buffer it is given and would
+    // otherwise detach the one we are holding for next time
+    return held.slice(0)
+  }
   const inlined = typeof window !== 'undefined' ? window.__FONT_SOURCES__?.[data.src] : undefined
   const url = inlined ?? `${import.meta.env.BASE_URL.replace(/\/$/, '')}${data.src}`
   const res = await fetch(url)

@@ -205,7 +205,21 @@ h1 {
   line-height: 1.72;
   font-weight: 400;
   letter-spacing: 0;
-  font-feature-settings: normal;
+
+  /* The caret sits between the right letters only while this field lays its
+     text out on the source font's raw advance widths, because that is all the
+     drawn outlines are positioned on — see Plate.tsx.
+
+     Every layout feature has to be off for that to hold. Kerning in particular
+     moves pairs by real amounts: an uploaded Pacifico measured 11px adrift over
+     one line before these were disabled, which is a visibly wrong caret. The
+     seven shipped faces never showed it because their preview subsets are cut
+     with `--layout-features=` and have nothing to apply — so this was invisible
+     until a whole font arrived through upload. */
+  font-kerning: none;
+  font-variant-ligatures: none;
+  font-variant-numeric: normal;
+  font-feature-settings: 'kern' 0, 'liga' 0, 'clig' 0, 'calt' 0, 'rlig' 0;
 }
 
 .type-ink {
@@ -690,6 +704,63 @@ select:focus-visible {
   background: var(--ink);
   color: var(--paper);
   border-color: var(--ink);
+}
+
+/* ---------- bring your own font ---------- */
+
+/* The label *is* the control — the input inside it is hidden from sight but
+   not from the accessibility tree, so click, focus ring and screen reader all
+   behave the way a file input is supposed to. */
+.upload {
+  font-size: 12px;
+  padding: 5px 11px;
+  border: 1px dashed var(--rule);
+  border-radius: 3px;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.upload:hover {
+  border-style: solid;
+  color: var(--ink);
+}
+.upload.is-busy {
+  opacity: 0.6;
+  cursor: progress;
+}
+.upload input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.upload:focus-within {
+  outline: 2px solid var(--mark);
+  outline-offset: 2px;
+}
+
+.notice {
+  font-size: 12px;
+  line-height: 1.45;
+  margin: 10px 0 0;
+  padding: 9px 12px;
+  border-left: 2px solid var(--rule);
+  color: var(--muted);
+}
+.notice strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.notice.licence-open {
+  border-left-color: #3f7d4e;
+}
+.notice.licence-unknown {
+  border-left-color: #b08432;
+}
+.notice.licence-restricted,
+.notice.is-bad {
+  border-left-color: var(--mark);
 }
 
 /* ---------- the stack ---------- */

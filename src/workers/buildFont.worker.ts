@@ -1,15 +1,22 @@
 /// <reference lib="webworker" />
 /**
- * Builds the exported font off the main thread.
+ * The font parser, off the main thread.
  *
- * Treating three hundred glyphs takes a couple of seconds, which is fine to
- * wait for and not fine to freeze the page for. The font writer and its parser
- * live in here rather than in the page bundle, so a visitor who only ever looks
- * at the preview never runs any of it.
+ * Two jobs, both of which need the parser and neither of which should freeze
+ * the page: **building** an export (treating three hundred glyphs takes a
+ * couple of seconds) and **reading** a font somebody uploaded.
+ *
+ * They live together because the reason for the worker is the same in both
+ * cases — the parser and the writer are the biggest thing in the project, and
+ * keeping them here means a visitor who only ever looks at the preview never
+ * downloads any of it. Adding upload to this worker costs nothing; giving
+ * upload its own would have shipped a second copy.
  */
 import { buildTreatedFont, type BuildOptions, type BuildResult } from '../engine/fontio'
+import { extractFont, readLicence, guessReserved, type Extracted } from '../engine/extract'
 
 export interface BuildRequest {
+  kind: 'build'
   source: ArrayBuffer
   chain: BuildOptions['chain']
   names: BuildOptions['names']
@@ -17,13 +24,51 @@ export interface BuildRequest {
   alternates: number
 }
 
+export interface ExtractRequest {
+  kind: 'extract'
+  source: ArrayBuffer
+}
+
+export type WorkerRequest = BuildRequest | ExtractRequest
+
 export type BuildResponse =
   | { ok: true; bytes: ArrayBuffer; stats: Omit<BuildResult, 'bytes'> }
   | { ok: false; error: string }
   | { progress: number }
 
-self.onmessage = (e: MessageEvent<BuildRequest>) => {
+export type ExtractResponse =
+  | {
+      ok: true
+      data: Extracted
+      licence: ReturnType<typeof readLicence>
+      reserved: string[]
+    }
+  | { ok: false; error: string }
+
+const post = (msg: unknown, transfer?: Transferable[]) =>
+  (self as DedicatedWorkerGlobalScope).postMessage(msg, transfer ?? [])
+
+self.onmessage = (e: MessageEvent<WorkerRequest>) => {
   const req = e.data
+
+  if (req.kind === 'extract') {
+    try {
+      const data = extractFont(req.source)
+      post({
+        ok: true,
+        data,
+        licence: readLicence(data.licence),
+        reserved: guessReserved(data.licence.familyName),
+      } as ExtractResponse)
+    } catch (err) {
+      post({
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      } as ExtractResponse)
+    }
+    return
+  }
+
   try {
     const result = buildTreatedFont({
       source: req.source,
@@ -31,17 +76,15 @@ self.onmessage = (e: MessageEvent<BuildRequest>) => {
       names: req.names,
       seed: req.seed,
       alternates: req.alternates,
-      onProgress: (fraction) => {
-        ;(self as DedicatedWorkerGlobalScope).postMessage({ progress: fraction } as BuildResponse)
-      },
+      onProgress: (fraction) => post({ progress: fraction } as BuildResponse),
     })
     const { bytes, ...stats } = result
     // copied out of the pooled buffer so the transfer cannot hand over more
     // than the font itself
     const out = bytes.slice().buffer
-    ;(self as DedicatedWorkerGlobalScope).postMessage({ ok: true, bytes: out, stats } as BuildResponse, [out])
+    post({ ok: true, bytes: out, stats } as BuildResponse, [out])
   } catch (err) {
-    ;(self as DedicatedWorkerGlobalScope).postMessage({
+    post({
       ok: false,
       error: err instanceof Error ? err.message : String(err),
     } as BuildResponse)

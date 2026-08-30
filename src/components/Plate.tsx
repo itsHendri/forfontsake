@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { RenderResult } from '../lib/render'
 import type { Library } from '../lib/glyphData'
 import type { Treatment } from '../engine/treatments/registry'
+import { FONT_ACCEPT } from '../lib/importFont'
 
 interface Props {
   library: Library
@@ -13,6 +14,9 @@ interface Props {
   onFont: (id: string) => void
   onTreatment: (id: string) => void
   onText: (text: string) => void
+  onUpload: (file: File) => void
+  /** set while a dropped font is being read, so the control can say so */
+  importing: boolean
 }
 
 /**
@@ -110,6 +114,26 @@ export function Plate(p: Props) {
             </option>
           ))}
         </select>
+
+        {/*
+          A label rather than a button, because the file input has to be the
+          thing that is clicked — a button that forwards a click to a hidden
+          input works until a keyboard or a screen reader meets it.
+        */}
+        <label className={p.importing ? 'upload is-busy' : 'upload'}>
+          {p.importing ? 'Reading…' : 'Use your own'}
+          <input
+            type="file"
+            accept={FONT_ACCEPT}
+            disabled={p.importing}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              // cleared so choosing the same file twice still fires
+              e.target.value = ''
+              if (file) p.onUpload(file)
+            }}
+          />
+        </label>
 
         <p className="plate-note">{p.treatment.blurb}</p>
       </div>

@@ -100,7 +100,7 @@ interface FluxComponent {
   scale?: number
 }
 
-interface AnyGlyph {
+export interface AnyGlyph {
   name?: string
   advanceWidth: number
   contours?: FluxPoint[][]
