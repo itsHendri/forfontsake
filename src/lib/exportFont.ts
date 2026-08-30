@@ -7,14 +7,15 @@ import BuildWorker from '../workers/buildFont.worker?worker'
 import type { BuildRequest, BuildResponse } from '../workers/buildFont.worker'
 import { violatesReservedNames } from '../engine/fontio'
 import { loadSource, type FontData } from './glyphData'
-import type { ParamValues } from '../engine/treatments/registry'
+import type { Step } from './urlState'
 
 export interface ExportRequest {
   font: FontData
   fontId: string
-  treatmentId: string
+  /** the whole stack, applied in order — the worker takes it as-is */
+  chain: Step[]
+  /** for the description stamped into the font, e.g. "Grit + Bleed" */
   treatmentName: string
-  params: ParamValues
   seed: number
   alternates: number
   familyName: string
@@ -90,7 +91,7 @@ export function buildFont(
 
       const message: BuildRequest = {
         source,
-        chain: [{ id: req.treatmentId, params: req.params }],
+        chain: req.chain,
         seed: req.seed,
         alternates: req.alternates,
         names: {

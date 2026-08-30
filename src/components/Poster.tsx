@@ -1,15 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { buildPoster, POSTER_PALETTES } from '../lib/poster'
+import { buildPoster, chainName, POSTER_PALETTES } from '../lib/poster'
 import { saveFile } from '../lib/exportFont'
 import { copyText } from '../lib/clipboard'
 import type { FontData } from '../lib/glyphData'
-import type { ParamValues, Treatment } from '../engine/treatments/registry'
+import type { Step } from '../lib/urlState'
 
 interface Props {
   font: FontData
   fontId: string
-  treatment: Treatment
-  params: ParamValues
+  chain: Step[]
   seed: number
   word: string
   onClose: () => void
@@ -45,18 +44,17 @@ export function Poster(p: Props) {
       buildPoster({
         font: p.font,
         fontId: p.fontId,
-        treatmentId: p.treatment.id,
-        params: p.params,
+        chain: p.chain,
         seed: sheetSeed,
         word: p.word,
         palette,
         number,
       }),
-    [p.font, p.fontId, p.treatment.id, p.params, sheetSeed, p.word, palette, number],
+    [p.font, p.fontId, p.chain, sheetSeed, p.word, palette, number],
   )
 
   const src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
-  const stem = `forfontsake-${p.treatment.id}-${String(number).padStart(3, '0')}`
+  const stem = `forfontsake-${p.chain.map((c) => c.id).join('-')}-${String(number).padStart(3, '0')}`
 
   const downloadSvg = async () => {
     await saveFile(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), `${stem}.svg`)
@@ -99,7 +97,7 @@ export function Poster(p: Props) {
         <div className="poster-side">
           <h2>Specimen No. {String(number).padStart(3, '0')}</h2>
           <p className="muted">
-            {p.treatment.name} on {p.font.label}, exactly as you have it set.
+            {chainName(p.chain)} on {p.font.label}, exactly as you have it set.
           </p>
 
           <div className="row">

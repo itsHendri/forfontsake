@@ -4,11 +4,10 @@ import type { WorkbenchState } from './urlState'
 
 const state = (seed: number): WorkbenchState => ({
   fontId: 'pirataone',
-  treatmentId: 'growth',
   seed,
   alternates: 3,
   text: 'Coral',
-  params: { spread: 30, steps: 8 },
+  chain: [{ id: 'growth', params: { spread: 30, steps: 8 } }],
 })
 
 /** the smallest thing that behaves like Storage, since tests run without a DOM */
@@ -40,7 +39,7 @@ describe('savedStyles', () => {
     expect(back).toHaveLength(2)
     expect(back[0].seed).toBe(1)
     expect(back[1].seed).toBe(2)
-    expect(back[0].params.spread).toBe(30)
+    expect(back[0].chain[0].params.spread).toBe(30)
     expect(back[0].text).toBe('Coral')
   })
 

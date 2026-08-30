@@ -3,13 +3,15 @@ import { buildFont, nameProblem, save, suggestName, type ExportResult } from '..
 import { copyText } from '../lib/clipboard'
 import type { FontData } from '../lib/glyphData'
 import type { RenderResult } from '../lib/render'
-import type { ParamValues, Treatment } from '../engine/treatments/registry'
+import { getTreatment } from '../engine/treatments/registry'
+import type { Step } from '../lib/urlState'
 
 interface Props {
   font: FontData
   fontId: string
-  treatment: Treatment
-  params: ParamValues
+  chain: Step[]
+  /** "Grit + Bleed" — what the stack is called in the strip and the file name */
+  chainName: string
   seed: number
   alternates: number
   /** the line as drawn, for handing to a drawing tool rather than a font menu */
@@ -33,7 +35,7 @@ const kb = (n: number) => `${Math.round(n / 1024)} KB`
  * and it should say what you are getting before you press it.
  */
 export function ExportBar(p: Props) {
-  const [name, setName] = useState(() => suggestName(p.font, p.treatment.name))
+  const [name, setName] = useState(() => suggestName(p.font, p.chainName))
   const [touched, setTouched] = useState(false)
   const [state, setState] = useState<State>({ phase: 'idle' })
   const live = useRef(true)
@@ -45,18 +47,20 @@ export function ExportBar(p: Props) {
     }
   }, [])
 
-  // a name nobody edited should follow the font and treatment it describes
+  // a name nobody edited should follow the font and stack it describes
   useEffect(() => {
-    if (!touched) setName(suggestName(p.font, p.treatment.name))
-  }, [p.fontId, p.treatment.name, p.font, touched])
+    if (!touched) setName(suggestName(p.font, p.chainName))
+  }, [p.fontId, p.chainName, p.font, touched])
 
   // any change to the geometry makes a finished build stale
   useEffect(() => {
     setState((s) => (s.phase === 'done' || s.phase === 'failed' ? { phase: 'idle' } : s))
-  }, [p.fontId, p.treatment.id, p.params, p.seed, p.alternates])
+  }, [p.fontId, p.chain, p.seed, p.alternates])
 
   const problem = nameProblem(name, p.font)
   const busy = state.phase === 'building'
+  // alternates only mean something if some step in the stack is random
+  const varies = p.chain.some((step) => !getTreatment(step.id).deterministic)
   const [copied, setCopied] = useState(false)
 
   /**
@@ -88,9 +92,8 @@ export function ExportBar(p: Props) {
         {
           font: p.font,
           fontId: p.fontId,
-          treatmentId: p.treatment.id,
-          treatmentName: p.treatment.name,
-          params: p.params,
+          chain: p.chain,
+          treatmentName: p.chainName,
           seed: p.seed,
           alternates: p.alternates,
           familyName: name,
@@ -151,8 +154,8 @@ export function ExportBar(p: Props) {
             </>
           ) : (
             <>
-              {p.font.label} · {p.treatment.name} ·{' '}
-              {p.treatment.deterministic ? 'one cut per letter' : `${p.alternates} cuts per letter`}{' '}
+              {p.font.label} · {p.chainName} ·{' '}
+              {varies ? `${p.alternates} cuts per letter` : 'one cut per letter'}{' '}
               {/* the whole face gets treated, not just what is on screen, so
                   say how much of it there is before the wait starts */}
               · from {p.font.sourceGlyphs.toLocaleString()} glyphs · OFL

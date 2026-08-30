@@ -18,6 +18,7 @@ installable font**, entirely in the browser.
 | Piece | State |
 | --- | --- |
 | Engine (7 treatments) | Done. Grit, Bubble, Bleed, Outline, Extrude, Mosaic, Growth. |
+| Stacking | Done. Up to three treatments in a row, in the UI, the URL and the export. |
 | Live preview | Done. Type into the specimen itself. |
 | Glyph grid, waterfall | Done. All 69 preview glyphs; 96→12 on the 8-pt grid. |
 | **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker. |
@@ -29,7 +30,7 @@ installable font**, entirely in the browser.
 Seven source fonts ship, all OFL: Pirata One, Anton, Archivo Black, Bebas Neue,
 UnifrakturCook, Abril Fatface, Pacifico.
 
-## The three non-obvious mechanisms
+## The four non-obvious mechanisms
 
 All are explained fully in `DECISIONS.md`; know they exist before touching any of them.
 
@@ -42,14 +43,21 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
    runs — executes in a Web Worker over the real source bytes. Verified equal to the CLI
    output on Pirata One (1144 glyphs) and Anton (4095), and accepted by the browser's own
    sanitiser.
-3. **Growth only works because it inserts points.** It is differential growth on the glyph's
+3. **One `applyChain`, used by everything.** The preview, the specimen sheet and the font
+   writer are separate code over different inputs, and the only thing they must agree on to
+   the unit is which treatments run, in what order, over what context — so that lives in
+   exactly one function in `treatments/registry.ts`. Critically the context, and the random
+   stream in it, is shared across the steps rather than renewed per step; a second step given
+   a fresh rng draws different geometry, and if one caller did that the specimen and the
+   downloaded font would quietly stop matching.
+4. **Growth only works because it inserts points.** It is differential growth on the glyph's
    own contours, and the node insertion *is* the effect — the fixed-point-count version of it
    grows the perimeter 5.7% over sixty steps and looks like nothing. A per-glyph point budget
    caps it at 700, because folding is unbounded and points are bytes in the export.
 
 ## Verified, and how
 
-- `npm run typecheck` · `npm run test` (49) — both green.
+- `npm run typecheck` · `npm run test` (56) — both green.
 - `npm run verify:font` — 7 checks: size, **ots-sanitize**, fontTools, **CoreText**,
   alternates actually substitute, ligatures still form, naming + Reserved Font Names.
 - The browser export was checked by loading the result with `FontFace.load()`, which *is*
@@ -57,7 +65,10 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
   `font/ttf` blob, 1268 glyphs including 842 alternates, sfntVersion `0x00010000`, 18
   tables, accepted by `FontFace.load()`.
 - All seven treatments were built at `--alts=2` and put through `verify:font` in one sweep —
-  7/7 checks each, no regressions from the `story` field being added across the set.
+  7/7 checks each.
+- A **stacked** font (`--treatment=grit+bubble`) passes all eight against the source, with
+  the advances grown by the sum of both steps. Collapsing the three copies of the chain loop
+  into `applyChain` was checked by rebuilding that font and diffing: **byte-identical**.
 - The specimen overlay (mechanism 1) was re-measured with Growth on its heaviest preset,
   since a *growing* treatment is the case most likely to break it: **-0.01 px** between the
   input's laid-out text and the drawn outlines.
@@ -87,14 +98,18 @@ Growth passes all eight at `--alts=3` — on the defaults that is 519.4 KB, 1144
 "advances grown +36 on 379". Note the CLI wants `--treatment=growth`, with the `=`; the
 bare-space form parses as the treatment named `true`.
 
+The CLI builds stacks too: `--treatment=grit+bubble`, with dials addressed by position,
+`--p1.amount=60 --p2.weight=30`. Position rather than name because a stack may repeat a
+treatment, which would make a bare `--p.simplify` ambiguous. `--p.` with no number is step 1,
+so every older invocation still means what it did.
+
 ## Debt, roughly in order of how much it matters
 
-1. Treatments do not stack in the UI, though the engine takes a chain.
-2. Uploading your own font is not wired up.
-3. Big faces are slow to export — Anton is ~1,373 glyphs and three cuts of it is a 4 MB
+1. Uploading your own font is not wired up.
+2. Big faces are slow to export — Anton is ~1,373 glyphs and three cuts of it is a 4 MB
    file that takes ~a minute in-browser. Honest about it now (the strip shows the glyph
    count and names the assembly phase) but not fast.
-4. The specimen sheet has one layout. Book of Shapes ships several and lets you page
+3. The specimen sheet has one layout. Book of Shapes ships several and lets you page
    through them; the second layout is the cheapest good improvement here.
 
 ## Where things live

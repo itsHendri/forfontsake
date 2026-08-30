@@ -4,7 +4,13 @@ import { pointCount } from './paths'
 import { medianStrokeWidth, STROKE_SAMPLE_CHARS } from './measure'
 import { stripTables, setTable, listTables } from './sfnt'
 import { buildGsub, isCarriedFeature, type AlternateSet, type CarriedRule } from './gsub'
-import { getTreatment, type ParamValues, type TreatmentContext } from './treatments/registry'
+import {
+  getTreatment,
+  applyChain,
+  chainGrowth,
+  type Step,
+  type TreatmentContext,
+} from './treatments/registry'
 import type { Ring } from './flatten'
 
 export interface DerivativeNames {
@@ -38,10 +44,7 @@ export function toPostScriptName(family: string, style: string): string {
 }
 
 /** one entry in the treatment chain */
-export interface TreatmentStep {
-  id: string
-  params: ParamValues
-}
+export type TreatmentStep = Step
 
 export interface BuildOptions {
   /** raw bytes of the source font */
@@ -277,7 +280,8 @@ export function buildTreatedFont({
   const strokeWidth = medianStrokeWidth(strokeSamples, font.info.unitsPerEm * 0.1)
 
   const allowed = only ? new Set([...only].map((c) => c.codePointAt(0)!)) : null
-  const steps = chain.map((s) => ({ treatment: getTreatment(s.id), params: s.params }))
+  // validated up front so an unknown id fails before any glyph is touched
+  chain.forEach((s) => getTreatment(s.id))
 
   const treatedIndices = new Set<number>()
   const sourceRings = new Map<number, Ring[]>()
@@ -304,11 +308,9 @@ export function buildTreatedFont({
       }
 
       const original = decomposeGlyph(g, (i) => glyphs[i])
-      let rings = original
-      for (const { treatment, params } of steps) {
-        rings = treatment.apply(rings, params, ctx)
-        if (rings.length === 0) break
-      }
+      // the same function the preview and the specimen sheet run, so all three
+      // agree on what a stack produces — see applyChain
+      const rings = applyChain(original, chain, ctx)
 
       if (rings.length > 0) {
         treatedIndices.add(i)
@@ -327,7 +329,7 @@ export function buildTreatedFont({
 
         // treatments that grow a glyph need the advance to grow with them, or
         // the font sets solid
-        const growth = steps.reduce((sum, s) => sum + (s.treatment.growth?.(s.params, ctx) ?? 0), 0)
+        const growth = chainGrowth(chain, ctx)
         if (growth > 0) g.advanceWidth = Math.round(g.advanceWidth + growth)
       }
     }
@@ -408,7 +410,7 @@ export function buildTreatedFont({
   const alternateSets: AlternateSet[] = []
   let addedGlyphs = 0
 
-  if (cuts > 1 && steps.length > 0) {
+  if (cuts > 1 && chain.length > 0) {
     const baseCount = glyphs.length
     for (let i = 0; i < baseCount; i++) {
       const g = glyphs[i]
@@ -423,11 +425,7 @@ export function buildTreatedFont({
           advanceWidth: g.advanceWidth,
           penX: 0,
         }
-        let rings = sourceRings.get(i) ?? []
-        for (const { treatment, params } of steps) {
-          rings = treatment.apply(rings, params, ctx)
-          if (rings.length === 0) break
-        }
+        const rings = applyChain(sourceRings.get(i) ?? [], chain, ctx)
         if (rings.length === 0) break
 
         const contours = ringsToContours(rings)

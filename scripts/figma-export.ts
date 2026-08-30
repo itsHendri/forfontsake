@@ -25,17 +25,18 @@ function round(d: string): string {
   return d.replace(/-?\d+\.\d+/g, (n) => String(Math.round(Number(n))))
 }
 
+const chain = [{ id: TREATMENT, params }]
+
 const line = render({
   library,
   fontId: FONT,
-  treatmentId: TREATMENT,
+  chain,
   text: TEXT,
-  params,
   seed: SEED,
   alternates: 3,
 })
 
-const set = renderGlyphSet(library, FONT, TREATMENT, params, SEED)
+const set = renderGlyphSet(library, FONT, chain, SEED)
 
 /** font space is y-up; one flip per path leaves Figma with plain vectors */
 function svg(d: string, width: number, asc: number, desc: number, px: number): string {

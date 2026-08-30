@@ -20,26 +20,42 @@ const family = args.family ?? 'Grit One'
 const seed = Number(args.seed ?? 1337)
 const alternates = Number(args.alts ?? 1)
 
-// --treatment=grit --p.amount=60 --p.scale=40
-const treatment = getTreatment(args.treatment ?? 'grit')
-const params = { ...defaults(treatment) }
+// One treatment:   --treatment=grit --p.amount=60 --p.scale=40
+// A stack:          --treatment=grit+bubble --p1.amount=60 --p2.weight=30
+//
+// Dials are addressed by position because the same key can appear in more than
+// one step — `--p.simplify` would be ambiguous the moment a stack repeats a
+// treatment. `--p.` without a number is step 1, which is what every existing
+// invocation means.
+const ids = (args.treatment ?? 'grit').split('+').filter(Boolean)
+const treatments = ids.map((id) => getTreatment(id))
+const paramSets = treatments.map((t) => ({ ...defaults(t) }))
+
 for (const [k, v] of Object.entries(args)) {
-  if (!k.startsWith('p.')) continue
-  const key = k.slice(2)
-  if (!(key in params)) {
-    console.warn(`warning: ${treatment.id} has no parameter "${key}" — ignored`)
+  const m = /^p(\d*)\.(.+)$/.exec(k)
+  if (!m) continue
+  const at = m[1] ? Number(m[1]) - 1 : 0
+  const key = m[2]
+  if (at < 0 || at >= paramSets.length) {
+    console.warn(`warning: no step ${m[1] || 1} in this stack — "${k}" ignored`)
     continue
   }
-  params[key] = Number(v)
+  if (!(key in paramSets[at])) {
+    console.warn(`warning: ${treatments[at].id} has no parameter "${key}" — ignored`)
+    continue
+  }
+  paramSets[at][key] = Number(v)
 }
 
-const chain: TreatmentStep[] = [{ id: treatment.id, params }]
+const chain: TreatmentStep[] = treatments.map((t, i) => ({ id: t.id, params: paramSets[i] }))
 
 const bytes = readFileSync(srcPath)
 const source = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength)
 
 console.log(`source:    ${srcPath}`)
-console.log(`treatment: ${treatment.name} ${JSON.stringify(params)}`)
+console.log(
+  `treatment: ${chain.map((c, i) => `${treatments[i].name} ${JSON.stringify(c.params)}`).join('  →  ')}`,
+)
 
 const t0 = Date.now()
 const result = buildTreatedFont({

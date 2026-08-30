@@ -28,8 +28,15 @@ const palette = POSTER_PALETTES[1]
 const sheet = buildPoster({
   font: library[fontId],
   fontId,
-  treatmentId,
-  params: { ...defaults(getTreatment(treatmentId)), ...(getTreatment(treatmentId).presets?.[1].values ?? {}) },
+  chain: [
+    {
+      id: treatmentId,
+      params: {
+        ...defaults(getTreatment(treatmentId)),
+        ...(getTreatment(treatmentId).presets?.[1].values ?? {}),
+      },
+    },
+  ],
   seed: 1337,
   word: 'Swell',
   palette,

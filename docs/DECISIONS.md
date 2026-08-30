@@ -314,6 +314,35 @@ gives a monotonic, non-saturating response across the Steps dial. Stronger (1.2�
 on the perimeter graph and destroys legibility at the preset values; weaker lets the attraction
 term win and the shape *shrinks*.
 
+## The stack has one apply loop, and one random stream
+
+The engine always took a chain; the UI only ever handed it one treatment. Exposing it turned
+out to be less about the UI than about a trap underneath.
+
+Three places now put a glyph through a stack: the live preview, the specimen sheet, and the
+font writer. They run over different inputs — flattened library outlines in the page, real
+font bytes in the writer — so they cannot share much. But the one thing they must agree on to
+the last unit is which treatments run, in what order, over what context. Written three times,
+that agreement is a convention, and conventions rot. It is now one exported function,
+`applyChain`, and the other two call it.
+
+The subtle half is the context. Each step gets the *same* `TreatmentContext`, and therefore
+the same seeded random stream, rather than a fresh one. Treatments draw from that stream as
+they work, so a second step handed a new rng produces different geometry from the same
+settings. If the preview renewed it and the writer did not, the specimen on screen and the
+font on disk would disagree — silently, and only for stacked settings, which is the worst
+possible shape for a bug in a tool whose entire claim is that the download matches. Sharing
+one function makes it impossible instead of merely tested.
+
+The cap is three. Every step re-treats what the last produced, so cost compounds and so does
+illegibility: by the third pass a letter is usually at the edge of being one. Four would only
+offer a slower way to make something unreadable.
+
+The URL kept its six fields. The treatment field and the parameter field each hold one entry
+per step, joined by `+`, so a link written before stacking existed has no `+` and still reads
+as a one-step chain. Those links were the thing people were told to keep, and there is a test
+pinning the old shape.
+
 ## Where to look next
 
 Highest value first, from the competitive research:

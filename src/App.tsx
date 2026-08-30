@@ -2,7 +2,7 @@ import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } f
 import { TREATMENTS, getTreatment, defaults, type ParamValues, type Preset } from './engine/treatments/registry'
 import { loadLibrary, type Library } from './lib/glyphData'
 import { render, renderGlyphSet } from './lib/render'
-import { decodeState, encodeState, type WorkbenchState } from './lib/urlState'
+import { decodeState, encodeState, type WorkbenchState, type Step } from './lib/urlState'
 import { loadShelf, saveShelf, SHELF_LIMIT } from './lib/savedStyles'
 import { Panel } from './components/Panel'
 import { Plate } from './components/Plate'
@@ -15,15 +15,36 @@ import { Poster } from './components/Poster'
 const FALLBACK_TEXT = 'Grittier letters'
 
 /**
- * A state is usable only if the font and treatment it names still exist, since
- * either can vanish between the link (or the shelf entry) being written and
- * being opened. Missing parameters are filled from the treatment's defaults so
- * an entry written before a dial was added still opens.
+ * Three is as deep as the stack goes.
+ *
+ * Not an arbitrary round number: every step re-treats what the last one
+ * produced, so cost compounds, and so does illegibility — by the third pass a
+ * letter is usually at the edge of being a letter. The cap keeps the tool from
+ * offering a way to make something slow and unreadable at the same time.
+ */
+const MAX_STEPS = 3
+
+/**
+ * A state is usable only if the font and every treatment it names still exist,
+ * since any of them can vanish between the link (or the shelf entry) being
+ * written and being opened. Missing parameters are filled from the treatment's
+ * defaults so an entry written before a dial was added still opens.
+ *
+ * A stack with one unknown treatment in it is rejected whole rather than
+ * quietly applied without that step — silently showing something other than
+ * what the link says is worse than not opening it.
  */
 function usable(state: WorkbenchState, library: Library): WorkbenchState | null {
   if (!library[state.fontId]) return null
-  if (!TREATMENTS.some((t) => t.id === state.treatmentId)) return null
-  return { ...state, params: { ...defaults(getTreatment(state.treatmentId)), ...state.params } }
+  if (state.chain.length === 0) return null
+  if (!state.chain.every((step) => TREATMENTS.some((t) => t.id === step.id))) return null
+  return {
+    ...state,
+    chain: state.chain.map((step) => ({
+      id: step.id,
+      params: { ...defaults(getTreatment(step.id)), ...step.params },
+    })),
+  }
 }
 
 function initialState(library: Library): WorkbenchState {
@@ -33,11 +54,10 @@ function initialState(library: Library): WorkbenchState {
   const fontId = library.pirataone ? 'pirataone' : Object.keys(library)[0]
   return {
     fontId,
-    treatmentId: 'grit',
     seed: 1337,
     alternates: 3,
     text: FALLBACK_TEXT,
-    params: defaults(getTreatment('grit')),
+    chain: [{ id: 'grit', params: defaults(getTreatment('grit')) }],
   }
 }
 
@@ -48,6 +68,8 @@ export default function App() {
   // The shelf is stored as states, not as rendered outlines — see savedStyles.
   const [saved, setSaved] = useState<WorkbenchState[]>([])
   const [posterOpen, setPosterOpen] = useState(false)
+  // which step in the stack the dials are editing
+  const [active, setActive] = useState(0)
   const hydrated = useRef(false)
 
   useEffect(() => {
@@ -82,7 +104,17 @@ export default function App() {
     setState((s) => (s ? { ...s, ...next } : s))
   }, [])
 
-  const treatment = state ? getTreatment(state.treatmentId) : null
+  /** edit one step of the stack, leaving the others alone */
+  const patchStep = useCallback((i: number, next: Partial<Step>) => {
+    setState((s) =>
+      s ? { ...s, chain: s.chain.map((step, j) => (j === i ? { ...step, ...next } : step)) } : s,
+    )
+  }, [])
+
+  // Restoring a shorter stack from the shelf can leave the selection past the
+  // end of it, which would read as the dials editing nothing.
+  const step = state ? Math.min(active, state.chain.length - 1) : 0
+  const treatment = state ? getTreatment(state.chain[step].id) : null
 
   const result = useMemo(() => {
     if (!library || !state) return null
@@ -90,9 +122,8 @@ export default function App() {
       return render({
         library,
         fontId: state.fontId,
-        treatmentId: state.treatmentId,
+        chain: state.chain,
         text: state.text,
-        params: state.params,
         seed: state.seed,
         alternates: state.alternates,
       })
@@ -120,13 +151,12 @@ export default function App() {
             result: render({
               library,
               fontId: s.fontId,
-              treatmentId: s.treatmentId,
+              chain: s.chain,
               text: s.text.trim() || FALLBACK_TEXT,
-              params: s.params,
               seed: s.seed,
               alternates: s.alternates,
             }),
-            treatmentName: getTreatment(s.treatmentId).name,
+            treatmentName: s.chain.map((c) => getTreatment(c.id).name).join(' + '),
           },
         ]
       } catch {
@@ -138,20 +168,12 @@ export default function App() {
   // The grid treats every glyph in the face, which is far more work than one
   // line — deferring it lets typing and dragging stay smooth while the grid
   // catches up a beat later.
-  const gridKey = state
-    ? { fontId: state.fontId, treatmentId: state.treatmentId, params: state.params, seed: state.seed }
-    : null
+  const gridKey = state ? { fontId: state.fontId, chain: state.chain, seed: state.seed } : null
   const deferredKey = useDeferredValue(gridKey)
   const glyphSet = useMemo(() => {
     if (!library || !deferredKey) return null
     try {
-      return renderGlyphSet(
-        library,
-        deferredKey.fontId,
-        deferredKey.treatmentId,
-        deferredKey.params,
-        deferredKey.seed,
-      )
+      return renderGlyphSet(library, deferredKey.fontId, deferredKey.chain, deferredKey.seed)
     } catch {
       return null // the line above is the one worth surfacing an error for
     }
@@ -180,20 +202,40 @@ export default function App() {
       : render({
           library,
           fontId: state.fontId,
-          treatmentId: state.treatmentId,
+          chain: state.chain,
           text: FALLBACK_TEXT,
-          params: state.params,
           seed: state.seed,
           alternates: state.alternates,
         })
 
-  const applyPreset = (preset: Preset) => patch({ params: { ...state.params, ...preset.values } })
+  const applyPreset = (preset: Preset) =>
+    patchStep(step, { params: { ...state.chain[step].params, ...preset.values } })
 
   const changeTreatment = (id: string) => {
     // parameters mean different things per treatment, so carrying values across
     // would land on settings nobody chose
-    patch({ treatmentId: id, params: defaults(getTreatment(id)) })
+    patchStep(step, { id, params: defaults(getTreatment(id)) })
   }
+
+  /**
+   * Add a step, defaulting to a treatment not already in the stack — repeating
+   * one is legitimate but is never the obvious next thing somebody wants.
+   */
+  const addStep = () => {
+    if (state.chain.length >= MAX_STEPS) return
+    const used = new Set(state.chain.map((c) => c.id))
+    const next = TREATMENTS.find((t) => !used.has(t.id)) ?? TREATMENTS[0]
+    patch({ chain: [...state.chain, { id: next.id, params: defaults(next) }] })
+    setActive(state.chain.length)
+  }
+
+  const removeStep = (i: number) => {
+    if (state.chain.length <= 1) return
+    patch({ chain: state.chain.filter((_, j) => j !== i) })
+    setActive((a) => (a > i || a >= state.chain.length - 1 ? Math.max(0, a - 1) : a))
+  }
+
+  const chainName = state.chain.map((c) => getTreatment(c.id).name).join(' + ')
 
   const save = () => {
     // Saving the same settings twice is a slip, not an intent, and on a shelf
@@ -226,8 +268,8 @@ export default function App() {
           <ExportBar
             font={library[state.fontId]}
             fontId={state.fontId}
-            treatment={treatment}
-            params={state.params}
+            chain={state.chain}
+            chainName={chainName}
             seed={state.seed}
             alternates={state.alternates}
             specimen={specimen}
@@ -238,15 +280,23 @@ export default function App() {
 
         <Panel
           treatment={treatment}
-          params={state.params}
+          chain={state.chain}
+          active={step}
+          canAdd={state.chain.length < MAX_STEPS}
+          params={state.chain[step].params}
           seed={state.seed}
           alternates={state.alternates}
-          onParam={(key, value) => patch({ params: { ...state.params, [key]: value } })}
+          onParam={(key, value) =>
+            patchStep(step, { params: { ...state.chain[step].params, [key]: value } })
+          }
           onPreset={applyPreset}
+          onSelectStep={setActive}
+          onAddStep={addStep}
+          onRemoveStep={removeStep}
           onSeed={(seed) => patch({ seed })}
           onAlternates={(alternates) => patch({ alternates })}
           onRandomise={() => patch({ seed: Math.floor(Math.random() * 9999) + 1 })}
-          onReset={() => patch({ params: defaults(treatment), seed: 1337 })}
+          onReset={() => patchStep(step, { params: defaults(treatment) })}
           onSave={save}
         />
       </div>
@@ -263,8 +313,7 @@ export default function App() {
         <Poster
           font={library[state.fontId]}
           fontId={state.fontId}
-          treatment={treatment}
-          params={state.params}
+          chain={state.chain}
           seed={state.seed}
           // one word sets a sheet; a sentence would come out too small to read
           word={specimenText.split(/\s+/)[0] || treatment.name}

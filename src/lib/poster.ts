@@ -1,7 +1,8 @@
-import { getTreatment, type ParamValues } from '../engine/treatments/registry'
+import { getTreatment, applyChain } from '../engine/treatments/registry'
 import { mulberry32 } from '../engine/prng'
 import { ringsToPathD } from '../engine/svg'
 import { toRings, type FontData } from './glyphData'
+import type { Step } from './urlState'
 
 /**
  * A specimen sheet, as a standalone SVG string.
@@ -41,8 +42,7 @@ export const POSTER_PALETTES: PosterPalette[] = [
 export interface PosterRequest {
   font: FontData
   fontId: string
-  treatmentId: string
-  params: ParamValues
+  chain: Step[]
   seed: number
   /** the word set large; falls back to the treatment's name */
   word: string
@@ -58,13 +58,22 @@ const MARGIN = 92
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-/** the dial values, written the way a caption would write them */
-export function settingsLine(treatmentId: string, params: ParamValues): string {
-  const t = getTreatment(treatmentId)
-  return t.params
-    .filter((s) => s.primary)
-    .map((s) => `${s.label} ${params[s.key]}`)
-    .join('   ')
+/**
+ * The dial values, written the way a caption would write them. With more than
+ * one treatment each is named, because "Amount 55" twice over says nothing about
+ * which is which.
+ */
+export function settingsLine(chain: Step[]): string {
+  return chain
+    .map((step) => {
+      const t = getTreatment(step.id)
+      const dials = t.params
+        .filter((s) => s.primary)
+        .map((s) => `${s.label} ${step.params[s.key]}`)
+        .join('   ')
+      return chain.length > 1 ? `${t.name}: ${dials}` : dials
+    })
+    .join('   ·   ')
 }
 
 /**
@@ -76,7 +85,6 @@ export function settingsLine(treatmentId: string, params: ParamValues): string {
  * the treatment.
  */
 function drawWord(req: PosterRequest) {
-  const t = getTreatment(req.treatmentId)
   const data = req.font
   let d = ''
   let penX = 0
@@ -84,22 +92,27 @@ function drawWord(req: PosterRequest) {
     const g = data.glyphs[ch]
     if (!g) continue
     if (g.rings.length > 0) {
-      const rings = t.apply(toRings(g.rings), req.params, {
+      // one context across the stack, as everywhere else — see render.ts
+      const ctx = {
         rng: mulberry32(req.seed + (ch.codePointAt(0) ?? 0) * 7919),
         unitsPerEm: data.unitsPerEm,
         strokeWidth: data.strokeWidth || data.unitsPerEm * 0.1,
         advanceWidth: g.adv,
         penX,
-      })
-      d += ringsToPathD(rings, penX, 0)
+      }
+      d += ringsToPathD(applyChain(toRings(g.rings), req.chain, ctx), penX, 0)
     }
     penX += g.adv
   }
   return { d, width: penX, ascender: data.ascender, descender: data.descender }
 }
 
+/** "Grit + Bleed" — what the sheet calls the stack */
+export function chainName(chain: Step[]): string {
+  return chain.map((s) => getTreatment(s.id).name).join(' + ')
+}
+
 export function buildPoster(req: PosterRequest): string {
-  const t = getTreatment(req.treatmentId)
   const word = drawWord(req)
 
   const mono = "'Roboto Mono', ui-monospace, monospace"
@@ -133,7 +146,10 @@ export function buildPoster(req: PosterRequest): string {
   // whole sentences rather than to a line count: a caption that stops mid-
   // clause reads as a rendering bug, which on a specimen sheet is worse than
   // saying less.
-  const lines = wrap(firstSentences(t.story ?? t.blurb, 300), 76)
+  // With a stack there is no single story to tell, so the sheet carries the
+  // last step's — it is the one that shaped what you are looking at.
+  const last = getTreatment(req.chain[req.chain.length - 1].id)
+  const lines = wrap(firstSentences(last.story ?? last.blurb, 300), 76)
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SHEET_W} ${SHEET_H}" ` +
@@ -150,8 +166,8 @@ export function buildPoster(req: PosterRequest): string {
     // caption block
     `<line x1="${MARGIN}" y1="${footTop}" x2="${SHEET_W - MARGIN}" y2="${footTop}" ` +
     `stroke="${req.palette.ink}" stroke-width="2"/>` +
-    small(MARGIN, footTop + 40, `${t.name} on ${req.font.label}`, req.palette.ink, 23) +
-    small(MARGIN, footTop + 74, settingsLine(req.treatmentId, req.params), req.palette.mark, 17) +
+    small(MARGIN, footTop + 40, `${chainName(req.chain)} on ${req.font.label}`, req.palette.ink, 23) +
+    small(MARGIN, footTop + 74, settingsLine(req.chain), req.palette.mark, 17) +
     small(MARGIN, footTop + 104, `Seed ${req.seed}`, req.palette.mark, 17) +
     lines
       .map((line, i) =>

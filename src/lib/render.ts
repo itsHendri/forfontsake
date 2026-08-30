@@ -1,8 +1,9 @@
-import { getTreatment, type ParamValues } from '../engine/treatments/registry'
+import { getTreatment, applyChain } from '../engine/treatments/registry'
 import { mulberry32 } from '../engine/prng'
 import { ringsToPathD } from '../engine/svg'
 import type { Ring } from '../engine/flatten'
 import { toRings, type Library, type FontData } from './glyphData'
+import type { Step } from './urlState'
 
 export interface RenderResult {
   /** one SVG path covering the whole line, in font units, y-up */
@@ -33,9 +34,9 @@ export interface GlyphSet {
 export interface RenderRequest {
   library: Library
   fontId: string
-  treatmentId: string
+  /** treatments in order, each working on what the last one produced */
+  chain: Step[]
   text: string
-  params: ParamValues
   seed: number
   /**
    * How many differently-cut versions of each letter exist. With one, every `o`
@@ -46,43 +47,52 @@ export interface RenderRequest {
 }
 
 /**
- * One glyph, treated. The seed is derived from the character and its variant so
- * a letter always comes out the same way wherever it appears in a line.
+ * One glyph, put through the whole stack. The seed is derived from the
+ * character and its variant so a letter always comes out the same way wherever
+ * it appears in a line.
+ *
+ * One context — and therefore one random stream — is shared across every step,
+ * exactly as `buildTreatedFont` does it. That is not an incidental detail: each
+ * treatment draws from the stream as it goes, so giving the second step a fresh
+ * rng here would make the preview and the exported font disagree about the same
+ * settings, which is the one thing this tool cannot afford.
  */
 function treat(
   data: FontData,
-  treatmentId: string,
+  chain: Step[],
   rings: number[][],
   adv: number,
-  params: ParamValues,
   seed: number,
   ch: string,
   variant: number,
   penX: number,
 ): Ring[] {
   const charSeed = seed + (ch.codePointAt(0) ?? 0) * 7919 + variant * 104729
-  return getTreatment(treatmentId).apply(toRings(rings), params, {
+  const ctx = {
     rng: mulberry32(charSeed),
     unitsPerEm: data.unitsPerEm,
     strokeWidth: data.strokeWidth || data.unitsPerEm * 0.1,
     advanceWidth: adv,
     penX,
-  })
+  }
+  return applyChain(toRings(rings), chain, ctx)
 }
 
 export function render({
   library,
   fontId,
-  treatmentId,
+  chain,
   text,
-  params,
   seed,
   alternates = 1,
 }: RenderRequest): RenderResult {
   const t0 = performance.now()
   const data = library[fontId] ?? Object.values(library)[0]
-  const treatment = getTreatment(treatmentId)
-  const variants = treatment.deterministic ? 1 : Math.max(1, Math.round(alternates))
+  // Cutting alternates is only worth the work if something in the stack
+  // consumes randomness; a wholly deterministic stack would just draw the same
+  // letter several times.
+  const varies = chain.some((s) => !getTreatment(s.id).deterministic)
+  const variants = varies ? Math.max(1, Math.round(alternates)) : 1
 
   const seen = new Map<string, number>()
   const cache = new Map<string, { rings: Ring[]; contours: number }>()
@@ -102,7 +112,7 @@ export function render({
       const key = `${ch}/${variant}`
       let entry = cache.get(key)
       if (!entry) {
-        const rings = treat(data, treatmentId, g.rings, g.adv, params, seed, ch, variant, penX)
+        const rings = treat(data, chain, g.rings, g.adv, seed, ch, variant, penX)
         entry = { rings, contours: rings.length }
         cache.set(key, entry)
       }
@@ -142,8 +152,7 @@ const GLYPH_ORDER = [
 export function renderGlyphSet(
   library: Library,
   fontId: string,
-  treatmentId: string,
-  params: ParamValues,
+  chain: Step[],
   seed: number,
 ): GlyphSet {
   const t0 = performance.now()
@@ -155,7 +164,7 @@ export function renderGlyphSet(
   for (const ch of GLYPH_ORDER) {
     const g = data.glyphs[ch]
     if (!g || g.rings.length === 0) continue // absent, or space and its like
-    const rings = treat(data, treatmentId, g.rings, g.adv, params, seed, ch, 0, 0)
+    const rings = treat(data, chain, g.rings, g.adv, seed, ch, 0, 0)
     glyphs.push({ ch, d: ringsToPathD(rings, 0, 0), adv: g.adv })
   }
 

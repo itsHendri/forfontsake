@@ -692,6 +692,85 @@ select:focus-visible {
   border-color: var(--ink);
 }
 
+/* ---------- the stack ---------- */
+
+.stack {
+  gap: 10px;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 16px;
+}
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: stretch;
+}
+/* Each step is a pair: the tab that selects it, and the × that drops it. They
+   share one outline so the pair reads as one object rather than two buttons. */
+.step {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.step > button {
+  border: 0;
+  border-radius: 0;
+  font-size: 12px;
+  padding: 5px 10px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* the position in the stack, since order is the whole meaning of it */
+.step em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--muted);
+}
+.step.is-on {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+.step.is-on > button {
+  color: var(--paper);
+}
+.step.is-on em {
+  color: var(--paper);
+  opacity: 0.6;
+}
+.step .drop {
+  padding: 5px 8px;
+  color: inherit;
+  opacity: 0.5;
+  border-left: 1px solid var(--rule);
+}
+.step.is-on .drop {
+  border-left-color: rgba(255, 255, 255, 0.25);
+}
+.step .drop:hover {
+  opacity: 1;
+  color: var(--mark);
+}
+.step.add {
+  border-style: dashed;
+  font-size: 12px;
+  padding: 5px 11px;
+  color: var(--muted);
+}
+.step.add:hover {
+  border-style: solid;
+  color: var(--ink);
+}
+.stack .note {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0;
+}
+
 /* ---------- saved styles ---------- */
 
 .shelf-strip {
