@@ -3,9 +3,11 @@
 A browser type foundry. Pick a font, apply a treatment, tweak it live, and export a real,
 installable, correctly-licensed font.
 
-Everything runs client-side. No upload, no account, nothing leaves your machine.
+Everything runs client-side. No account, no server, nothing leaves your machine — a font you
+bring is read in the page and never sent anywhere.
 
-**forfontsake.xyz** (domain owned, not yet deployed — see [docs/DEPLOY.md](docs/DEPLOY.md))
+**Live at [forfontsake.xyz](https://forfontsake.xyz)** — see [docs/DEPLOY.md](docs/DEPLOY.md)
+for how it is deployed.
 
 New here, or picking this up after a break? Start with **[docs/STATE.md](docs/STATE.md)**.
 
@@ -28,8 +30,9 @@ button.
 | --- | --- |
 | **Engine** | `src/engine/` — pure geometry. Takes glyph outlines and parameters, returns outlines. No DOM, no font parsing in the hot path. |
 | **Treatment** | One named effect (Grit, Bubble, Bleed…). A pure function from outlines to outlines, plus a parameter spec and named presets. |
+| **Stack** | Up to three treatments in a row, each working on what the last one left. `applyChain` is the one place that runs them. |
 | **Workbench** | The live page where you turn dials. A React app in `src/`. |
-| **Source font** | The font a treatment is applied to. Seven ship with the tool; all OFL. |
+| **Source font** | The font a treatment is applied to. Seven ship with the tool, all OFL, and you can bring your own. |
 | **Cut** | One randomised version of a letter. Several cuts per letter stop a word looking stamped. |
 | **Export** | Building the real font in the browser. Same engine as `build:font`, run in a worker. |
 | **Plate** | The specimen block at the top of the workbench: the type, and the two choices that define it. |
@@ -66,7 +69,7 @@ subsets the workbench's specimen field needs. The app itself needs none of it at
 | `npm run dev` | The workbench, with hot reload. The normal way to work on it. |
 | `npm run build:workbench` | Builds the self-contained page into `out/workbench.html`, for publishing. Also recuts the preview font subsets. |
 | `npm run build:font -- --treatment=grit --alts=3` | Headless font build. See flags below. |
-| `npm run verify:font -- out/Font.ttf Pirata` | Gates a font on seven checks. |
+| `npm run verify:font -- out/Font.ttf Pirata` | Gates a font on seven checks, or eight with `VERIFY_AGAINST` set. |
 | `npm run typecheck` | App and test configs. Never use bare `tsc --noEmit`. |
 | `npm run test` | Engine unit tests. |
 
@@ -74,7 +77,7 @@ subsets the workbench's specimen field needs. The app itself needs none of it at
 
 ```
 --src=public/fonts/anton/font.ttf   source font
---treatment=grit                    which treatment
+--treatment=grit                    which treatment (or a stack: grit+bubble)
 --p.amount=60 --p.scale=40          any parameter, by key
 --alts=3                            cuts per letter
 --family="My Font"                  derivative name
@@ -131,19 +134,26 @@ src/engine/
   blob.ts         irregular blob shared by grit and bleed
   flatten.ts      glyph contours to polygons
   fontio.ts       open a font, treat every glyph, write a new one
+  extract.ts      one font → outlines + licence; the build script and the page share it
   gsub.ts         our own GSUB writer
   sfnt.ts         add and remove tables from a finished binary
 src/lib/
   glyphData.ts    outlines shipped as data, so no font parser reaches the browser
+  importFont.ts   a font off a file input: read, register for metrics, keep the bytes
   render.ts       one line of type, and the whole glyph set, as SVG paths
   urlState.ts     the whole workbench state, encoded into the address bar
+  savedStyles.ts  the shelf, kept across reloads — states, never rendered outlines
+  poster.ts       the specimen sheet, as standalone SVG; also makes share.png
+  exportFont.ts   drives the worker, and hands the finished font over
 src/components/
   Plate.tsx       the specimen — and the field you type it into
-  Panel.tsx       presets and dials, in one order for every treatment
+  Panel.tsx       the stack, presets and dials, in one order for every treatment
   GlyphGrid.tsx   every glyph in the face, on shared baselines
   Waterfall.tsx   the same line at seven sizes
   Dial.tsx        one parameter, with its default marked on the track
   Shelf.tsx       saved styles
+  Poster.tsx      the specimen sheet overlay — sheets, roll, recolour, download
+src/workers/      buildFont.worker.ts — the export, and reading an uploaded font
 public/fonts/preview/   metrics-only subsets — never seen, see below
 scripts/          build, verify and comparison tooling
 ```
@@ -151,10 +161,11 @@ scripts/          build, verify and comparison tooling
 **You type into the specimen itself.** The big line is not a preview of a field
 somewhere else. A transparent input lies over the treated outlines, so the caret,
 selection, click-to-position and every keyboard behaviour are the browser's own. That
-only works because the field lays its text out on the source font's advance widths —
+only works because the field lays its text out on the source font's *raw* advance widths —
 which is what `public/fonts/preview/*.woff2` are for. They are a few KB each, cut to the
-preview charset by `make-glyph-data`, and never rendered. Because treatments preserve
-advance widths, the field and the outlines agree to the pixel on all seven faces.
+preview charset by `make-glyph-data`, and never rendered. Every layout feature is switched
+off on that field too: kerning moves pairs by real amounts, and a font you bring has kerning
+where those subsets do not. Measured across all eight faces, shipped and uploaded: 0.01px.
 
 **Sizes are shares of the stroke, not the em.** A parameter of 100 means one stem width.
 The bundled fonts range from 11% to 20% of the em in weight, so an em-relative setting means
@@ -168,7 +179,14 @@ fonts inline, because a download button that cannot download is the exact failur
 project exists to avoid.
 
 **The engine never calls `Math.random`.** Everything takes an injected PRNG, so a font is
-reproducible from `{treatment, params, seed}` — which is also what the URL encodes.
+reproducible from `{chain, seed}` — which is also what the URL encodes, and what a saved
+style stores.
+
+**One `applyChain`, used by everything.** The preview, the specimen sheet and the font writer
+run over different inputs but must agree exactly on what a stack produces, so they share one
+function. The random stream is shared across the steps rather than renewed per step: a second
+step given a fresh PRNG draws different geometry, and the specimen and the download would
+quietly stop matching.
 
 ## Licence
 
@@ -182,13 +200,13 @@ export path enforces OFL Reserved Font Name rules rather than leaving you to dis
 
 ## Known debt
 
-- **Not deployed.** The domain is owned; [docs/DEPLOY.md](docs/DEPLOY.md) has the plan.
-- **The bundle carries the font writer for everyone** — the export worker is inlined so the
-  published single-file page works, which costs every visitor ~877 KB of JS whether or not
-  they export. Splitting it is the first job in DEPLOY.md.
-- **Saved styles don't persist** across a reload.
-- **Treatments don't stack** in the interface, though the engine takes a chain.
-- **Uploading your own font** isn't wired up.
+- **Big faces are not fast to export.** Pacifico takes ~26s in the page for a 2.7 MB file.
+  What remains is proportional work; the next real gain is splitting glyphs across several
+  workers.
+- **The specimen sheet has two layouts.** A third is a function in `poster.ts` and an entry
+  in `LAYOUTS`.
+
+`docs/STATE.md` carries the current list; this one goes stale first.
 
 See `docs/DECISIONS.md` for the reasoning behind the choices above, and the traps that cost
 real time.
