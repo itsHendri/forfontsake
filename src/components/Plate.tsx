@@ -17,7 +17,12 @@ interface Props {
   onUpload: (file: File) => void
   /** set while a dropped font is being read, so the control can say so */
   importing: boolean
+  /** open the specimen sheet — the plate's own call to action */
+  onPoster: () => void
 }
+
+/** the font select's last entry — a verb among the nouns */
+const UPLOAD = '__upload__'
 
 /**
  * The specimen and its controls in one object.
@@ -35,6 +40,7 @@ export function Plate(p: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
   const strutRef = useRef<HTMLSpanElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   // measured rather than derived: the type size comes from CSS (so it stays
   // responsive) and the baseline from real layout (so no font-metric guesswork)
@@ -97,13 +103,40 @@ export function Plate(p: Props) {
         <label className="visually-hidden" htmlFor="font">
           Font
         </label>
-        <select id="font" value={p.fontId} onChange={(e) => p.onFont(e.target.value)}>
+        {/*
+          Uploading lives inside the font menu — it is one of the answers to
+          "which font?", not a separate feature. A controlled select never
+          actually settles on the upload entry: picking it opens the file
+          dialog and the value snaps back to the current font on re-render.
+        */}
+        <select
+          id="font"
+          value={p.fontId}
+          disabled={p.importing}
+          onChange={(e) => {
+            if (e.target.value === UPLOAD) fileRef.current?.click()
+            else p.onFont(e.target.value)
+          }}
+        >
           {Object.entries(p.library).map(([id, f]) => (
             <option key={id} value={id}>
               {f.label}
             </option>
           ))}
+          <option value={UPLOAD}>{p.importing ? 'Reading…' : 'Upload your own…'}</option>
         </select>
+        <input
+          ref={fileRef}
+          type="file"
+          hidden
+          accept={FONT_ACCEPT}
+          onChange={(e) => {
+            const file = e.target.files?.[0]
+            // cleared so choosing the same file twice still fires
+            e.target.value = ''
+            if (file) p.onUpload(file)
+          }}
+        />
 
         <label className="visually-hidden" htmlFor="treatment">
           Treatment
@@ -120,27 +153,12 @@ export function Plate(p: Props) {
           ))}
         </select>
 
-        {/*
-          A label rather than a button, because the file input has to be the
-          thing that is clicked — a button that forwards a click to a hidden
-          input works until a keyboard or a screen reader meets it.
-        */}
-        <label className={p.importing ? 'upload is-busy' : 'upload'}>
-          {p.importing ? 'Reading…' : 'Use your own'}
-          <input
-            type="file"
-            accept={FONT_ACCEPT}
-            disabled={p.importing}
-            onChange={(e) => {
-              const file = e.target.files?.[0]
-              // cleared so choosing the same file twice still fires
-              e.target.value = ''
-              if (file) p.onUpload(file)
-            }}
-          />
-        </label>
-
         <p className="plate-note">{p.treatment.blurb}</p>
+
+        {/* the sheet is the thing you leave with, so its door is on the plate */}
+        <button type="button" className="save plate-cta" onClick={p.onPoster}>
+          View specimen
+        </button>
       </div>
 
       <div className="plate-type" ref={boxRef}>

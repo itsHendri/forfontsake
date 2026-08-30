@@ -67,11 +67,21 @@ export function GlyphGrid({ set, selected, overridden, onSelect }: Props) {
       <div className="glyphs-head">
         <h2>Glyphs</h2>
         <div className="glyph-picks">
-          {GROUPS.map((g) => (
-            <button type="button" key={g.label} className="chip" onClick={() => pickGroup(g.test)}>
-              {g.label}
-            </button>
-          ))}
+          {GROUPS.map((g) => {
+            const chars = set.glyphs.filter(({ ch }) => g.test(ch))
+            const on = chars.length > 0 && chars.every(({ ch }) => selected.has(ch))
+            return (
+              <button
+                type="button"
+                key={g.label}
+                className={on ? 'chip is-on' : 'chip'}
+                aria-pressed={on}
+                onClick={() => pickGroup(g.test)}
+              >
+                {g.label}
+              </button>
+            )
+          })}
           {overridden.size > 0 && (
             <button
               type="button"

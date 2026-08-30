@@ -458,6 +458,7 @@ export default function App() {
             onText={(text) => patch({ text })}
             onUpload={onUpload}
             importing={importing}
+            onPoster={() => setPosterOpen(true)}
           />
           {notice && <p className="notice is-bad">{notice}</p>}
           {licence && state.fontId.startsWith('upload') && (
@@ -480,8 +481,6 @@ export default function App() {
             seed={state.seed}
             alternates={state.alternates}
             overrides={state.overrides}
-            specimen={specimen}
-            onPoster={() => setPosterOpen(true)}
           />
           {glyphSet && (
             <GlyphGrid

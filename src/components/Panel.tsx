@@ -70,7 +70,8 @@ export function Panel(p: Props) {
       {scoped && (
         <div className="group scope">
           <h2>
-            Editing {scopeLabel} ({p.scope.length})
+            Editing {scopeLabel}
+            {p.scope.length > 1 && ` (${p.scope.length})`}
           </h2>
           <div className="row">
             <button type="button" onClick={p.onClearScope}>
@@ -94,7 +95,7 @@ export function Panel(p: Props) {
               </button>
             )}
           </div>
-          <p className="note">Dials below set just these glyphs. Untouched dials follow the global settings.</p>
+          <p className="note">Dials below set just these glyphs.</p>
         </div>
       )}
 
@@ -156,7 +157,9 @@ export function Panel(p: Props) {
         <button type="button" onClick={p.onReset}>
           Reset
         </button>
-        <button type="button" className="save" onClick={p.onSave}>
+        {/* not the page's promise — the dark treatment belongs to View
+            specimen and Download alone */}
+        <button type="button" onClick={p.onSave}>
           Save
         </button>
       </div>

@@ -1,8 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { buildFont, nameProblem, save, suggestName, type ExportResult } from '../lib/exportFont'
-import { copyText } from '../lib/clipboard'
 import type { FontData } from '../lib/glyphData'
-import type { RenderResult } from '../lib/render'
 import { getTreatment } from '../engine/treatments/registry'
 import type { Overrides, Step } from '../lib/urlState'
 
@@ -16,9 +14,6 @@ interface Props {
   alternates: number
   /** per-character exceptions, carried into the export as-is */
   overrides?: Overrides
-  /** the line as drawn, for handing to a drawing tool rather than a font menu */
-  specimen: RenderResult
-  onPoster: () => void
 }
 
 type State =
@@ -63,28 +58,6 @@ export function ExportBar(p: Props) {
   const busy = state.phase === 'building'
   // alternates only mean something if some step in the stack is random
   const varies = p.chain.some((step) => !getTreatment(step.id).deterministic)
-  const [copied, setCopied] = useState(false)
-
-  /**
-   * The line on the plate as standalone SVG, on the clipboard.
-   *
-   * Not everything wants to be a font. Half the time the treated word is going
-   * into a layout, and pasting SVG markup is how it gets into Figma, Illustrator
-   * or a page — without waiting for a whole face to be built first.
-   */
-  const copyForFigma = async () => {
-    const s = p.specimen
-    const height = s.ascender - s.descender
-    const svg =
-      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${Math.round(s.width)} ${Math.round(height)}" ` +
-      `width="${Math.round(s.width)}" height="${Math.round(height)}">` +
-      `<g transform="translate(0, ${Math.round(s.ascender)}) scale(1, -1)">` +
-      `<path d="${s.d}" fill="currentColor" fill-rule="evenodd"/></g></svg>`
-    if (await copyText(svg)) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
 
   const run = async () => {
     if (problem) return
@@ -166,18 +139,6 @@ export function ExportBar(p: Props) {
           )}
         </p>
 
-        <p className="export-checks">TrueType · installs and shapes</p>
-      </div>
-
-      {/* The font is the promise; these two are the ways out of it that do not
-          need a whole face built first. */}
-      <div className="export-aside">
-        <button type="button" onClick={p.onPoster}>
-          Make a specimen sheet
-        </button>
-        <button type="button" onClick={copyForFigma}>
-          {copied ? 'Copied' : 'Copy for Figma'}
-        </button>
       </div>
 
       {problem && (
