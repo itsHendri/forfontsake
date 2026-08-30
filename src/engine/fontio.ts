@@ -46,6 +46,28 @@ export function toPostScriptName(family: string, style: string): string {
 /** one entry in the treatment chain */
 export type TreatmentStep = Step
 
+/**
+ * Whether a glyph earns alternate cuts.
+ *
+ * Alternates exist for one reason: so a letter repeating in a word does not
+ * read as stamped. That is a property of the handful of characters people
+ * actually set display type in, and it is bought at a steep price — at three
+ * cuts every varied glyph is written into the file three times.
+ *
+ * Cutting three versions of every Vietnamese tone-mark composite triples the
+ * export for variation nobody will ever see: Pacifico carries 1,528 outlines,
+ * of which about 190 fall in this range, so the alternates pass was doing
+ * roughly eight times the work it needed to and the file was three times the
+ * size it needed to be.
+ *
+ * Basic Latin and Latin-1 Supplement is the line, which keeps é, ñ, ü and å —
+ * characters that genuinely turn up in display text. Everything past it is
+ * still treated and still in the font; it just gets one cut instead of three.
+ */
+function worthVarying(unicode: number | undefined): boolean {
+  return unicode !== undefined && unicode >= 0x20 && unicode <= 0xff
+}
+
 export interface BuildOptions {
   /** raw bytes of the source font */
   source: ArrayBuffer
@@ -76,6 +98,8 @@ export interface BuildResult {
   alternates: number
   /** glyphs added to carry those alternates */
   addedGlyphs: number
+  /** how many glyphs were actually varied — see worthVarying */
+  variedGlyphs: number
   glyphCount: number
   treatedCount: number
   maxPoints: number
@@ -409,12 +433,25 @@ export function buildTreatedFont({
   const cuts = Math.max(1, Math.round(alternates))
   const alternateSets: AlternateSet[] = []
   let addedGlyphs = 0
+  let variedGlyphs = 0
 
   if (cuts > 1 && chain.length > 0) {
     const baseCount = glyphs.length
+    const candidates: number[] = []
     for (let i = 0; i < baseCount; i++) {
-      const g = glyphs[i]
       if (!treatedIndices.has(i)) continue
+      if (!worthVarying(glyphs[i].unicode)) continue
+      candidates.push(i)
+    }
+
+    let cut = 0
+    for (const i of candidates) {
+      const g = glyphs[i]
+      // The alternates pass is the larger half of a big export — two more
+      // treatments per glyph at three cuts — so it reports too. Without this
+      // the bar reached the end of the main loop and then sat at full for
+      // longer than it had taken to get there, which reads as a hang.
+      onProgress?.(0.5 + (0.5 * cut++) / Math.max(1, candidates.length))
 
       const variants: number[] = []
       for (let v = 1; v < cuts; v++) {
@@ -436,7 +473,10 @@ export function buildTreatedFont({
         addedGlyphs++
       }
       // a glyph short of the full set would fall out of step with the rotation
-      if (variants.length === cuts - 1) alternateSets.push({ base: i, variants })
+      if (variants.length === cuts - 1) {
+        alternateSets.push({ base: i, variants })
+        variedGlyphs++
+      }
     }
   }
 
@@ -468,6 +508,7 @@ export function buildTreatedFont({
     droppedRules,
     alternates: alternateSets.length > 0 ? cuts : 1,
     addedGlyphs,
+    variedGlyphs,
     glyphCount: glyphs.length,
     treatedCount,
     maxPoints,

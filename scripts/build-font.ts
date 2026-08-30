@@ -87,7 +87,7 @@ console.log(
     `points:    ${result.totalPoints} total, max ${result.maxPoints} on "${result.maxPointsGlyph}"\n` +
     `stroke:    ${result.strokeWidth.toFixed(0)} units` +
     (result.alternates > 1
-      ? `\nalts:      ${result.alternates} cuts per letter, ${result.addedGlyphs} glyphs added, calt rotation written`
+      ? `\nalts:      ${result.alternates} cuts on ${result.variedGlyphs} letters, ${result.addedGlyphs} glyphs added, calt rotation written`
       : '') +
     (result.carriedFeatures.length > 0
       ? `\nkept:      ${result.carriedFeatures.join(', ')} carried from the source`
