@@ -169,6 +169,9 @@ h1 {
   color: var(--muted);
   text-align: right;
 }
+.plate-cta {
+  white-space: nowrap;
+}
 
 .plate-type {
   position: relative;
@@ -321,14 +324,6 @@ h1 {
   color: var(--ink);
   font-weight: 500;
 }
-.export-checks {
-  margin: 0;
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: var(--mark);
-  white-space: nowrap;
-}
 .export-problem {
   margin: 8px 0 0;
   font-size: 12px;
@@ -378,12 +373,27 @@ h1 {
 }
 .poster-sheet {
   display: block;
+  position: relative;
   width: 100%;
-  /* pointer events drag the word; without this a touch drag scrolls instead */
-  touch-action: none;
   /* the sheet has its own paper colour, so it needs a shadow rather than a
      border to sit on the panel without a second frame around it */
   box-shadow: 0 2px 18px color-mix(in srgb, var(--ink) 28%, transparent);
+}
+/* the outgoing sheet, fading off the top of the incoming one — what turns a
+   10 Hz geometry rebuild into a morph instead of a flick-book */
+.sheet-ghost {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: sheet-ghost-fade 350ms linear forwards;
+}
+@keyframes sheet-ghost-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 .poster-sheet svg {
   display: block;
@@ -393,6 +403,9 @@ h1 {
 }
 .poster-sheet [data-part='word'] {
   cursor: grab;
+  /* only the word refuses touch scrolling — a swipe on the paper scrolls the
+     overlay, a swipe on the word drags it */
+  touch-action: none;
 }
 .word-place {
   margin-bottom: 8px;
@@ -615,11 +628,18 @@ h1 {
 .ctl-head output.is-default {
   color: var(--muted);
 }
+/* A caption under every dial is a page of standing micro-copy; a caption
+   under the dial in your hand is help. Focus-within keeps it for keyboards. */
 .ctl-note {
+  display: none;
   margin: 0;
   font-size: 12px;
   line-height: 1.4;
   color: var(--muted);
+}
+.ctl:hover .ctl-note,
+.ctl:focus-within .ctl-note {
+  display: block;
 }
 
 /* the default sits marked on the track, so "is this a lot?" is answerable
@@ -779,40 +799,6 @@ select:focus-visible {
   background: var(--ink);
   color: var(--paper);
   border-color: var(--ink);
-}
-
-/* ---------- bring your own font ---------- */
-
-/* The label *is* the control — the input inside it is hidden from sight but
-   not from the accessibility tree, so click, focus ring and screen reader all
-   behave the way a file input is supposed to. */
-.upload {
-  font-size: 12px;
-  padding: 5px 11px;
-  border: 1px dashed var(--rule);
-  border-radius: 3px;
-  color: var(--muted);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.upload:hover {
-  border-style: solid;
-  color: var(--ink);
-}
-.upload.is-busy {
-  opacity: 0.6;
-  cursor: progress;
-}
-.upload input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-.upload:focus-within {
-  outline: 2px solid var(--mark);
-  outline-offset: 2px;
 }
 
 .notice {

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildPoster,
-  chainName,
   LAYOUTS,
   POSTER_PALETTES,
   SHEET_W,
@@ -12,7 +11,9 @@ import { saveFile } from '../lib/exportFont'
 import { copyText } from '../lib/clipboard'
 import { getTreatment } from '../engine/treatments/registry'
 import { AudioEngine } from '../audio/AudioEngine'
+import { EnvelopeFollower } from '../audio/EnvelopeFollower'
 import { createLoopSource, createMicSource } from '../audio/sources'
+import { startSheetRecorder, type SheetRecorder } from '../lib/videoRecorder'
 import type { AudioFrame } from '../audio/frame'
 import type { FontData } from '../lib/glyphData'
 import type { Overrides, Step } from '../lib/urlState'
@@ -34,31 +35,55 @@ const IDENTITY: WordTransform = { dx: 0, dy: 0, scale: 1 }
  *
  * Each step's primary dials are driven in declared order by bass (with a kick
  * on the beat), mids, highs and overall level — set point plus up to 35% of
- * the dial's span, snapped to its step and clamped to its range. The seed is
- * never touched: this is pure parameter modulation, so the frame you capture
- * is exactly reproducible from the values it was drawn with.
+ * the dial's span, clamped to its range. Deliberately *not* snapped to the
+ * dial's step: the seed is fixed, so the geometry is a continuous function of
+ * the values, and un-snapped values are what let one frame morph into the
+ * next instead of clicking through increments. The seed is never touched —
+ * this is pure parameter modulation, so a captured frame is exactly
+ * reproducible from the values it was drawn with.
  */
-function modulate(chain: Step[], f: AudioFrame): Step[] {
-  const drive = [Math.min(1, f.bass + f.beat * 0.5), f.mid, f.high, f.level]
+function modulate(chain: Step[], drive: number[]): Step[] {
   return chain.map((step) => {
     const primary = getTreatment(step.id).params.filter((s) => s.primary)
     const params = { ...step.params }
     primary.slice(0, drive.length).forEach((spec, i) => {
-      const span = spec.max - spec.min
-      const raw = (step.params[spec.key] ?? spec.default) + drive[i] * 0.35 * span
-      const snapped = Math.round(raw / spec.step) * spec.step
-      params[spec.key] = Math.min(spec.max, Math.max(spec.min, snapped))
+      const raw = (step.params[spec.key] ?? spec.default) + drive[i] * 0.35 * (spec.max - spec.min)
+      params[spec.key] = Math.min(spec.max, Math.max(spec.min, raw))
     })
     return { id: step.id, params }
   })
 }
 
-// the geometry rebuild is throttled well below the audio tick: the heavy
-// treatments cost tens of milliseconds per word, and a sheet pulsing at
-// ~10 Hz reads as alive where one stuttering at 60 reads as broken
-const TICK_MS = 90
-const TICK_MS_HEAVY = 160
+// The geometry rebuilds as fast as the chain can afford — a light chain on a
+// short word reaches ~30fps and genuinely morphs; the heavy treatments sit
+// nearer 7fps and lean on the cross-fade below to feel continuous.
+const TICK_MS = 33
+const TICK_MS_HEAVY = 140
 const HEAVY = new Set(['growth', 'mosaic'])
+
+/**
+ * The engine's own envelopes are tuned for light shows — 12 ms attack, made
+ * to twitch. Letterforms that twitch read as broken; letterforms that swell
+ * and subside read as alive. So the modulation runs through a second, much
+ * slower set of followers, each band on its own clock so the four drives
+ * never move in lockstep — which is most of what "organic" means.
+ */
+function makeGlides() {
+  return [
+    new EnvelopeFollower(0.3, 0.9), // bass + beat
+    new EnvelopeFollower(0.45, 1.1), // mids
+    new EnvelopeFollower(0.25, 0.8), // highs
+    new EnvelopeFollower(0.55, 1.3), // level
+  ]
+}
+
+function glide(glides: EnvelopeFollower[], f: AudioFrame, dt: number): number[] {
+  const targets = [Math.min(1, f.bass + f.beat * 0.5), f.mid, f.high, f.level]
+  return glides.map((g, i) => g.update(targets[i], dt))
+}
+
+// long enough for a loop of the bubble track, short enough to stay postable
+const MAX_RECORD_SECONDS = 15
 
 /**
  * The specimen sheet, as a thing you can take away.
@@ -90,18 +115,41 @@ export function Poster(p: Props) {
   // would make one twice.
   const [soundSource, setSoundSource] = useState<'loop' | 'mic' | null>(null)
   const [modChain, setModChain] = useState<Step[] | null>(null)
+  // how fast the letters move with the sound: it scales the clock the glides
+  // run on, so low values are a slow drift and 1.5 is back to eager
+  const [soundSpeed, setSoundSpeed] = useState(0.5)
+  const soundSpeedRef = useRef(soundSpeed)
+  useEffect(() => {
+    soundSpeedRef.current = soundSpeed
+  }, [soundSpeed])
   const engineRef = useRef<AudioEngine | null>(null)
   const rafRef = useRef<number | null>(null)
   // how long the last sheet took to build, so the tick can back off adaptively
   const buildCost = useRef(0)
 
+  // Closing must never discard work: a take in flight is finished and saved
+  // on the way out, and the backdrop stops being a close target while sound
+  // or recording is live — a stray click outside the sheet must not kill a
+  // performance. Close and Escape always work.
+  const closeRef = useRef<() => void>(p.onClose)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && p.onClose()
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current()
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [p])
+  }, [])
+
+  // Recording. The recorder lives in refs and the finisher in a ref too, so
+  // stopSound (a stable callback) can save a take without stale closures.
+  const [recording, setRecording] = useState(false)
+  const [recSeconds, setRecSeconds] = useState(0)
+  const recorderRef = useRef<SheetRecorder | null>(null)
+  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const recStemRef = useRef('sheet')
+  const finishRecordingRef = useRef<(() => Promise<void>) | null>(null)
 
   const stopSound = useCallback(() => {
+    // a deliberate stop mid-take keeps the take
+    void finishRecordingRef.current?.()
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
     rafRef.current = null
     engineRef.current?.setSource(null)
@@ -109,9 +157,12 @@ export function Poster(p: Props) {
     setModChain(null)
   }, [])
 
-  // the overlay closing takes the sound with it
+  // the overlay closing takes the sound with it — and abandons any take
   useEffect(
     () => () => {
+      recorderRef.current?.cancel()
+      recorderRef.current = null
+      if (recTimerRef.current) clearInterval(recTimerRef.current)
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
       engineRef.current?.dispose()
       engineRef.current = null
@@ -122,6 +173,7 @@ export function Poster(p: Props) {
   const startTicking = useCallback(() => {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
     const tier = p.chain.some((s) => HEAVY.has(s.id)) ? TICK_MS_HEAVY : TICK_MS
+    const glides = makeGlides()
     let last = performance.now()
     let lastBuild = 0
     const loop = (now: number) => {
@@ -129,12 +181,14 @@ export function Poster(p: Props) {
       if (!engine) return
       const dt = Math.min(0.1, (now - last) / 1000)
       last = now
-      // tick every frame so the envelopes and detectors stay accurate...
-      const frame = engine.tick(dt)
+      // Tick every frame so the envelopes and detectors stay accurate; only
+      // the glides run on the scaled clock — the Speed dial is time dilation
+      // on the motion, not on the analysis.
+      const drive = glide(glides, engine.tick(dt), dt * soundSpeedRef.current)
       // ...but rebuild the geometry at a pace the chain can afford
-      if (now - lastBuild >= Math.max(tier, buildCost.current * 2)) {
+      if (now - lastBuild >= Math.max(tier, buildCost.current * 1.5)) {
         lastBuild = now
-        setModChain(modulate(p.chain, frame))
+        setModChain(modulate(p.chain, drive))
       }
       rafRef.current = requestAnimationFrame(loop)
     }
@@ -190,6 +244,78 @@ export function Poster(p: Props) {
   }, [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, layout.id, palette, number, wordT])
 
   const stem = `forfontsake-${p.chain.map((c) => c.id).join('-')}-${layout.id}-${String(number).padStart(3, '0')}`
+
+  // every new sheet reaches a running recorder
+  useEffect(() => {
+    recorderRef.current?.update(svg)
+  }, [svg])
+
+  // While sound plays, the outgoing sheet lingers briefly over the incoming
+  // one — the sheets are opaque, so an old one fading off the top reads as
+  // the letters morphing rather than a cut.
+  const lastSvgRef = useRef(svg)
+  const ghostKeyRef = useRef(0)
+  const [ghost, setGhost] = useState<{ svg: string; key: number } | null>(null)
+  useEffect(() => {
+    if (soundSource && lastSvgRef.current !== svg) {
+      setGhost({ svg: lastSvgRef.current, key: ++ghostKeyRef.current })
+    } else if (!soundSource && ghostKeyRef.current > 0) {
+      setGhost(null)
+    }
+    lastSvgRef.current = svg
+  }, [svg, soundSource])
+
+  const finishRecording = async () => {
+    const recorder = recorderRef.current
+    if (!recorder) return
+    recorderRef.current = null
+    if (recTimerRef.current) clearInterval(recTimerRef.current)
+    setRecording(false)
+    try {
+      const { blob, extension } = await recorder.stop()
+      await saveFile(blob, `${recStemRef.current}-live.${extension}`)
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e))
+    }
+  }
+  /** finish any take, then leave — the exit that keeps the work */
+  const handleClose = () => {
+    void finishRecordingRef.current?.()
+    p.onClose()
+  }
+
+  // kept fresh so stopSound, Escape and the countdown can finish a take
+  // without closing over a stale sheet or filename
+  useEffect(() => {
+    finishRecordingRef.current = finishRecording
+    closeRef.current = handleClose
+  })
+
+  const startRecording = () => {
+    const engine = engineRef.current
+    if (!engine || recorderRef.current) return
+    setNote(null)
+    try {
+      recorderRef.current = startSheetRecorder(
+        SHEET_W,
+        SHEET_H,
+        svg,
+        palette.paper,
+        engine.captureStream(),
+      )
+      recStemRef.current = stem
+      setRecSeconds(0)
+      setRecording(true)
+      recTimerRef.current = setInterval(() => {
+        setRecSeconds((s) => {
+          if (s + 1 >= MAX_RECORD_SECONDS) void finishRecordingRef.current?.()
+          return s + 1
+        })
+      }, 1000)
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   const downloadSvg = async () => {
     await saveFile(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), `${stem}.svg`)
@@ -284,7 +410,13 @@ export function Poster(p: Props) {
   const moved = wordT.dx !== 0 || wordT.dy !== 0 || wordT.scale !== 1
 
   return (
-    <div className="poster-backdrop" onClick={p.onClose} role="presentation">
+    <div
+      className="poster-backdrop"
+      onClick={() => {
+        if (!soundSource && !recorderRef.current) p.onClose()
+      }}
+      role="presentation"
+    >
       <div
         className="poster"
         onClick={(e) => e.stopPropagation()}
@@ -301,14 +433,22 @@ export function Poster(p: Props) {
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onWheel={onWheel}
-          dangerouslySetInnerHTML={{ __html: svg }}
-        />
+        >
+          <div className="sheet-live" dangerouslySetInnerHTML={{ __html: svg }} />
+          {ghost && (
+            <div
+              className="sheet-ghost"
+              key={ghost.key}
+              aria-hidden="true"
+              // a slower drift earns a longer dissolve
+              style={{ animationDuration: `${Math.round(350 / Math.max(0.35, soundSpeed))}ms` }}
+              dangerouslySetInnerHTML={{ __html: ghost.svg }}
+            />
+          )}
+        </div>
 
         <div className="poster-side">
           <h2>Specimen No. {String(number).padStart(3, '0')}</h2>
-          <p className="muted">
-            {chainName(p.chain)} on {p.font.label}, exactly as you have it set.
-          </p>
 
           {/* The sheets, paged rather than listed — two is not a menu. */}
           <div className="sheets">
@@ -339,7 +479,9 @@ export function Poster(p: Props) {
             <div className="word-place ctl">
               <div className="ctl-head">
                 <label htmlFor="word-size">Word size</label>
-                <output htmlFor="word-size">{wordT.scale.toFixed(2)}</output>
+                <output htmlFor="word-size" className={wordT.scale === 1 ? 'is-default' : undefined}>
+                  {wordT.scale.toFixed(2)}
+                </output>
               </div>
               <input
                 id="word-size"
@@ -381,9 +523,40 @@ export function Poster(p: Props) {
                   {soundSource === 'mic' ? 'Stop mic' : 'Use mic'}
                 </button>
               </div>
+              <div className="ctl">
+                <div className="ctl-head">
+                  <label htmlFor="sound-speed">Speed</label>
+                  <output htmlFor="sound-speed" className={soundSpeed === 0.5 ? 'is-default' : undefined}>
+                    {soundSpeed.toFixed(2)}
+                  </output>
+                </div>
+                <input
+                  id="sound-speed"
+                  type="range"
+                  min={0.1}
+                  max={1.5}
+                  step={0.05}
+                  value={soundSpeed}
+                  onChange={(e) => setSoundSpeed(Number(e.target.value))}
+                  onDoubleClick={() => setSoundSpeed(0.5)}
+                />
+                <p className="ctl-note">low is a slow drift, high is eager</p>
+              </div>
+              <div className="row">
+                <button
+                  type="button"
+                  className={recording ? 'is-live' : undefined}
+                  disabled={!soundSource}
+                  onClick={() => (recording ? void finishRecording() : startRecording())}
+                >
+                  {recording ? `Stop · ${recSeconds}s` : 'Record clip'}
+                </button>
+              </div>
               {soundSource && (
                 <p className="muted sheet-note">
-                  The dials are riding the sound. Download or copy to capture the moment.
+                  {recording
+                    ? `Recording the sheet and the sound — up to ${MAX_RECORD_SECONDS} seconds, then it saves itself.`
+                    : 'The dials are riding the sound. Download a still, or record a clip to post.'}
                 </p>
               )}
             </div>
@@ -402,7 +575,7 @@ export function Poster(p: Props) {
             <button type="button" onClick={copySvg}>
               Copy SVG
             </button>
-            <button type="button" onClick={p.onClose}>
+            <button type="button" onClick={handleClose}>
               Close
             </button>
           </div>

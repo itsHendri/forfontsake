@@ -33,6 +33,9 @@ export class AudioEngine {
 
   private source: AudioSource | null = null
   private frame: AudioFrame = SILENT_FRAME
+  // a tap for MediaRecorder — separate from monitoring, so recording the mic
+  // does not put it on the speakers
+  private recDest: MediaStreamAudioDestinationNode | null = null
 
   constructor(opts: AudioEngineOptions = {}) {
     this.ctx = new AudioContext()
@@ -73,6 +76,8 @@ export class AudioEngine {
       // heard; the live mic must not be, to avoid acoustic feedback.
       if (source.monitor) this.analyser.connect(this.ctx.destination)
     }
+    // disconnect() above severed the recording tap too — restore it
+    if (this.recDest) this.analyser.connect(this.recDest)
 
     this.envBass.reset()
     this.envMid.reset()
@@ -107,6 +112,15 @@ export class AudioEngine {
   /** Last snapshot — for consumers that read between ticks. */
   getFrame(): AudioFrame {
     return this.frame
+  }
+
+  /** What the analyser hears, as a stream MediaRecorder can take. */
+  captureStream(): MediaStream {
+    if (!this.recDest) {
+      this.recDest = this.ctx.createMediaStreamDestination()
+      this.analyser.connect(this.recDest)
+    }
+    return this.recDest.stream
   }
 
   dispose(): void {
