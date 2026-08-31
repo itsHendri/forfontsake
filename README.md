@@ -45,18 +45,44 @@ button.
 Each is a pure function, applied consistently across the character set, driven by a seeded
 PRNG so any result is reproducible from its parameters.
 
+Seventeen of them, grouped in the picker by what they do to a letter.
+
 | Treatment | What it does |
 | --- | --- |
+| *Wear* | |
 | **Grit** | Erosion — chunks bitten out of the edge, holes eaten through the strokes. |
+| *Ink* | |
 | **Bubble** | Fattened and rounded, the way a marker nib turns a corner. |
 | **Bleed** | Wet ink spreading unevenly, pooling where strokes meet. |
+| **Soak** | Corners melted away, counters squeezed to slits but never sealed. |
+| **Melt** | Sagging off the baseline, drips tapering out from where the ink pooled. |
+| **Organic** | Differential growth — wet ink at a few steps, brain coral at many. |
+| *Screens* | |
+| **Halftone** | A printer's screen: the letter rebuilt out of dots on a rotated grid. |
+| **Stipple** | Dotwork — evenly scattered, never aligned, hazing out past the edge. |
+| **Hatch** | Engraved: ruled lines through the letter, crossed if you want the tone. |
+| **Scanline** | Stripes across the letter, some slipping sideways as the scanner loses sync. |
+| **Pixel** | Dropped onto a coarse grid, with a dithered fringe where it half-covers. |
+| *Press* | |
+| **Ghost** | Out of register — the fringe two impressions leave where only one landed. |
+| *Structure* | |
 | **Outline** | Hollow, hairline, or an inline stripe within the strokes. |
+| **Onion** | Line inside line inside line, until the letter runs out of room. |
 | **Extrude** | An outlined face over a solid block shadow, swept behind the letter. |
 | **Mosaic** | Each stroke cut across its width into tiles, with grout between. |
-| **Organic** | Differential growth — wet ink at a few steps, brain coral at many. |
+| **Shatter** | Sliced apart and knocked out of true, each piece drifting on its own. |
+
+The screens are all built on one idea: a filled letter has no darkness for a screen to read,
+so the tone comes from the geometry instead — how deep into the stroke a mark sits, measured
+by successive insets. No raster anywhere.
 
 Treatments expose 3–4 primary dials with the rest behind a disclosure, and ship named presets
-(Photocopy, Sandblast, Rust, Marker, Balloon, Wet ink…).
+(Photocopy, Sandblast, Rust, Marker, Balloon, Wet ink…). A dial marked `steady` is front-of-
+house but the specimen sheet's sound will not ride it — mode switches alternate rather than
+animate, and a word that strobes reads as a fault.
+
+`npx tsx scripts/style-samples.ts` puts every treatment at every preset on one contact sheet,
+with the contour, point and millisecond cost of each.
 
 ## Running it
 
@@ -114,8 +140,8 @@ ok  metrics match source — upm 1000, 386 source glyphs matched, 758 alternates
 ```
 
 It still fails on width drift, because a treatment that reflows the text it is applied to
-has failed however good it looks. Treatments that declare `growth()` (bleed, bubble,
-extrude, outline, organic) widen the advance to match the fatter outline, and do so by one
+has failed however good it looks. Treatments that declare `growth()` — every one that can
+push past the original silhouette — widen the advance to match, and do so by one
 constant across *every* glyph — spaces and untreated glyphs included, so the plate's
 uniform letter-spacing compensation matches the exported font exactly. A single uniform
 widening is reported rather than failed, and widths that moved by *differing* amounts are
