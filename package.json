@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "predev": "npm run build:data",
     "dev": "vite",
     "build": "npm run build:data && tsc -b && vite build",
     "build:data": "tsx scripts/make-glyph-data.ts && cp out/glyph-data.json public/glyph-data.json",

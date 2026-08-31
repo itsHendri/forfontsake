@@ -88,11 +88,22 @@ with the contour, point and millisecond cost of each.
 
 ```bash
 npm install
+npm run dev
+```
+
+That is the whole of it. The baked glyph data the app reads is not in the repo — it is cut
+from the shipped faces — so `npm run dev` regenerates it first by way of `predev`. It takes
+a second or two and only actually does work when the fonts or the extractor have changed.
+
+The Python environment is optional, and only for verifying exported fonts and cutting the
+metrics-only subsets the specimen field's caret sits on:
+
+```bash
 python3 -m venv .venv && ./.venv/bin/pip install opentype-sanitizer fonttools uharfbuzz
 ```
 
-The Python environment is for verification, and for cutting the metrics-only font
-subsets the workbench's specimen field needs. The app itself needs none of it at runtime.
+Without it the data step still runs and says `(no preview font)` for each face. The app
+itself needs none of it at runtime.
 
 | Command | What it does |
 | --- | --- |
