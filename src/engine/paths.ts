@@ -1,11 +1,15 @@
 import {
   union,
+  difference,
   ramerDouglasPeuckerPaths,
   inflatePaths,
   area,
+  pointInPolygon,
+  PointInPolygonResult,
   FillRule,
   JoinType,
   EndType,
+  type Path64,
   type Paths64,
 } from 'clipper2-ts'
 import type { Ring } from './flatten'
@@ -129,6 +133,118 @@ export function grow(paths: Paths64, units: number, join: JoinType = JoinType.Ro
   if (units === 0 || paths.length === 0) return paths
   const out = inflatePaths(paths, units * SCALE, join, EndType.Polygon, 2.5, ARC_TOLERANCE)
   return out.length > 0 ? out : paths
+}
+
+/**
+ * grow(), but an empty result means empty.
+ *
+ * `grow` hands back its input when an offset collapses the shape, which keeps
+ * the common case from vanishing. For anything that *subtracts* the offset,
+ * that fallback is a bug: a stroke thinner than the inset comes back at full
+ * size, and the difference then erases the very thing being drawn. Outline hit
+ * exactly this on high-contrast faces — the band disappeared on the thin
+ * strokes. Callers that can be handed nothing should use this and say what
+ * nothing means.
+ */
+export function growStrict(
+  paths: Paths64,
+  units: number,
+  join: JoinType = JoinType.Round,
+): Paths64 {
+  if (paths.length === 0) return []
+  if (units === 0) return paths
+  return inflatePaths(paths, units * SCALE, join, EndType.Polygon, 2.5, ARC_TOLERANCE)
+}
+
+function perimeterOf(ring: Path64): number {
+  let total = 0
+  for (let i = 0; i < ring.length; i++) {
+    const a = ring[i]
+    const b = ring[(i + 1) % ring.length]
+    total += Math.hypot(b.x - a.x, b.y - a.y)
+  }
+  return total
+}
+
+/**
+ * Keep the counters open.
+ *
+ * Anything that grows a letter closes its holes, and past a point the hole is
+ * gone — no later reopening pass can recover a shape that no longer exists.
+ * So the holes are taken from the *original* glyph and put back: each one
+ * shrunk by however much the treatment closed it, but never by more than its
+ * own inradius allows, so a small counter still leaves an aperture instead of
+ * sealing. That is the difference between a fat `e` and a blob.
+ *
+ * `closure` is in font units. `minAperture` (0..1) is the share of the hole's
+ * half-width that must survive.
+ */
+export function keepCounters(
+  result: Paths64,
+  glyph: Paths64,
+  closure: number,
+  minAperture: number,
+): Paths64 {
+  if (result.length === 0 || glyph.length === 0) return result
+
+  const cutters: Paths64 = []
+  for (const ring of glyph) {
+    // outers wind positive after normalise(); the holes are what we protect
+    if (area(ring) >= 0) continue
+    const hole = [...ring].reverse()
+    const perim = perimeterOf(hole)
+    if (perim <= 0) continue
+    // 2A/P is the inradius of a circle and a fair proxy for anything rounder
+    // than a slot, which counters are
+    const inradius = (2 * Math.abs(area(hole))) / perim
+    const maxShrink = inradius * (1 - Math.min(Math.max(minAperture, 0), 1))
+    const shrink = Math.min(Math.max(closure, 0) * SCALE, maxShrink)
+
+    if (shrink <= 0) {
+      cutters.push(hole)
+      continue
+    }
+    // inflatePaths directly, not grow(): grow()'s empty-fallback would hand
+    // back the hole at full size and carve the letter open
+    const shrunk = inflatePaths([hole], -shrink, JoinType.Round, EndType.Polygon, 2, ARC_TOLERANCE)
+    cutters.push(...shrunk)
+  }
+
+  if (cutters.length === 0) return result
+  const guarded = difference(result, union(cutters, FillRule.NonZero), FillRule.NonZero)
+  return guarded.length > 0 ? guarded : result
+}
+
+/**
+ * Is this point in the filled region? Winding, not a plain hit test, so a point
+ * in a counter reads as outside. Coordinates are working-scale.
+ */
+export function isInside(paths: Paths64, x: number, y: number): boolean {
+  let winding = 0
+  const pt = { x: Math.round(x), y: Math.round(y) }
+  for (const p of paths) {
+    if (pointInPolygon(pt, p) !== PointInPolygonResult.IsOutside) winding += area(p) > 0 ? 1 : -1
+  }
+  return winding !== 0
+}
+
+/** distance from a point to the nearest outline segment, working-scale */
+export function distanceToEdge(paths: Paths64, x: number, y: number): number {
+  let best = Infinity
+  for (const ring of paths) {
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i]
+      const b = ring[(i + 1) % ring.length]
+      const dx = b.x - a.x
+      const dy = b.y - a.y
+      const len2 = dx * dx + dy * dy
+      let t = len2 > 0 ? ((x - a.x) * dx + (y - a.y) * dy) / len2 : 0
+      t = t < 0 ? 0 : t > 1 ? 1 : t
+      const d = Math.hypot(x - (a.x + dx * t), y - (a.y + dy * t))
+      if (d < best) best = d
+    }
+  }
+  return best
 }
 
 export function shift(paths: Paths64, dx: number, dy: number): Paths64 {
