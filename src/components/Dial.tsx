@@ -14,9 +14,15 @@ interface Props {
  */
 export function Dial({ spec, value, onChange, accent }: Props) {
   const id = `dial-${spec.key}`
+  const noteId = `${id}-note`
   const range = spec.max - spec.min
   const defaultAt = range > 0 ? ((spec.default - spec.min) / range) * 100 : 0
   const atDefault = value === spec.default
+  // The reset hint used to be a native title, which never reached the keyboard
+  // and stacked a second tooltip on the caption. It belongs in the caption.
+  const note = [spec.note, atDefault ? undefined : 'double-click resets']
+    .filter(Boolean)
+    .join(' · ')
 
   return (
     <div className={accent ? 'ctl is-override' : 'ctl'}>
@@ -37,10 +43,14 @@ export function Dial({ spec, value, onChange, accent }: Props) {
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
           onDoubleClick={() => onChange(spec.default)}
-          title={atDefault ? undefined : 'Double-click to reset'}
+          aria-describedby={note ? noteId : undefined}
         />
       </div>
-      {spec.note && <p className="ctl-note">{spec.note}</p>}
+      {note && (
+        <p className="ctl-note" id={noteId}>
+          {note}
+        </p>
+      )}
     </div>
   )
 }

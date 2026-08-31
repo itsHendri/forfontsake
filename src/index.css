@@ -605,6 +605,7 @@ h1 {
 }
 
 .ctl {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 5px;
@@ -629,17 +630,39 @@ h1 {
   color: var(--muted);
 }
 /* A caption under every dial is a page of standing micro-copy; a caption
-   under the dial in your hand is help. Focus-within keeps it for keyboards. */
+   under the dial in your hand is help. Focus-within keeps it for keyboards.
+   It floats rather than taking space: shown in flow it pushed every dial below
+   it down, so reading one caption jogged the whole rail — including while
+   dragging, which is exactly when you are looking at it. */
 .ctl-note {
-  display: none;
-  margin: 0;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  margin: 2px 0 0;
+  padding: 2px 0 3px;
+  background: var(--paper);
   font-size: 12px;
   line-height: 1.4;
   color: var(--muted);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.12s ease,
+    visibility 0.12s;
 }
-.ctl:hover .ctl-note,
+.ctl:hover .ctl-note {
+  opacity: 1;
+  visibility: visible;
+  /* a beat, so mousing across the rail does not flash every caption in turn */
+  transition-delay: 0.35s;
+}
 .ctl:focus-within .ctl-note {
-  display: block;
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
 }
 
 /* the default sits marked on the track, so "is this a lot?" is answerable
