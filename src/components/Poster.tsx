@@ -44,7 +44,9 @@ const IDENTITY: WordTransform = { dx: 0, dy: 0, scale: 1 }
  */
 function modulate(chain: Step[], drive: number[]): Step[] {
   return chain.map((step) => {
-    const primary = getTreatment(step.id).params.filter((s) => s.primary)
+    // `steady` dials are skipped: they choose which picture rather than move
+    // within one, so driving them alternates rather than animates.
+    const primary = getTreatment(step.id).params.filter((s) => s.primary && !s.steady)
     const params = { ...step.params }
     primary.slice(0, drive.length).forEach((spec, i) => {
       const raw = (step.params[spec.key] ?? spec.default) + drive[i] * 0.35 * (spec.max - spec.min)
