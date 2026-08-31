@@ -439,6 +439,88 @@ grow by its own amount, which diverges from the input only in the exported file 
 plate compensates with the global figure, and the divergence is recorded as debt rather
 than hidden.
 
+## The counter guard
+
+Bubble and Bleed both closed the eye of an `e` well before their dials ran out, and
+neither could get it back. Bubble's relief pass — shrink the result, grow it again —
+softens an aperture that survived, but a hole that closed is not a small hole, it is an
+absence, and no later offset can recover a shape that is no longer there.
+
+So the counters are taken from the *original* glyph and put back afterwards
+(`keepCounters` in `paths.ts`). Two details decide whether it reads:
+
+- **Shrink by less than the treatment closed.** Give the hole back at exactly the
+  closure and the guard only reproduces what the offset already did — a counter that is
+  technically open and visually gone. The dial's job is to say how much of the closing to
+  undo, so the closure passed in is scaled down by it.
+- **Floor the aperture on the hole's own inradius** (`2A/P`), not on an absolute figure. A
+  counter narrower than the closure would otherwise vanish however generous the dial is,
+  and small counters are exactly the ones at risk.
+
+It builds the cutters with `inflatePaths` rather than `grow`, deliberately: `grow`'s
+empty-fallback would hand back a vanished hole at full size and carve the letter open.
+
+At dial 0 the guard is off — a letter whose counters have filled is a real look, and it
+stays reachable.
+
+## Outline broke on high-contrast faces
+
+The line weight is a share of the **median** stem. On a face with contrast, the thin
+strokes are narrower than the inset that carves the band out of them, so the inner offset
+collapses — and `grow()` returns its input when an offset empties, which meant the inner
+copy came back as the *whole glyph* and `difference(outer, glyph)` erased the band
+entirely. That fallback is right for the treatments that grow things and wrong for
+anything that subtracts, so `growStrict()` was added alongside it rather than `grow()`
+being changed.
+
+With honest emptiness restored, the remaining case is a stroke genuinely too thin to hold
+a band. Those regions are recovered with a morphological opening and kept solid.
+Neutraface puts no inline in a hairline either; the letter staying whole is the honest
+failure, and it is better than a hole.
+
+## Ten more treatments, and a picker that groups
+
+Halftone, stipple, hatch, scanline, pixel, soak, melt, ghost, onion and shatter — built as
+prototypes, judged on a contact sheet, then all ten kept. Seventeen names in one `<select>`
+is a wall, so `Treatment.family` groups them: Wear, Ink, Screens, Press, Structure. The
+families are true rather than tidy — the ones sharing a family compete with each other more
+than with anything else on the list, which is exactly what somebody scanning the picker
+needs to know.
+
+The unlock that made most of them possible is **tone out of geometry** (`src/engine/tone.ts`).
+Halftone, dither, stipple and engraving all size their marks by how dark the source is, and a
+filled letter has no darkness to read. Depth into the stroke — successive Clipper insets — is
+a luminance signal the shape already carries, so the whole screening family arrives without a
+rasteriser anywhere near the pipeline. The earlier research note called that direction crowded
+and raster-native; it is neither, once the tone comes from the outline.
+
+`ctx.penX` finally has users: halftone, scanline and pixel all phase their grids on the pen
+rather than the glyph box, so a screen runs unbroken across a word instead of restarting under
+every letter.
+
+`registry.test.ts` holds what every treatment owes the tool — unique id, a family, two to four
+front-of-house dials, presets carrying every key, ink left on a stem and a counter and a
+period, and a `growth()` that does not under-promise. A new treatment gets all of it the
+moment it is registered.
+
+## Dials the sound may not ride
+
+The specimen sheet drives each step's primary dials from audio, which quietly assumes a dial
+moves *within* a picture. Some dials instead choose *which* picture: Outline's style, Ghost's
+style, Pixel's dither and gap. Driven, those do not animate — they alternate, and the word
+strobes between two unrelated states on the beat.
+
+Hence `ParamSpec.steady`: front-of-house, but the sound skips it. The dial stays where the
+hand put it, which is what a mode switch wants anyway.
+
+Finding this took measuring the right thing. The first guard counted contours, and Pixel
+failed it at fifteenfold — but the letter was never in trouble: a grid legitimately fuses and
+unfuses as it rescales, so its contour count swings wildly while the ink on the page holds
+between 92% and 111%. **Mass is what the eye tracks**, so that is what `motion.test.ts`
+asserts: every treatment keeps a letter on the page at every drive level, and changes weight
+smoothly between frames. Cost is guarded separately, in points added rather than multiplied —
+going from 14 points to 340 is free, and going from 3000 to 6000 is the hitch.
+
 ## Where to look next
 
 Highest value first, from the competitive research:
@@ -448,7 +530,11 @@ Highest value first, from the competitive research:
 2. **Hover a preset to preview it** on the main canvas. Nearly free here because the engine
    is client-side and deterministic; expensive for everyone else.
 3. **Slider craft**: drag on the label not the number, `Shift` for fine. The tick on the
-   track showing the default is done.
+   track showing the default is done, and so is the caption — it used to sit in the flow
+   and toggle `display`, so reading one jogged every dial below it and the whole sticky
+   rail with them, worst of all while dragging. It floats now.
+4. **Tune the seventeen against each other.** Every one is registered and playable;
+   `npx tsx scripts/style-samples.ts` puts them all on one sheet at every preset.
 5. ~~**Licence panel at font upload**~~ — shipped: the upload path reads the licence and
    reports open / unknown / restricted in the workbench.
 
