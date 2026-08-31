@@ -1,14 +1,59 @@
 import { grit } from './grit'
 import { bubble } from './bubble'
 import { bleed } from './bleed'
+import { soak } from './soak'
+import { melt } from './melt'
+import { growth } from './growth'
+import { halftone } from './halftone'
+import { stipple } from './stipple'
+import { hatch } from './hatch'
+import { scanline } from './scanline'
+import { pixel } from './pixel'
+import { ghost } from './ghost'
 import { outline } from './outline'
+import { onion } from './onion'
 import { extrude } from './extrude'
 import { mosaic } from './mosaic-treatment'
-import { growth } from './growth'
+import { shatter } from './shatter'
 import type { Ring } from '../flatten'
-import type { ParamValues, Treatment, TreatmentContext } from './types'
+import type { Family, ParamValues, Treatment, TreatmentContext } from './types'
+import { FAMILY_LABEL } from './types'
 
-export const TREATMENTS: Treatment[] = [grit, bubble, bleed, outline, extrude, mosaic, growth]
+/**
+ * Ordered by family, because that is how the picker groups them and how
+ * somebody arrives at a choice: what sort of damage first, which one second.
+ */
+export const TREATMENTS: Treatment[] = [
+  grit,
+  bubble,
+  bleed,
+  soak,
+  melt,
+  growth,
+  halftone,
+  stipple,
+  hatch,
+  scanline,
+  pixel,
+  ghost,
+  outline,
+  onion,
+  extrude,
+  mosaic,
+  shatter,
+]
+
+/** the families in picker order, each with the treatments that belong to it */
+export function treatmentsByFamily(): { family: Family; label: string; items: Treatment[] }[] {
+  const order: Family[] = ['erosion', 'ink', 'screen', 'press', 'structure']
+  return order
+    .map((family) => ({
+      family,
+      label: FAMILY_LABEL[family],
+      items: TREATMENTS.filter((t) => t.family === family),
+    }))
+    .filter((g) => g.items.length > 0)
+}
 
 export function getTreatment(id: string): Treatment {
   const t = TREATMENTS.find((x) => x.id === id)
