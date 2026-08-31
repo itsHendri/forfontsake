@@ -1,15 +1,17 @@
-import {
-  difference,
-  union,
-  area,
-  pointInPolygon,
-  FillRule,
-  PointInPolygonResult,
-  type Paths64,
-} from 'clipper2-ts'
+import { difference, union, area, FillRule, type Paths64 } from 'clipper2-ts'
 import { NoiseField } from '../noise'
 import { roughBlob } from '../blob'
-import { SCALE, normalise, pathsToRings, resample, simplify, dropTinyAreas, boundsOf } from '../paths'
+import {
+  SCALE,
+  normalise,
+  pathsToRings,
+  resample,
+  simplify,
+  dropTinyAreas,
+  boundsOf,
+  isInside,
+  distanceToEdge,
+} from '../paths'
 import type { Ring } from '../flatten'
 import type { Treatment, ParamValues, TreatmentContext } from './types'
 
@@ -25,34 +27,6 @@ import type { Treatment, ParamValues, TreatmentContext } from './types'
  * and it is that spread of scales that makes it look bitten rather than
  * printed.
  */
-
-function isInside(paths: Paths64, x: number, y: number): boolean {
-  let winding = 0
-  const pt = { x: Math.round(x), y: Math.round(y) }
-  for (const p of paths) {
-    if (pointInPolygon(pt, p) !== PointInPolygonResult.IsOutside) winding += area(p) > 0 ? 1 : -1
-  }
-  return winding !== 0
-}
-
-/** distance from a point to the nearest outline segment */
-function distanceToEdge(paths: Paths64, x: number, y: number): number {
-  let best = Infinity
-  for (const ring of paths) {
-    for (let i = 0; i < ring.length; i++) {
-      const a = ring[i]
-      const b = ring[(i + 1) % ring.length]
-      const dx = b.x - a.x
-      const dy = b.y - a.y
-      const len2 = dx * dx + dy * dy
-      let t = len2 > 0 ? ((x - a.x) * dx + (y - a.y) * dy) / len2 : 0
-      t = t < 0 ? 0 : t > 1 ? 1 : t
-      const d = Math.hypot(x - (a.x + dx * t), y - (a.y + dy * t))
-      if (d < best) best = d
-    }
-  }
-  return best
-}
 
 /**
  * Log-uniform size in [base/spread, base*spread].
@@ -71,6 +45,7 @@ function scaleSpread(base: number, spread: number, rng: () => number): number {
 export const grit: Treatment = {
   id: 'grit',
   name: 'Grit',
+  family: 'erosion',
   blurb: 'Erosion — chunks bitten out of the edge, holes eaten through the strokes.',
   story:
     'Two kinds of loss, because damage never comes in one size. Blobs straddling the '+
@@ -80,21 +55,22 @@ export const grit: Treatment = {
     'middling ones and a scatter of small ones. Erosion that arrives in one size reads '+
     'as a texture laid over the letter rather than as damage done to it.',
   params: [
-    { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, default: 55, note: 'how much is eaten away', primary: true },
-    { key: 'scale', label: 'Piece size', min: 8, max: 250, step: 1, default: 58, note: 'size of a loss, as % of stroke width', primary: true },
-    { key: 'variation', label: 'Unevenness', min: 1, max: 6, step: 0.1, default: 3.2, note: 'how far sizes spread apart', primary: true },
-    { key: 'balance', label: 'Edge / body', min: 0, max: 100, step: 1, default: 50, note: 'bites off the edge vs holes through the middle', primary: true },
-    { key: 'protect', label: 'Protect cores', min: 0, max: 100, step: 1, default: 25, note: '0 erodes everywhere' },
-    { key: 'roughen', label: 'Edge wander', min: 0, max: 100, step: 1, default: 35 },
+    { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, default: 45, note: 'how much is eaten away', primary: true },
+    { key: 'scale', label: 'Piece size', min: 8, max: 250, step: 1, default: 66, note: 'size of a loss, as % of stroke width', primary: true },
+    { key: 'variation', label: 'Unevenness', min: 1, max: 6, step: 0.1, default: 3.6, note: 'how far sizes spread apart', primary: true },
+    { key: 'balance', label: 'Edge / body', min: 0, max: 100, step: 1, default: 66, note: 'bites off the edge vs holes through the middle', primary: true },
+    { key: 'cluster', label: 'Patchiness', min: 0, max: 100, step: 1, default: 45, note: 'damage gathers into patches instead of even speckle' },
+    { key: 'protect', label: 'Protect cores', min: 0, max: 100, step: 1, default: 45, note: '0 erodes everywhere' },
+    { key: 'roughen', label: 'Edge wander', min: 0, max: 100, step: 1, default: 30 },
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.6 },
   ],
 
   presets: [
-    { name: 'Photocopy', values: { amount: 45, scale: 35, variation: 3.4, balance: 62, protect: 30, roughen: 30, simplify: 0.6 } },
-    { name: 'Sandblast', values: { amount: 62, scale: 18, variation: 2.2, balance: 55, protect: 15, roughen: 45, simplify: 0.5 } },
-    { name: 'Rust', values: { amount: 42, scale: 73, variation: 4.2, balance: 40, protect: 45, roughen: 35, simplify: 0.8 } },
-    { name: 'Woodcut', values: { amount: 34, scale: 68, variation: 2.6, balance: 12, protect: 55, roughen: 22, simplify: 0.9 } },
-    { name: 'Corroded', values: { amount: 74, scale: 48, variation: 5.2, balance: 50, protect: 12, roughen: 60, simplify: 0.6 } },
+    { name: 'Photocopy', values: { amount: 45, scale: 35, variation: 3.4, balance: 62, cluster: 20, protect: 30, roughen: 30, simplify: 0.6 } },
+    { name: 'Sandblast', values: { amount: 62, scale: 18, variation: 2.2, balance: 55, cluster: 25, protect: 15, roughen: 45, simplify: 0.5 } },
+    { name: 'Rust', values: { amount: 42, scale: 73, variation: 4.2, balance: 40, cluster: 75, protect: 45, roughen: 35, simplify: 0.8 } },
+    { name: 'Woodcut', values: { amount: 34, scale: 68, variation: 2.6, balance: 12, cluster: 40, protect: 55, roughen: 22, simplify: 0.9 } },
+    { name: 'Corroded', values: { amount: 74, scale: 48, variation: 5.2, balance: 50, cluster: 80, protect: 12, roughen: 60, simplify: 0.6 } },
   ],
 
   apply(rings: Ring[], p: ParamValues, ctx: TreatmentContext): Ring[] {
@@ -111,6 +87,21 @@ export const grit: Treatment = {
     // same setting bites the same proportion out of a hairline and a heavy face.
     const piece = (p.scale / 100) * ctx.strokeWidth * SCALE
     const spread = p.variation
+
+    // Damage that lands with even probability everywhere reads as a texture
+    // sprayed over the letter — the speckle that made the default look messy.
+    // Real wear gathers: one corner is gone, the next inch is untouched. A
+    // coherent field gates where losses are allowed at all, at a correlation
+    // length of a few pieces, so the letter keeps clean stretches to be damaged
+    // *against*.
+    const cluster = (p.cluster ?? 0) / 100
+    const corr = piece * 3
+    const patch = (x: number, y: number): number => {
+      if (cluster <= 0) return 1
+      const f = (noise.fractal((x + 5501) / corr, (y - 3307) / corr, 2) + 1) / 2
+      const eased = f * f * (3 - 2 * f)
+      return 1 - cluster + cluster * eased
+    }
 
     // --- outline roughening ------------------------------------------------
     // Low amplitude on purpose: this is the wander in an inked edge, not the
@@ -164,7 +155,7 @@ export const grit: Treatment = {
             const f = walked / segLen
             const px = a.x + (b.x - a.x) * f
             const py = a.y + (b.y - a.y) * f
-            if (rng() > 0.25 + bite * 0.7) {
+            if (rng() > (0.25 + bite * 0.7) * patch(px, py)) {
               spacing = nextGap()
               continue
             }
@@ -211,6 +202,7 @@ export const grit: Treatment = {
             const depth = Math.min(1, d / (piece * 1.6))
             chance *= 1 - protect * depth * 0.85
           }
+          chance *= patch(px, py)
           if (rng() > chance) continue
           const r = scaleSpread(piece * 0.3 * speckle, spread, rng)
           if (r < SCALE) continue

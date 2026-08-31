@@ -181,6 +181,7 @@ export const growth: Treatment = {
   // The id stays 'growth' forever — it lives in URL hashes and saved styles.
   id: 'growth',
   name: 'Organic',
+  family: 'ink',
   blurb: 'The edge buckles as it grows — wet ink at a few steps, coral at many.',
   story:
     'Differential growth, after Anders Hoff\u2019s differential line. Every point on the '+
@@ -191,10 +192,10 @@ export const growth: Treatment = {
     'coral gets its shape. The insertion is the whole effect — without it the letter can '+
     'only tremble.',
   params: [
-    { key: 'spread', label: 'Spread', min: 0, max: 120, step: 1, default: 30, note: 'how far the edge may travel, as % of stroke', primary: true },
-    { key: 'steps', label: 'Steps', min: 0, max: 60, step: 1, default: 8, note: 'a few wobble, many grow coral', primary: true },
-    { key: 'reach', label: 'Reach', min: 10, max: 160, step: 1, default: 60, note: 'how far points feel each other, as % of stroke', primary: true },
-    { key: 'calm', label: 'Calm', min: 0, max: 100, step: 1, default: 60, note: 'smoothing — low is thorny, high is fleshy', primary: true },
+    { key: 'spread', label: 'Spread', min: 0, max: 120, step: 1, default: 18, note: 'how far the edge may travel, as % of stroke', primary: true },
+    { key: 'steps', label: 'Steps', min: 0, max: 60, step: 1, default: 6, note: 'a few wobble, many grow coral', primary: true },
+    { key: 'reach', label: 'Reach', min: 10, max: 160, step: 1, default: 50, note: 'how far points feel each other, as % of stroke', primary: true },
+    { key: 'calm', label: 'Calm', min: 0, max: 100, step: 1, default: 66, note: 'smoothing — low is thorny, high is fleshy', primary: true },
     { key: 'detail', label: 'Detail', min: 4, max: 40, step: 1, default: 16, note: 'point spacing as % of stroke; finer folds cost points' },
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.6 },
   ],
