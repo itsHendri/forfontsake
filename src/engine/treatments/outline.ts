@@ -1,5 +1,5 @@
-import { difference, FillRule } from 'clipper2-ts'
-import { normalise, pathsToRings, grow, roundPaths, simplify } from '../paths'
+import { difference, union, FillRule } from 'clipper2-ts'
+import { normalise, pathsToRings, growStrict, roundPaths, simplify, dropTinyAreas } from '../paths'
 import type { Ring } from '../flatten'
 import type { Treatment, ParamValues, TreatmentContext } from './types'
 
@@ -14,6 +14,7 @@ import type { Treatment, ParamValues, TreatmentContext } from './types'
 export const outline: Treatment = {
   id: 'outline',
   name: 'Outline',
+  family: 'structure',
   deterministic: true,
   blurb: 'Hollow the letter, or run a stripe inside the strokes.',
   story:
@@ -22,7 +23,7 @@ export const outline: Treatment = {
     'letter, on its boundary, or within its strokes — the inline stripe of Bungee and '+
     'Neutraface Inline.',
   params: [
-    { key: 'mode', label: 'Style', min: 0, max: 2, step: 1, default: 0, note: '0 outline · 1 hairline · 2 inline stripe', primary: true },
+    { key: 'mode', label: 'Style', min: 0, max: 2, step: 1, default: 0, note: '0 outline · 1 hairline · 2 inline stripe', primary: true, steady: true },
     { key: 'weight', label: 'Line weight', min: 3, max: 150, step: 1, default: 22, note: '% of stroke width', primary: true },
     { key: 'inset', label: 'Position', min: -100, max: 100, step: 1, default: 0, note: 'push the line out of or into the letter', primary: true },
     { key: 'rounding', label: 'Rounding', min: 0, max: 130, step: 1, default: 0, primary: true },
@@ -59,11 +60,27 @@ export const outline: Treatment = {
     // where the band sits relative to the original edge
     const centre = mode === 0 ? half + inset : mode === 1 ? inset : -half + inset
 
-    const outer = grow(glyph, centre + half)
-    const inner = grow(glyph, centre - half)
+    const innerOff = centre - half
+    const outer = growStrict(glyph, centre + half)
+    const inner = growStrict(glyph, innerOff)
     let result = difference(outer, inner, FillRule.NonZero)
 
-    if (result.length === 0) result = outer
+    if (innerOff < 0) {
+      // The line weight is a share of the *median* stem, so on a face with any
+      // contrast the thin strokes are narrower than the inset that carves the
+      // band out of them: they vanish, and the difference then leaves them
+      // filled flat with no stripe — or, before growStrict, handed back whole
+      // and erased the band entirely. Recover exactly the too-thin regions with
+      // a morphological opening and keep them solid. Neutraface puts no inline
+      // in a hairline either; the letter staying whole is the honest failure.
+      const reopened = growStrict(inner, -innerOff)
+      const thin = difference(glyph, reopened, FillRule.NonZero)
+      if (thin.length > 0) result = union([...result, ...thin], FillRule.NonZero)
+    }
+
+    // near the collapse the band pinches and sheds slivers a font cannot show
+    result = dropTinyAreas(result, (half * half) / 2)
+    if (result.length === 0) result = outer.length > 0 ? outer : glyph
     result = simplify(result, p.simplify)
     return pathsToRings(result)
   },

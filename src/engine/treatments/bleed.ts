@@ -1,7 +1,16 @@
 import { union, area, FillRule, type Paths64 } from 'clipper2-ts'
 import { NoiseField } from '../noise'
 import { roughBlob } from '../blob'
-import { SCALE, normalise, pathsToRings, resample, simplify, grow, roundPaths } from '../paths'
+import {
+  SCALE,
+  normalise,
+  pathsToRings,
+  resample,
+  simplify,
+  grow,
+  roundPaths,
+  keepCounters,
+} from '../paths'
 import type { Ring } from '../flatten'
 import type { Treatment, ParamValues, TreatmentContext } from './types'
 
@@ -20,6 +29,7 @@ import type { Treatment, ParamValues, TreatmentContext } from './types'
 export const bleed: Treatment = {
   id: 'bleed',
   name: 'Bleed',
+  family: 'ink',
   deterministic: false,
   blurb: 'Wet ink spreading unevenly into the paper, pooling where strokes meet.',
   story:
@@ -34,14 +44,15 @@ export const bleed: Treatment = {
     { key: 'pooling', label: 'Pooling', min: 0, max: 100, step: 1, default: 55, note: 'extra bloom where strokes meet', primary: true },
     { key: 'grain', label: 'Grain', min: 5, max: 140, step: 1, default: 22, note: 'size of the lumps', primary: true },
     { key: 'soften', label: 'Soften', min: 0, max: 100, step: 1, default: 10, note: 'rounds the wet edge' },
+    { key: 'counters', label: 'Keep counters', min: 0, max: 100, step: 1, default: 70, note: 'how much of each hole the ink must leave open' },
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.6 },
   ],
 
   presets: [
-    { name: 'Damp', values: { amount: 10, unevenness: 55, pooling: 40, grain: 17, soften: 8, simplify: 0.6 } },
-    { name: 'Wet ink', values: { amount: 23, unevenness: 70, pooling: 60, grain: 23, soften: 12, simplify: 0.6 } },
-    { name: 'Blotted', values: { amount: 27, unevenness: 92, pooling: 70, grain: 33, soften: 7, simplify: 0.7 } },
-    { name: 'Newsprint', values: { amount: 13, unevenness: 95, pooling: 25, grain: 10, soften: 3, simplify: 0.5 } },
+    { name: 'Damp', values: { amount: 10, unevenness: 55, pooling: 40, grain: 17, soften: 8, counters: 70, simplify: 0.6 } },
+    { name: 'Wet ink', values: { amount: 23, unevenness: 70, pooling: 60, grain: 23, soften: 12, counters: 75, simplify: 0.6 } },
+    { name: 'Blotted', values: { amount: 27, unevenness: 92, pooling: 70, grain: 33, soften: 7, counters: 35, simplify: 0.7 } },
+    { name: 'Newsprint', values: { amount: 13, unevenness: 95, pooling: 25, grain: 10, soften: 3, counters: 80, simplify: 0.5 } },
   ],
 
   growth(p, ctx) {
@@ -101,6 +112,15 @@ export const bleed: Treatment = {
     let result = union(parts, FillRule.NonZero)
     if (result.length === 0) result = glyph
     if (p.soften > 0) result = roundPaths(result, (p.soften / 100) * stem)
+    // Lumps at a concave turn are the biggest ones, and the inside of a counter
+    // is all concave — so the holes are exactly where the ink closes first.
+    // Put them back before the pooling swallows the eye of the `e`.
+    if (p.counters > 0) {
+      // given back wider than the ink left it — see the note in bubble.ts
+      const keep = p.counters / 100
+      const minAperture = 0.15 + 0.5 * keep
+      result = keepCounters(result, glyph, spread * 1.4 * (1 - 0.75 * keep), minAperture)
+    }
     result = simplify(result, p.simplify)
     return pathsToRings(result)
   },

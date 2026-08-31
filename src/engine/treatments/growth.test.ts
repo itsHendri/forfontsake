@@ -130,8 +130,13 @@ describe('growth', () => {
     // Perimeter, not point count: the folding is the curve getting longer
     // inside the same leash, and the union at the end resolves the crossings
     // back down to about the point count it started with.
-    const few = perimeterOf(growth.apply(ring(), { ...p, steps: 2, simplify: 0 }, ctx()))
-    const many = perimeterOf(growth.apply(ring(), { ...p, steps: 40, simplify: 0 }, ctx()))
+    // spread is set explicitly, not taken from the default: what is under test
+    // is that steps buckle the curve, and a default tuned for a gentle opening
+    // hand would otherwise decide how much room there is to buckle in.
+    const few = perimeterOf(growth.apply(ring(), { ...p, spread: 30, steps: 2, simplify: 0 }, ctx()))
+    const many = perimeterOf(
+      growth.apply(ring(), { ...p, spread: 30, steps: 40, simplify: 0 }, ctx()),
+    )
     expect(many).toBeGreaterThan(few * 1.1)
   })
 
@@ -140,8 +145,12 @@ describe('growth', () => {
     // lets the curve lengthen at all; without it this sits at about 1.05 however
     // many steps it runs, which is the trembling that an earlier cut of this
     // treatment shipped as growth.
+    // Pinned to a folding regime rather than the defaults: high calm smooths
+    // the buckling back out, and the default is deliberately a gentle setting.
     const before = perimeterOf(ring())
-    const after = perimeterOf(growth.apply(ring(), { ...p, steps: 30, simplify: 0 }, ctx()))
+    const after = perimeterOf(
+      growth.apply(ring(), { ...p, spread: 30, steps: 30, calm: 44, simplify: 0 }, ctx()),
+    )
     expect(after).toBeGreaterThan(before * 1.15)
   })
 

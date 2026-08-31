@@ -1,4 +1,4 @@
-import { normalise, pathsToRings, roundPaths, grow, simplify } from '../paths'
+import { normalise, pathsToRings, roundPaths, grow, simplify, keepCounters } from '../paths'
 import type { Ring } from '../flatten'
 import type { Treatment, ParamValues, TreatmentContext } from './types'
 
@@ -16,6 +16,7 @@ import type { Treatment, ParamValues, TreatmentContext } from './types'
 export const bubble: Treatment = {
   id: 'bubble',
   name: 'Bubble',
+  family: 'ink',
   deterministic: true,
   blurb: 'Fattened and rounded, the way a marker nib turns a corner.',
   story:
@@ -66,6 +67,19 @@ export const bubble: Treatment = {
       const relief = (p.squeeze / 100) * weight * 0.75
       const reopened = grow(grow(result, -relief), relief)
       if (reopened.length > 0) result = reopened
+      // That pass softens an aperture that survived; it cannot bring back one
+      // that closed. The guard puts the original holes back, so an `e` keeps
+      // its eye however far the weight is pushed. At squeeze 0 there is no
+      // guard — letting the counters fill remains a look you can ask for.
+      //
+      // The hole is deliberately given back *wider* than the growth left it.
+      // Shrink it by the full weight and the guard only reproduces what the
+      // offset already did, which is a counter you can no longer see; the
+      // dial's job is to decide how much of that closing to undo.
+      const keep = p.squeeze / 100
+      const closure = (weight + rounding * 0.5) * (1 - 0.75 * keep)
+      const minAperture = 0.2 + 0.5 * keep
+      result = keepCounters(result, glyph, closure, minAperture)
     }
 
     result = simplify(result, p.simplify)

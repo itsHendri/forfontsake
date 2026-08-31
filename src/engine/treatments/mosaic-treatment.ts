@@ -12,6 +12,7 @@ import type { Treatment, ParamValues, TreatmentContext } from './types'
 export const mosaic: Treatment = {
   id: 'mosaic',
   name: 'Mosaic',
+  family: 'structure',
   blurb: 'Each stroke cut across its width into tiles, grout between them.',
   story:
     'Each stroke is sliced across its width into ribbons and the ribbons into tiles, so '+

@@ -23,6 +23,7 @@ import type { Treatment, ParamValues, TreatmentContext } from './types'
 export const extrude: Treatment = {
   id: 'extrude',
   name: 'Extrude',
+  family: 'structure',
   deterministic: true,
   blurb: 'An outlined face over a solid block shadow.',
   story:
