@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { RenderResult } from '../lib/render'
 import type { Library } from '../lib/glyphData'
 import type { Treatment } from '../engine/treatments/registry'
+import { FAMILY_LABEL } from '../engine/treatments/registry'
 import { FONT_ACCEPT } from '../lib/importFont'
 
 interface Props {
@@ -23,6 +24,23 @@ interface Props {
 
 /** the font select's last entry — a verb among the nouns */
 const UPLOAD = '__upload__'
+
+/**
+ * Group the picker by family, keeping whatever order the registry gave.
+ *
+ * Derived from the list it is handed rather than read from the registry, so a
+ * caller passing a subset still gets sensible groups.
+ */
+function groupTreatments(treatments: Treatment[]) {
+  const groups: { label: string; items: Treatment[] }[] = []
+  for (const t of treatments) {
+    const label = FAMILY_LABEL[t.family] ?? 'Other'
+    const found = groups.find((g) => g.label === label)
+    if (found) found.items.push(t)
+    else groups.push({ label, items: [t] })
+  }
+  return groups
+}
 
 /**
  * The specimen and its controls in one object.
@@ -146,10 +164,16 @@ export function Plate(p: Props) {
           value={p.treatment.id}
           onChange={(e) => p.onTreatment(e.target.value)}
         >
-          {p.treatments.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
+          {/* Grouped: seventeen names in one list is a wall, and the family
+              answers "what sort of thing am I after" before "which one". */}
+          {groupTreatments(p.treatments).map((g) => (
+            <optgroup key={g.label} label={g.label}>
+              {g.items.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
 
