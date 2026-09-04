@@ -105,17 +105,99 @@ body {
   white-space: nowrap;
 }
 
-header {
-  padding: 42px 0 18px;
+/* ---------- the action bar ---------- */
+
+/* Naming the font is the first act of making one, so the name is the page
+   title rather than a field beside the download. The brand line that used to
+   sit here belongs to an intro page, which this is not. */
+.topbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 26px 0 16px;
+  border-bottom: 1px solid var(--rule);
 }
-.eyebrow {
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--mark);
-  margin: 0 0 10px;
+.topbar-name {
+  min-width: 0;
+  margin-right: auto;
 }
+.name-field {
+  display: block;
+  font: inherit;
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  background: transparent;
+  border: 1px dashed transparent;
+  border-radius: 2px;
+  padding: 2px 6px;
+  margin: 0 0 3px -7px;
+  max-width: 100%;
+}
+.name-field:hover {
+  border-color: var(--rule);
+}
+.name-field:focus,
+.name-field[aria-invalid='true'] {
+  outline: none;
+  border-style: solid;
+  border-color: var(--mark);
+}
+.topbar-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.topbar-meta b {
+  color: var(--ink);
+  font-weight: 500;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.topbar .export-problem {
+  flex-basis: 100%;
+  margin: 6px 0 0;
+}
+
+/* What is in the file, hung off the button that hands it over — a question
+   asked once, immediately before pressing, and never again. */
+.with-tip {
+  position: relative;
+  display: inline-flex;
+}
+.tip {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 5;
+  width: max-content;
+  max-width: 300px;
+  padding: 8px 10px;
+  border-radius: 3px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.12s ease,
+    visibility 0.12s;
+}
+.with-tip:hover .tip,
+.with-tip:focus-within .tip {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0.4s;
+}
+
 h1 {
   font-weight: 600;
   font-size: 26px;
@@ -132,9 +214,9 @@ h1 {
    one edge instead of being interrupted by the panel. */
 .layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 262px;
+  grid-template-columns: minmax(0, 1fr) 300px;
   gap: 34px;
-  padding-top: 20px;
+  padding-top: 22px;
   align-items: start;
 }
 .layout main {
@@ -142,6 +224,10 @@ h1 {
 }
 
 /* ---------- the plate: type and the two choices that define it ---------- */
+
+.presets {
+  margin: 0 0 14px;
+}
 
 .plate {
   background: var(--plate);
@@ -169,8 +255,26 @@ h1 {
   color: var(--muted);
   text-align: right;
 }
-.plate-cta {
-  white-space: nowrap;
+.plate-foot {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+.plate-foot .linkish:disabled {
+  color: var(--muted);
+  text-decoration: none;
+  cursor: not-allowed;
+}
+.plate-readout {
+  margin: 0 0 0 auto;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .plate-type {
@@ -204,7 +308,7 @@ h1 {
 
 .type-probe,
 .type-input {
-  font-size: clamp(46px, 8.5vw, 96px);
+  font-size: clamp(46px, 9vw, 144px);
   line-height: 1.72;
   font-weight: 400;
   letter-spacing: 0;
@@ -265,86 +369,6 @@ h1 {
   outline: 2px solid var(--mark);
   outline-offset: 4px;
   border-radius: 2px;
-}
-
-/* ---------- export ---------- */
-
-/* The one control the whole tool is judged on, so it sits in the reading
-   column under the specimen rather than behind a menu. */
-.export {
-  margin-top: 14px;
-  background: var(--plate);
-  border: 1px solid var(--rule);
-  border-radius: 2px;
-  padding: 12px 18px;
-}
-.export-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-.export-name {
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--ink);
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 2px;
-  padding: 7px 10px;
-  width: 15ch;
-  min-width: 0;
-}
-.export-name:focus-visible {
-  outline: 2px solid var(--mark);
-  outline-offset: 1px;
-}
-.export-name[aria-invalid='true'] {
-  border-color: var(--mark);
-}
-.export-go {
-  background: var(--ink);
-  color: var(--paper);
-  border-color: var(--ink);
-  padding: 8px 14px;
-  font-variant-numeric: tabular-nums;
-}
-.export-go:hover:not(:disabled) {
-  border-color: var(--ink);
-}
-.export-meta {
-  margin: 0;
-  flex: 1 1 16ch;
-  min-width: 0;
-  font-size: 12px;
-  color: var(--muted);
-}
-.export-meta b {
-  color: var(--ink);
-  font-weight: 500;
-}
-.export-problem {
-  margin: 8px 0 0;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--mark);
-}
-
-/* the two ways out that are not the font — kept under the strip and quieter
-   than it, so the download stays the loudest thing on the page */
-.export-aside {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--rule);
-}
-.export-aside button {
-  font-size: 12px;
-  padding: 5px 11px;
-  background: transparent;
 }
 
 /* ---------- specimen sheet ---------- */
@@ -552,24 +576,24 @@ h1 {
 
 /* ---------- waterfall ---------- */
 
+/* No gutter. A number in a left column pushes the type off the page grid, so
+   the one block made entirely of the thing being sold is the one block that
+   lines up with nothing above it. Every foundry that shows a size at all puts
+   the label above the line at the specimen's own x. */
 .fall-row {
-  display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
-  gap: 16px;
-  align-items: start;
   border-top: 1px solid var(--rule);
-  padding: 14px 0;
+  padding: 16px 0;
 }
 .fall-row:first-of-type {
   border-top: 0;
 }
 .fall-size {
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 10px;
+  display: block;
+  margin-bottom: 7px;
+  font-size: 12px;
   line-height: 1;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
-  text-align: right;
 }
 .fall-ink {
   min-width: 0;
@@ -613,8 +637,54 @@ h1 {
 .ctl-head {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
+}
+/* The value is an input, not a readout: every tool a designer already uses
+   makes it one, and a slider cannot hit 1337 on a 1–9999 range without a
+   fight. Minus and plus are the single-step nudge dragging is bad at. */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.step-btn {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 22px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--muted);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+.step-btn:hover:not(:disabled) {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.ctl-value {
+  /* four digits and their padding — a clipped seed is a wrong seed */
+  width: 6.6ch;
+  padding: 2px 6px;
+  font: inherit;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--mark);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+.ctl-value.is-default {
+  color: var(--muted);
+}
+.ctl-value:focus-visible {
+  outline: 2px solid var(--mark);
+  outline-offset: 1px;
 }
 .ctl-head label {
   font-size: 14px;
@@ -640,12 +710,13 @@ h1 {
   left: 0;
   right: 0;
   z-index: 3;
-  margin: 2px 0 0;
-  padding: 2px 0 3px;
-  background: var(--paper);
-  font-size: 12px;
-  line-height: 1.4;
-  color: var(--muted);
+  margin: 5px 0 0;
+  padding: 7px 9px;
+  border-radius: 3px;
+  background: var(--ink);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--paper);
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
@@ -720,44 +791,6 @@ input[type='range']::-moz-range-thumb {
 input[type='range']:focus-visible {
   outline: 2px solid var(--mark);
   outline-offset: 4px;
-}
-
-details {
-  border-top: 1px solid var(--rule);
-  padding-top: 14px;
-}
-details summary {
-  cursor: pointer;
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
-  list-style: none;
-}
-details summary::-webkit-details-marker {
-  display: none;
-}
-details summary::before {
-  content: '+ ';
-  color: var(--mark);
-}
-details[open] summary::before {
-  content: '– ';
-}
-details .group {
-  margin-top: 14px;
-}
-
-/* the lineage note under the dials — set narrow and quiet, so it reads as an
-   aside about the algorithm rather than another control */
-.story p {
-  margin: 12px 0 0;
-  max-width: 46ch;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--muted);
-  text-wrap: pretty;
 }
 
 .row {
@@ -857,83 +890,125 @@ select:focus-visible {
   margin: 8px 0 0;
 }
 
-/* ---------- the stack ---------- */
+/* ---------- layers ---------- */
 
-.stack {
-  gap: 10px;
-  border-bottom: 1px solid var(--rule);
-  padding-bottom: 16px;
+/* A stack is a list of things, not a set of modes, so each step is a card with
+   its own picture and its own headline dial — the tweak people reach for most,
+   which should not need a trip anywhere. The picture is the treated letter,
+   which is a thumbnail most tools in this category would have to fake. */
+.layers {
+  gap: 8px;
 }
-.steps {
+.layer {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-items: stretch;
+  flex-direction: column;
+  gap: 9px;
+  padding: 9px 10px 10px;
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  cursor: pointer;
 }
-/* Each step is a pair: the tab that selects it, and the × that drops it. They
-   share one outline so the pair reads as one object rather than two buttons. */
-.step {
-  display: inline-flex;
-  align-items: stretch;
+.layer.is-on {
+  border-color: var(--ink);
+}
+.layer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.layer-thumb {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  overflow: hidden;
+  background: var(--paper);
   border: 1px solid var(--rule);
   border-radius: 3px;
-  overflow: hidden;
 }
-.step > button {
+.layer-thumb svg {
+  display: block;
+}
+.layer-thumb path {
+  fill: var(--ink);
+}
+.layer-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
   border: 0;
-  border-radius: 0;
-  font-size: 12px;
-  padding: 5px 10px;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.layer-drop {
+  flex: none;
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+}
+/* The stack can never be empty, so the last layer has nothing to delete and
+   the control becomes what it can honestly do — put the dials back. */
+.layer-clear {
+  flex: none;
+  padding: 2px 8px;
+  font-size: 11px;
   background: transparent;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
 }
-/* the position in the stack, since order is the whole meaning of it */
-.step em {
-  font-style: normal;
-  font-variant-numeric: tabular-nums;
-  font-size: 10px;
-  color: var(--muted);
-}
-.step.is-on {
-  border-color: var(--ink);
-  background: var(--ink);
-}
-.step.is-on > button {
-  color: var(--paper);
-}
-.step.is-on em {
-  color: var(--paper);
-  opacity: 0.6;
-}
-.step .drop {
-  padding: 5px 8px;
-  color: inherit;
-  opacity: 0.5;
-  border-left: 1px solid var(--rule);
-}
-.step.is-on .drop {
-  border-left-color: rgba(255, 255, 255, 0.25);
-}
-.step .drop:hover {
-  opacity: 1;
+.layer-drop:hover,
+.layer-clear:hover:not(:disabled) {
   color: var(--mark);
+  border-color: var(--mark);
 }
-.step.add {
-  border-style: dashed;
+.layer-dial {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.layer-dial label {
+  flex: none;
   font-size: 12px;
-  padding: 5px 11px;
   color: var(--muted);
 }
-.step.add:hover {
+.layer-dial input[type='range'] {
+  flex: 1 1 auto;
+  height: 14px;
+}
+.layer-dial output {
+  flex: none;
+  min-width: 3ch;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.add-layer {
+  width: 100%;
+  padding: 8px;
+  border-style: dashed;
+  background: transparent;
+  font-size: 12px;
+  color: var(--muted);
+}
+.add-layer:hover {
   border-style: solid;
   color: var(--ink);
 }
-.stack .note {
+.layers .note {
+  margin: 0;
   font-size: 11px;
   color: var(--muted);
-  margin: 0;
 }
 
 /* ---------- saved styles ---------- */

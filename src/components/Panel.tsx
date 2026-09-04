@@ -1,6 +1,12 @@
 import { Dial } from './Dial'
-import { getTreatment, type ParamValues, type Preset, type Treatment } from '../engine/treatments/registry'
+import { getTreatment, type ParamValues, type Treatment } from '../engine/treatments/registry'
 import type { Step } from '../lib/urlState'
+
+/** one layer's picture: the letter A with only that step applied */
+export interface LayerThumb {
+  d: string
+  box: string
+}
 
 interface Props {
   /** the treatment being edited — always `chain[active]` */
@@ -11,16 +17,18 @@ interface Props {
   params: ParamValues
   seed: number
   alternates: number
+  /** one per step, aligned with `chain`; null while a thumbnail is unavailable */
+  thumbs: (LayerThumb | null)[]
   onParam: (key: string, value: number) => void
-  onPreset: (preset: Preset) => void
+  /** a layer card's own dial — always global, never scoped to a selection */
+  onLayerParam: (i: number, key: string, value: number) => void
   onSelectStep: (i: number) => void
   onAddStep: () => void
   onRemoveStep: (i: number) => void
+  /** the last remaining layer cannot be removed, only reset */
+  onClearStep: (i: number) => void
   onSeed: (seed: number) => void
   onAlternates: (n: number) => void
-  onRandomise: () => void
-  onReset: () => void
-  onSave: () => void
   /** the glyphs the dials are editing — empty means the whole face */
   scope: string[]
   /** dial keys the scoped glyphs override at the active step */
@@ -32,24 +40,21 @@ interface Props {
   onReroll: () => void
 }
 
-/** a preset is only "on" while the dials still match it exactly */
-function matches(preset: Preset, params: ParamValues) {
-  return Object.keys(preset.values).every((k) => params[k] === preset.values[k])
-}
-
 /**
- * Every treatment lays its controls out in the same order — actions, presets,
- * dials, then the rest — so switching treatments moves the values without
- * moving the furniture. Cuts and seed come last because they are the same two
- * controls on every treatment that has them, rather than part of the effect.
+ * The rail: what is stacked on the letters, and every dial that shapes it.
  *
- * Font, treatment and the specimen text are not here: they belong to the plate,
- * with the type they change.
+ * Layers are cards rather than tabs because a stack is a list of things, not a
+ * set of modes — and because each card can carry its own picture and its own
+ * headline dial, which is the tweak people reach for most and the one that
+ * should not need a trip anywhere. The picture is the treated letter itself,
+ * which is a thumbnail most tools would have to fake.
+ *
+ * There are no disclosures. Every dial the treatment has is on the page: eight
+ * sliders in a column is not a wall, and hiding half of them behind "More"
+ * only teaches people that the tool has parts it would rather they left alone.
  */
 export function Panel(p: Props) {
   const specs = p.treatment.params
-  const primary = specs.filter((s) => s.primary)
-  const rest = specs.filter((s) => !s.primary)
   // Randomness belongs to the stack rather than to the step being edited: one
   // seed drives the whole thing, so the controls appear if *anything* in the
   // stack consumes randomness, not just the treatment currently selected.
@@ -81,11 +86,7 @@ export function Panel(p: Props) {
               type="button"
               onClick={p.onReroll}
               disabled={!random}
-              title={
-                random
-                  ? 'New randomness for just these glyphs'
-                  : 'Nothing in this stack is random'
-              }
+              title={random ? 'New randomness for just these glyphs' : 'Nothing in this stack is random'}
             >
               Reroll these
             </button>
@@ -99,92 +100,103 @@ export function Panel(p: Props) {
         </div>
       )}
 
-      {/*
-        The stack, and the selector for which step the dials below belong to.
-        Shown as soon as there is more than one step, or as the single "+" when
-        there is not — a lone treatment with a tab bar round it would suggest
-        the stack is a mode you enter rather than something you add to.
-      */}
-      <div className="group stack">
-        <h2>Stack</h2>
-        <div className="steps">
-          {p.chain.map((step, i) => (
-            <span key={`${step.id}-${i}`} className={i === p.active ? 'step is-on' : 'step'}>
-              <button type="button" onClick={() => p.onSelectStep(i)}>
-                <em>{i + 1}</em>
-                {getTreatment(step.id).name}
-              </button>
-              {stacked && (
+      <div className="group layers">
+        <h2>Layers</h2>
+        {p.chain.map((step, i) => {
+          const treatment = getTreatment(step.id)
+          const head = treatment.params.find((s) => s.primary)
+          const thumb = p.thumbs[i]
+          const on = i === p.active
+          return (
+            <div
+              key={`${step.id}-${i}`}
+              className={on ? 'layer is-on' : 'layer'}
+              onClick={() => p.onSelectStep(i)}
+            >
+              <div className="layer-head">
+                <span className="layer-thumb" aria-hidden="true">
+                  {thumb && (
+                    <svg viewBox={thumb.box} height="22" focusable="false">
+                      <g transform="scale(1,-1)">
+                        <path d={thumb.d} />
+                      </g>
+                    </svg>
+                  )}
+                </span>
                 <button
                   type="button"
-                  className="drop"
-                  onClick={() => p.onRemoveStep(i)}
-                  aria-label={`Remove ${getTreatment(step.id).name}`}
-                  title="Remove this step"
+                  className="layer-name"
+                  onClick={() => p.onSelectStep(i)}
+                  aria-pressed={on}
                 >
-                  ×
+                  {treatment.name}
                 </button>
+                {/*
+                  The stack can never be empty, so the last layer has nothing to
+                  delete. Rather than leaving a dead × sitting there, the control
+                  becomes what it can honestly do: put the dials back.
+                */}
+                {stacked ? (
+                  <button
+                    type="button"
+                    className="layer-drop"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      p.onRemoveStep(i)
+                    }}
+                    aria-label={`Remove ${treatment.name}`}
+                    title="Remove this layer"
+                  >
+                    ×
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="layer-clear"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      p.onClearStep(i)
+                    }}
+                    title="Put this layer back to its defaults"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              {/*
+                Scoped editing is about glyphs, so the card's global dial would
+                be answering a different question than the panel below it.
+              */}
+              {head && !scoped && (
+                <div className="layer-dial" onClick={(e) => e.stopPropagation()}>
+                  <label htmlFor={`layer-${i}-${head.key}`}>{head.label}</label>
+                  <input
+                    id={`layer-${i}-${head.key}`}
+                    type="range"
+                    min={head.min}
+                    max={head.max}
+                    step={head.step}
+                    value={step.params[head.key]}
+                    onChange={(e) => p.onLayerParam(i, head.key, Number(e.target.value))}
+                    onDoubleClick={() => p.onLayerParam(i, head.key, head.default)}
+                  />
+                  <output htmlFor={`layer-${i}-${head.key}`}>{step.params[head.key]}</output>
+                </div>
               )}
-            </span>
-          ))}
-          {p.canAdd && (
-            <button
-              type="button"
-              className="step add"
-              onClick={p.onAddStep}
-              title="Treat the result again"
-            >
-              + Add
-            </button>
-          )}
-        </div>
-        {stacked && (
-          <p className="note">
-            Applied top to bottom — each one works on what the last one left.
-          </p>
+            </div>
+          )
+        })}
+        {p.canAdd && (
+          <button type="button" className="add-layer" onClick={p.onAddStep} title="Treat the result again">
+            + Add layer
+          </button>
         )}
+        {stacked && <p className="note">Applied top to bottom — each one works on what the last one left.</p>}
       </div>
 
-      <div className="row">
-        <button
-          type="button"
-          onClick={p.onRandomise}
-          disabled={!random}
-          title={random ? 'Move the seed to a new value' : 'Nothing in this stack is random'}
-        >
-          Randomise
-        </button>
-        <button type="button" onClick={p.onReset}>
-          Reset
-        </button>
-        {/* not the page's promise — the dark treatment belongs to View
-            specimen and Download alone */}
-        <button type="button" onClick={p.onSave}>
-          Save
-        </button>
-      </div>
-
-      {p.treatment.presets && p.treatment.presets.length > 0 && (
-        <div className="group">
-          <h2>Presets</h2>
-          <div className="chips">
-            {p.treatment.presets.map((preset) => (
-              <button
-                type="button"
-                key={preset.name}
-                className={matches(preset, p.params) ? 'chip is-on' : 'chip'}
-                onClick={() => p.onPreset(preset)}
-              >
-                {preset.name}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="group">
-        <h2>Dials</h2>
-        {primary.map((spec) => (
+      <div className="group settings">
+        <h2>{p.treatment.name}</h2>
+        {specs.map((spec) => (
           <Dial
             key={spec.key}
             spec={spec}
@@ -194,30 +206,6 @@ export function Panel(p: Props) {
           />
         ))}
       </div>
-
-      {p.treatment.story && (
-        <details className="story">
-          <summary>How this works</summary>
-          <p>{p.treatment.story}</p>
-        </details>
-      )}
-
-      {rest.length > 0 && (
-        <details>
-          <summary>More dials</summary>
-          <div className="group">
-            {rest.map((spec) => (
-              <Dial
-                key={spec.key}
-                spec={spec}
-                value={p.params[spec.key]}
-                onChange={(v) => p.onParam(spec.key, v)}
-                accent={p.overriddenKeys.has(spec.key)}
-              />
-            ))}
-          </div>
-        </details>
-      )}
 
       {random && (
         <div className="group randomness">

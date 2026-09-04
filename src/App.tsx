@@ -12,9 +12,10 @@ import {
   type Step,
 } from './lib/urlState'
 import { loadShelf, saveShelf, SHELF_LIMIT } from './lib/savedStyles'
-import { Panel } from './components/Panel'
+import { Panel, type LayerThumb } from './components/Panel'
 import { Plate } from './components/Plate'
-import { ExportBar } from './components/ExportBar'
+import { Presets } from './components/Presets'
+import { TopBar } from './components/TopBar'
 import { GlyphGrid } from './components/GlyphGrid'
 import { Waterfall } from './components/Waterfall'
 import { Shelf, type Kept } from './components/Shelf'
@@ -260,6 +261,33 @@ export default function App() {
     [state?.overrides],
   )
 
+  /**
+   * One picture per layer: the letter A with only that step applied.
+   *
+   * Deferred with the grid, because a stack of three redraws three letters on
+   * every dial move and the line being typed into matters more. Overrides are
+   * deliberately left out — a layer's thumbnail describes the layer, not what
+   * one selected glyph does to it.
+   */
+  const layerThumbs = useMemo<(LayerThumb | null)[]>(() => {
+    if (!library || !deferredKey) return []
+    return deferredKey.chain.map((step) => {
+      try {
+        const r = render({
+          library,
+          fontId: deferredKey.fontId,
+          chain: [step],
+          text: 'A',
+          seed: deferredKey.seed,
+          alternates: 1,
+        })
+        return r.d ? { d: r.d, box: `0 ${-r.ascender} ${r.width} ${r.ascender - r.descender}` } : null
+      } catch {
+        return null
+      }
+    })
+  }, [library, deferredKey])
+
   if (error) {
     return (
       <main className="shell">
@@ -354,6 +382,19 @@ export default function App() {
     })
   }
 
+  /** a layer card's own dial — global by definition, never scoped */
+  const setLayerParam = (i: number, key: string, value: number) => {
+    patchStep(i, { params: { ...state.chain[i].params, [key]: value } })
+  }
+
+  /** the last layer cannot be removed, so its control puts the dials back */
+  const clearStep = (i: number) => {
+    patchStep(i, { params: defaults(getTreatment(state.chain[i].id)) })
+    patchOverrides((overrides) => {
+      for (const o of Object.values(overrides)) o.params[i] = {}
+    })
+  }
+
   const changeTreatment = (id: string) => {
     // parameters mean different things per treatment, so carrying values across
     // would land on settings nobody chose — the per-glyph deltas at this step
@@ -439,13 +480,25 @@ export default function App() {
 
   return (
     <div className="wrap">
-      <header>
-        <p className="eyebrow">For Font's Sake</p>
-        <h1>Type it, treat it, take it away</h1>
-      </header>
+      <TopBar
+        font={library[state.fontId]}
+        fontId={state.fontId}
+        chain={state.chain}
+        chainName={chainName}
+        seed={state.seed}
+        alternates={state.alternates}
+        overrides={state.overrides}
+        onSave={save}
+        onShare={() => setPosterOpen(true)}
+      />
 
       <div className="layout">
         <main>
+          <Presets
+            presets={treatment.presets ?? []}
+            params={panelParams}
+            onPreset={applyPreset}
+          />
           <Plate
             library={library}
             treatments={TREATMENTS}
@@ -458,7 +511,11 @@ export default function App() {
             onText={(text) => patch({ text })}
             onUpload={onUpload}
             importing={importing}
-            onPoster={() => setPosterOpen(true)}
+            seed={state.seed}
+            alternates={state.alternates}
+            canRandomise={state.chain.some((s) => !getTreatment(s.id).deterministic)}
+            onRandomise={() => patch({ seed: Math.floor(Math.random() * 9999) + 1 })}
+            onReset={resetDials}
           />
           {notice && <p className="notice is-bad">{notice}</p>}
           {licence && state.fontId.startsWith('upload') && (
@@ -473,15 +530,6 @@ export default function App() {
               {licence.note}
             </p>
           )}
-          <ExportBar
-            font={library[state.fontId]}
-            fontId={state.fontId}
-            chain={state.chain}
-            chainName={chainName}
-            seed={state.seed}
-            alternates={state.alternates}
-            overrides={state.overrides}
-          />
           {glyphSet && (
             <GlyphGrid
               set={glyphSet}
@@ -490,6 +538,12 @@ export default function App() {
               onSelect={setSelected}
             />
           )}
+          {/*
+            The ladder stays in this column rather than running the width of
+            the page, so the dials are still on screen while you look at what
+            the treatment does to 12px.
+          */}
+          <Waterfall result={specimen} text={specimenText} />
         </main>
 
         <Panel
@@ -500,16 +554,15 @@ export default function App() {
           params={panelParams}
           seed={state.seed}
           alternates={state.alternates}
+          thumbs={layerThumbs}
           onParam={setParam}
-          onPreset={applyPreset}
+          onLayerParam={setLayerParam}
           onSelectStep={setActive}
           onAddStep={addStep}
           onRemoveStep={removeStep}
+          onClearStep={clearStep}
           onSeed={(seed) => patch({ seed })}
           onAlternates={(alternates) => patch({ alternates })}
-          onRandomise={() => patch({ seed: Math.floor(Math.random() * 9999) + 1 })}
-          onReset={resetDials}
-          onSave={save}
           scope={scopeChars}
           overriddenKeys={overriddenKeys}
           scopeHasOverrides={scopeChars.some((ch) => overriddenChars.has(ch))}
@@ -518,8 +571,6 @@ export default function App() {
           onReroll={reroll}
         />
       </div>
-
-      <Waterfall result={specimen} text={specimenText} />
 
       <Shelf
         kept={kept}

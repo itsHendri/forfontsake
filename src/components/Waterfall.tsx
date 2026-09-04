@@ -11,6 +11,16 @@ interface Props {
   text: string
 }
 
+/**
+ * The size ladder.
+ *
+ * The number sits *above* each line rather than in a gutter beside it, which
+ * is what every foundry that shows a size at all does — Fontshare and Google
+ * Fonts both put the label at the identical x as the specimen. A gutter reads
+ * as a column and pushes the type off the page grid, so the one block on the
+ * page made entirely of the thing being sold is the one block that does not
+ * line up with anything above it.
+ */
 export function Waterfall({ result, text }: Props) {
   if (!result.d) return null
   const span = result.ascender - result.descender
@@ -22,14 +32,9 @@ export function Waterfall({ result, text }: Props) {
       {SIZES.map((px) => {
         // the same geometry at every size, so the whole column costs one redraw
         const scale = px / result.unitsPerEm
-        // the number sits on the same baseline as the line it measures, rather
-        // than floating at the top or bottom of a row that is mostly air
-        const baseline = result.ascender * scale
         return (
           <div className="fall-row" key={px}>
-            <span className="fall-size" style={{ marginTop: Math.max(0, baseline - 8) }}>
-              {px}
-            </span>
+            <span className="fall-size">{px} px</span>
             <div className="fall-ink">
               <svg
                 width={Math.max(1, Math.round(result.width * scale))}

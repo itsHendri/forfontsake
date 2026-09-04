@@ -17,9 +17,10 @@ installable font**, entirely in the browser.
 
 | Piece | State |
 | --- | --- |
-| Engine (7 treatments) | Done. Grit, Bubble, Bleed, Outline, Extrude, Mosaic, Organic (id `growth`). |
+| Engine (17 treatments) | Done. Grouped in the picker as Wear, Ink, Screens, Press, Structure; the full list is in `README.md`. Organic keeps id `growth`. |
 | Stacking | Done. Up to three treatments in a row, in the UI, the URL and the export. |
-| Live preview | Done. Type into the specimen itself. |
+| Live preview | Done. Type into the specimen itself, at up to 144px. |
+| Workbench layout | Done. An action bar (name the font, Save font, Share, Download with the meta on a tooltip), presets above the plate, Randomise and Reset inside it, layers as cards with their own thumbnail and headline dial, every dial visible, and the size ladder labelled above each line. See DECISIONS. |
 | Glyph grid, waterfall | Done. All 69 preview glyphs; the grid is also the override selection surface. |
 | **Per-glyph overrides** | **Done.** Select glyphs → dial deltas over the global chain, per-glyph reroll; in the URL (7th field), the shelf and the export. |
 | **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker; overrides included. |
@@ -140,6 +141,10 @@ so every older invocation still means what it did.
 4. Sound feel is tuned by ear so far only on one machine: the Speed default (0.5), the
    modulation depth (35% of each dial's span) and the bubble loop's mix deserve a pass on a
    phone and real speakers.
+5. The sheet is pure SVG and has no finish layer (grain, misregistration, scanline drift
+   as pixels over the rendered sheet), and the sound gives the user no say in which dial
+   listens to which band. Both are researched and ranked in `docs/RESEARCH-2026-09.md`
+   and the "Where to look next" list in `DECISIONS.md`; a layout pass comes first.
 
 ## Where things live
 
@@ -163,10 +168,22 @@ sit in `public/`, where Vite shipped 4.4 MB of it to every visitor.
 
 ## Design source of truth
 
-**There is no Figma file any more.** The original lived in the SwissBorg org and was deleted
-deliberately when that access ended; a new one gets made later, from wherever the design has
-got to by then. Do not go looking for it, and do not treat its absence as something to
-restore.
+The original Figma file lived in the SwissBorg org and was deleted deliberately when that
+access ended. A new one was started on 4 Sept 2026 as the board for the next layout pass:
+`https://www.figma.com/design/ie27RUJUSlkglzarqTMZIO`. **One page, seven sections**, in
+reading order — a cover block at the top lists them:
+
+| | | |
+| --- | --- | --- |
+| 01 | Where we are | The shipped app screenshotted at 1440, plus two sheets as real vectors. |
+| 02 | Rebuilt as editable layers | The workbench at 1280 and the sheet overlay at 1440 as auto-layout frames over local components, bound to a `Letterpress` variable collection carrying the light and dark palettes from `index.css`. Treated type, glyph grid and size ladder are real vectors from the engine. |
+| 03 | What the research changed | Seven findings measured from foundry DOM and design-tool documentation. |
+| 04 | Element studies | Six dials, six layer lists, six size-ladder placements, each with its reasoning. |
+| 05 | Layout variations | A, B, C move the furniture; A1–A3 take the chosen direction further — no brand mark on the workbench, the font name top left, `Save font` / `Share` / `Download .ttf`, a layer that cannot be removed while it is the only one, no disclosures, and Sizes kept beside the panel. |
+| 06 | Screen explorations | D a drawn sheet of paper, E a dark studio with a tabbed canvas, F a floating-panel canvas, and G resolving what Share does. |
+| 07 | Components and tokens | Button (eight styles), Select, Dial, Layer row, Tooltip, Share panel, two mono labels. |
+
+None of it is a source of truth.
 
 **The code is the source of truth for the design.** That is the honest position now, and it
 mostly always was: `src/index.css` carries the type scale, the paper-and-ink palette and the

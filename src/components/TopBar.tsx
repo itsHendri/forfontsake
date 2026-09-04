@@ -8,12 +8,14 @@ interface Props {
   font: FontData
   fontId: string
   chain: Step[]
-  /** "Grit + Bleed" — what the stack is called in the strip and the file name */
+  /** "Grit + Bleed" — what the stack is called in the file name */
   chainName: string
   seed: number
   alternates: number
   /** per-character exceptions, carried into the export as-is */
   overrides?: Overrides
+  onSave: () => void
+  onShare: () => void
 }
 
 type State =
@@ -25,13 +27,19 @@ type State =
 const kb = (n: number) => `${Math.round(n / 1024)} KB`
 
 /**
- * The download, given its own strip rather than a menu item.
+ * The bar the workbench is worked from: what the font is called, and the three
+ * ways of leaving with it.
  *
- * Every tool in this category ships a broken one, so this is the promise the
- * whole thing rests on — it should be the most visible control on the page,
- * and it should say what you are getting before you press it.
+ * The name field is the page title rather than a field buried next to the
+ * download, because naming the thing is the first act of making it and the
+ * workbench is not a marketing page — the brand line that used to sit here
+ * belongs to an intro page that is not this one.
+ *
+ * The long description of what you are about to download hangs off the button
+ * as a tooltip. It is the answer to "what exactly is in this file?", which is
+ * a question you ask once, immediately before pressing, and never again.
  */
-export function ExportBar(p: Props) {
+export function TopBar(p: Props) {
   const [name, setName] = useState(() => suggestName(p.font, p.chainName))
   const [touched, setTouched] = useState(false)
   const [state, setState] = useState<State>({ phase: 'idle' })
@@ -87,15 +95,23 @@ export function ExportBar(p: Props) {
     }
   }
 
+  const label = !busy
+    ? state.phase === 'done' && !state.saved
+      ? 'Download again'
+      : 'Download .ttf'
+    : state.progress < 1
+      ? `Treating… ${Math.round(state.progress * 100)}%`
+      : 'Assembling…'
+
   return (
-    <section className="export">
-      <div className="export-row">
+    <header className="topbar">
+      <div className="topbar-name">
         <label className="visually-hidden" htmlFor="family">
           Font name
         </label>
         <input
           id="family"
-          className="export-name"
+          className="name-field"
           type="text"
           value={name}
           onChange={(e) => {
@@ -104,24 +120,11 @@ export function ExportBar(p: Props) {
           }}
           spellCheck={false}
           autoComplete="off"
+          size={Math.max(4, name.length)}
           aria-invalid={problem ? true : undefined}
-          aria-describedby={problem ? 'export-problem' : 'export-meta'}
+          aria-describedby={problem ? 'name-problem' : 'font-meta'}
         />
-
-        <button type="button" className="export-go" onClick={run} disabled={busy || !!problem}>
-          {/* the glyph loop is only part of the wait — writing the substitutions
-              and checksumming a few megabytes takes as long again on a big
-              face, and a bar stuck at 100% reads as a hang */}
-          {!busy
-            ? state.phase === 'done' && !state.saved
-              ? 'Download again'
-              : 'Download .ttf'
-            : state.progress < 1
-              ? `Treating… ${Math.round(state.progress * 100)}%`
-              : 'Assembling…'}
-        </button>
-
-        <p className="export-meta" id="export-meta">
+        <p className="topbar-meta" id="font-meta">
           {state.phase === 'done' ? (
             <>
               <b>{state.result.fileName}</b> · {kb(state.result.bytes)} ·{' '}
@@ -130,19 +133,34 @@ export function ExportBar(p: Props) {
             </>
           ) : (
             <>
-              {p.font.label} · {p.chainName} ·{' '}
-              {varies ? `${p.alternates} cuts on the Latin letters` : 'one cut per letter'}{' '}
-              {/* the whole face gets treated, not just what is on screen, so
-                  say how much of it there is before the wait starts */}
-              · from {p.font.sourceGlyphs.toLocaleString()} glyphs · OFL
+              {p.chainName} on {p.font.label} · {p.font.sourceGlyphs.toLocaleString()} glyphs · OFL
             </>
           )}
         </p>
+      </div>
 
+      <div className="topbar-actions">
+        <button type="button" onClick={p.onSave}>
+          Save font
+        </button>
+        <button type="button" onClick={p.onShare}>
+          Share
+        </button>
+        {/* the tooltip is the meta line, hung off the control it describes */}
+        <span className="with-tip">
+          <button type="button" className="save" onClick={run} disabled={busy || !!problem}>
+            {label}
+          </button>
+          <span className="tip" role="tooltip">
+            {p.font.label} · {p.chainName} ·{' '}
+            {varies ? `${p.alternates} cuts on the Latin letters` : 'one cut per letter'} from{' '}
+            {p.font.sourceGlyphs.toLocaleString()} glyphs · OFL
+          </span>
+        </span>
       </div>
 
       {problem && (
-        <p className="export-problem" id="export-problem" role="alert">
+        <p className="export-problem" id="name-problem" role="alert">
           {problem}
         </p>
       )}
@@ -151,6 +169,6 @@ export function ExportBar(p: Props) {
           {state.message}
         </p>
       )}
-    </section>
+    </header>
   )
 }

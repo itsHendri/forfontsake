@@ -521,22 +521,98 @@ asserts: every treatment keeps a letter on the page at every drive level, and ch
 smoothly between frames. Cost is guarded separately, in points added rather than multiplied —
 going from 14 points to 340 is free, and going from 3000 to 6000 is the hitch.
 
+## The workbench is a bar, a plate, layers and dials
+
+The page used to open on a brand line and a headline, then stack a specimen, an export strip
+and a rail of tabs. That is a marketing page wearing a tool's clothes. What shipped instead:
+
+**The top left is where you name the font.** Naming the thing is the first act of making one,
+so the name is the page title — a field that looks like a title until you hover it — with what
+it is set underneath. The brand line is gone from the workbench entirely; it belongs to an
+intro page that is not this one.
+
+**Three ways out, all in the bar.** `Save font`, `Share`, `Download .ttf`. The long line
+describing what is in the file moved onto the download as a hover tooltip, dark on paper. It
+answers a question you ask once, immediately before pressing, and never again — as a permanent
+line under the button it was furniture.
+
+**What acts on the letters lives in the box with them.** Randomise and Reset sit in the plate's
+footer with the cuts-and-seed readout, because they act on what you can see. In the rail they
+sat among the panel's own controls and read as settings.
+
+**The stack became Layers, and layers are cards.** A stack is a list of things, not a set of
+modes, so tabs were the wrong shape. Each card carries the treated letter as its thumbnail —
+a real preview of what that step alone does, which most tools in this category would have to
+fake — and its own headline dial, the tweak people reach for most. Cards are hidden from the
+per-glyph scope, where a global dial would answer a different question than the panel below.
+
+**The last layer cannot be removed, so its control changes.** With one layer the × becomes
+`Clear`, which puts the dials back. Procreate's answer, and better than the two alternatives:
+hiding the control makes the row twitch as you add a second layer, and leaving a dead × sitting
+there is the mistake Figma makes in variant properties.
+
+**No disclosures.** Every dial the treatment has is on the page. Eight sliders in a column is
+not a wall, and hiding half of them behind "More" only teaches people the tool has parts it
+would rather they left alone. `How this works` went with them; `Treatment.story` still exists
+and is still worth having, it just is not a permanent accordion in the rail.
+
+**The value is an input.** Framer, Figma, Rive, Jitter and Blender all make it one, and a
+slider cannot hit 1337 on a 1–9999 range without a fight. Minus and plus flank it for the
+single-step nudge dragging is bad at. The caption under a dial is now dark, because it is a
+tooltip and was being read as body copy.
+
+**The size ladder lost its gutter.** The number sits above each line at the type's own left
+edge. Measured across eight foundries, not one puts a size in a left gutter: Fontshare and
+Google Fonts put it above the line, Klim runs it inline as a superior figure, Grilli and OH no
+print no size at all. A gutter reads as a column and pushed the one block on the page made
+entirely of the thing being sold off the grid everything above it sits on. The ladder also
+moved inside the main column, so the dials stay on screen while you look at 12px.
+
+The research behind all of this is in `RESEARCH-2026-09.md`, and the explorations it came from
+are one page in the Figma file named in `STATE.md`.
+
 ## Where to look next
 
-Highest value first, from the competitive research:
+Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the
+specimen stage). Sizes are rough. Nothing below is started; a layout pass in a design file
+comes first for anything that touches the sheet rail or the export controls.
 
-1. **Amount master slider** lerping source → preset. Lightroom shipped this after a paid
-   plugin filled the gap for years.
-2. **Hover a preset to preview it** on the main canvas. Nearly free here because the engine
-   is client-side and deterministic; expensive for everyone else.
-3. **Slider craft**: drag on the label not the number, `Shift` for fine. The tick on the
-   track showing the default is done, and so is the caption — it used to sit in the flow
-   and toggle `display`, so reading one jogged every dial below it and the whole sticky
-   rail with them, worst of all while dragging. It floats now.
-4. **Tune the seventeen against each other.** Every one is registered and playable;
-   `npx tsx scripts/style-samples.ts` puts them all on one sheet at every preset.
-5. ~~**Licence panel at font upload**~~ — shipped: the upload path reads the licence and
-   reports open / unknown / restricted in the workbench.
+1. **Per-dial sound binding, with range handles.** Today the sheet drives the first four
+   non-steady primary dials in declared order, and the user has no say. Font Gauntlet and
+   OpenMosh both let each control choose what it listens to and how far it may swing.
+   Medium: a `listens` field on the sheet state, `modulate()` in `Poster.tsx` reads it, a
+   per-dial control in the Sound block.
+2. **Present mode on the sheet.** Hide the rail, keep the Escape-finishes-and-saves rule
+   from "The sheet is a performance". Small, and a better recording stage.
+3. **A Finish layer on the sheet** — pixels, not geometry: grain, riso misregistration,
+   scanline drift first. WebGL over the canvas the recorder already draws; Paper Shaders
+   (Apache-2.0) lifted with attribution; PNG and clip pass through it, SVG and the font do
+   not. Large. It is the first raster in the product, so it carries a rule and a test:
+   **the `.ttf` is byte-identical with any finish on or off.**
+4. **Freeze this frame as a font.** The sheet holds the resolved dial values for every
+   frame it draws, so a frame you like can go straight to `buildTreatedFont` in the worker.
+   Nobody else can offer this. Small to medium.
+5. **Amount master slider** lerping source → preset, and **hover a preset to preview it**
+   on the main canvas. Carried over; both nearly free because the engine is client-side and
+   deterministic.
+6. **Styles view**: every preset of the current treatment as a waterfall in the page — what
+   `scripts/style-samples.ts` does on the CLI. Small.
+7. **WebCodecs recorder** with `MediaRecorder` as the Safari fallback, the 15 s cap lifted,
+   MP4 with the audio muxed. Medium; `src/lib/videoRecorder.ts`.
+8. **Story-size sheet** (1080×1920) as a second format; `SHEET_W/H` become a property of
+   the layout in `poster.ts`. Small.
+9. **Whole-window drop target** for a font, and a visible **Copy link** for the URL state.
+   Small.
+10. **Slant and Tracking** as export-safe global dials — a shear on the outlines, a uniform
+    advance change — with `verify:font` taught to accept the drift. Medium. Parked until
+    the layout pass says whether they belong in the rail.
+11. **Slider craft, what is left**: drag on the label to scrub, `Shift` for fine, and tint the
+    label when a value is off its default (Webflow's trick, better than our tick on the track).
+    The typeable value, the steppers and the dark caption shipped with the layout pass.
+12. **Tune the seventeen against each other** on the contact sheet.
+
+Shipped from the earlier lists: the licence panel at font upload, and — with the layout pass —
+the action bar, layers as cards, every dial visible, and the size ladder's gutter.
 
 A later look at typograph.studio (AI parametric typeface generator, adjacent not
 competing) confirmed the positioning: nothing in the niche outputs specimen sheets or
