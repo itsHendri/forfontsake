@@ -27,6 +27,11 @@ export const halftone: Treatment = {
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.4 },
   ],
 
+  // Classic 45° is the textbook screen but leaves 0.27 of the letter's ink, so
+  // it opens grey and is gone by 16px. Coarse dots is still unmistakably a dot
+  // screen at more than twice the coverage, and survives down the size ladder.
+  defaultPreset: 'Coarse dots',
+
   presets: [
     { name: 'Classic 45°', values: { spacing: 30, size: 105, angle: 45, falloff: 60, shape: 0, invert: 0, simplify: 0.4 } },
     { name: 'Coarse dots', values: { spacing: 55, size: 120, angle: 45, falloff: 15, shape: 0, invert: 0, simplify: 0.4 } },

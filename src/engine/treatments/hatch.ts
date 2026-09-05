@@ -78,6 +78,11 @@ export const hatch: Treatment = {
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.4 },
   ],
 
+  // Single pass leaves 0.30 and greys out below 32px. Cross-hatched is the
+  // heaviest of the four and the one that shows what separates Hatch from
+  // Scanline — the second pass crossing the first.
+  defaultPreset: 'Cross-hatched',
+
   presets: [
     { name: 'Single pass', values: { spacing: 20, weight: 34, angle: 45, cross: 0, wander: 20, simplify: 0.4 } },
     { name: 'Cross-hatched', values: { spacing: 24, weight: 30, angle: 45, cross: 90, wander: 20, simplify: 0.4 } },

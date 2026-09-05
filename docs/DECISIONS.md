@@ -593,6 +593,21 @@ was a separate nameless thing. Grit is the one that needed a real decision and n
 **Sandblast**: Photocopy is a light speckle that undersells what the treatment does. Bubble,
 Bleed and Organic land on their first preset.
 
+**Which preset a screen opens on, measured rather than eyeballed.** Halftone and Hatch both
+opened on their faintest setting. Ink coverage — treated area over untreated area, on
+"Handgloves" — puts the Screens family at a median of 0.55 where every other family is 0.97 or
+more, and eight of the ten lightest presets in the tool are screens. That much is by design: a
+halftone of a solid letter *is* partial coverage, and at 96px Classic 45° looks exactly like
+what it is. The defect was narrower. Classic 45° leaves 0.27 and Single pass 0.30, so the
+first thing anybody saw of either treatment was its weakest version, and both are flat grey by
+16px. They now open on **Coarse dots** (0.64) and **Cross-hatched** (1.22), which hold their
+texture down the size ladder and are still unmistakably a dot screen and a crossed hatch. The
+ratios hold on all seven shipped faces, so this is not a Pirata-One-shaped choice.
+
+Below about 32px every screen collapses to flat grey whatever the preset — a halftone dot at
+12px is smaller than a pixel. That is physics, not a bug, and the size ladder is right to show
+it.
+
 Two functions, deliberately not one. `defaults()` is each dial's own default — the baseline a
 preset is a delta from, and what the engine, the CLI and the tests use. `initialParams()` is
 what the workbench opens on. Keeping them separate means the headless build and the recorded
