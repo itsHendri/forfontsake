@@ -28,11 +28,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Kept on current majors deliberately: GitHub retires the Node the actions
+      # themselves run on, and an action a major behind starts emitting
+      # deprecation warnings and is eventually forced onto a runtime it was not
+      # built for. The build Node below tracks what the repo is developed on.
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - run: npm ci
@@ -58,7 +62,7 @@ jobs:
           test -f dist/share.png
           test "$(ls dist/fonts/preview/*.woff2 | wc -l)" -eq 7
 
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
 
@@ -70,4 +74,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
