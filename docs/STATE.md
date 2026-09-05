@@ -20,7 +20,8 @@ installable font**, entirely in the browser.
 | Engine (17 treatments) | Done. Grouped in the picker as Wear, Ink, Screens, Press, Structure; the full list is in `README.md`. Organic keeps id `growth`. |
 | Stacking | Done. Up to three treatments in a row, in the UI, the URL and the export. |
 | Live preview | Done. Type into the specimen itself, at up to 144px. |
-| Workbench layout | Done. An action bar (name the font, Save font, Share, Download with the meta on a tooltip), presets above the plate, Randomise and Reset inside it, layers as cards with their own thumbnail and headline dial, every dial visible, and the size ladder labelled above each line. See DECISIONS. |
+| Workbench layout | Done. An action bar (name the font, Save font, Share, Download with the meta on a tooltip), presets above the plate as pictures of themselves, Randomise and Reset inside it, layers as cards with their own thumbnail and headline dial, every dial visible, and the size ladder labelled above each line. See DECISIONS. |
+| **Presets are the default** | **Done.** No unnamed state: a treatment opens on a named preset (`defaultPreset`, else the first). Grit opens on Sandblast. Dials measure their tick, their colour and their double-click reset from that preset, not from the bare spec default. |
 | Glyph grid, waterfall | Done. All 69 preview glyphs; the grid is also the override selection surface. |
 | **Per-glyph overrides** | **Done.** Select glyphs → dial deltas over the global chain, per-glyph reroll; in the URL (7th field), the shelf and the export. |
 | **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker; overrides included. |

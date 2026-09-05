@@ -1,7 +1,15 @@
 import type { ParamValues, Preset } from '../engine/treatments/registry'
 
+/** one preset's picture: two letters treated at that preset */
+export interface PresetThumb {
+  d: string
+  box: string
+}
+
 interface Props {
   presets: Preset[]
+  /** one per preset, aligned with `presets` */
+  thumbs: PresetThumb[]
   params: ParamValues
   onPreset: (preset: Preset) => void
 }
@@ -14,24 +22,43 @@ function matches(preset: Preset, params: ParamValues) {
 /**
  * The named starting points, sitting above the type they change.
  *
- * No heading: five buttons called Photocopy, Sandblast and Rust do not need a
- * word above them explaining that they are presets, and the label was one more
- * piece of furniture between the top of the page and the letters.
+ * Each one shows what it does. That is the whole point: a button is a word and
+ * a preset is a picture, so the two can never be mistaken for one another —
+ * which they were, because a selected chip and the download button were both a
+ * solid ink rectangle, and the loudest thing on the page ended up being a
+ * preset rather than the thing the tool is for.
+ *
+ * No heading either. Five things called Photocopy, Sandblast and Rust do not
+ * need a word above them explaining that they are presets.
  */
 export function Presets(p: Props) {
   if (p.presets.length === 0) return null
   return (
-    <div className="presets chips" role="group" aria-label="Presets">
-      {p.presets.map((preset) => (
-        <button
-          type="button"
-          key={preset.name}
-          className={matches(preset, p.params) ? 'chip is-on' : 'chip'}
-          onClick={() => p.onPreset(preset)}
-        >
-          {preset.name}
-        </button>
-      ))}
+    <div className="presets" role="group" aria-label="Presets">
+      {p.presets.map((preset, i) => {
+        const on = matches(preset, p.params)
+        const thumb = p.thumbs[i]
+        return (
+          <button
+            type="button"
+            key={preset.name}
+            className={on ? 'preset is-on' : 'preset'}
+            aria-pressed={on}
+            onClick={() => p.onPreset(preset)}
+          >
+            <span className="preset-ink" aria-hidden="true">
+              {thumb?.d && (
+                <svg viewBox={thumb.box} height="26" focusable="false">
+                  <g transform="scale(1,-1)">
+                    <path d={thumb.d} />
+                  </g>
+                </svg>
+              )}
+            </span>
+            <span className="preset-name">{preset.name}</span>
+          </button>
+        )
+      })}
     </div>
   )
 }

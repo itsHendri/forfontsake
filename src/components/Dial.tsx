@@ -5,6 +5,15 @@ interface Props {
   spec: ParamSpec
   value: number
   onChange: (value: number) => void
+  /**
+   * The value this dial started at — the landing preset's, not the spec's.
+   *
+   * The tick, the muted-versus-marked colour and the double-click reset all
+   * measure from here. Comparing against the bare spec default would paint
+   * every dial as "changed" the moment the tool opens on a preset, which is
+   * every time, and the signal would mean nothing.
+   */
+  base?: number
   /** this dial deviates from the global settings for the glyphs in scope */
   accent?: boolean
 }
@@ -34,12 +43,13 @@ function settle(v: number, spec: ParamSpec): number {
  * The track carries a tick at the default, so "is this a lot?" is answerable
  * without dragging to find out, and double-clicking anywhere on it resets.
  */
-export function Dial({ spec, value, onChange, accent }: Props) {
+export function Dial({ spec, value, onChange, base, accent }: Props) {
+  const start = base ?? spec.default
   const id = `dial-${spec.key}`
   const noteId = `${id}-note`
   const range = spec.max - spec.min
-  const defaultAt = range > 0 ? ((spec.default - spec.min) / range) * 100 : 0
-  const atDefault = value === spec.default
+  const defaultAt = range > 0 ? ((start - spec.min) / range) * 100 : 0
+  const atDefault = value === start
 
   // The typed value is held locally while it is being typed: committing every
   // keystroke would fight the caret ("4" becoming 4 becoming "4") and would
@@ -57,6 +67,7 @@ export function Dial({ spec, value, onChange, accent }: Props) {
   }
 
   const nudge = (dir: 1 | -1) => onChange(settle(value + dir * spec.step, spec))
+  const reset = () => onChange(settle(start, spec))
 
   const note = [spec.note, atDefault ? undefined : 'double-click the track to reset']
     .filter(Boolean)
@@ -125,7 +136,7 @@ export function Dial({ spec, value, onChange, accent }: Props) {
           step={spec.step}
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
-          onDoubleClick={() => onChange(spec.default)}
+          onDoubleClick={reset}
           aria-describedby={note ? noteId : undefined}
         />
       </div>

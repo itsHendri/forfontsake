@@ -104,6 +104,16 @@ export interface Treatment {
   params: ParamSpec[]
   presets?: Preset[]
   /**
+   * Which preset the workbench opens on, by name. Defaults to the first.
+   *
+   * There is no unnamed state: picking a treatment lands you on a named
+   * starting point, so one chip is always lit and the row always means
+   * something. Set this only when the first preset is not the best face to
+   * show — Grit opens on Sandblast, because Photocopy reads as a light
+   * speckle and undersells what the treatment does.
+   */
+  defaultPreset?: string
+  /**
    * True when the same input always gives the same output. Alternates only
    * make sense for treatments that consume randomness; computing several
    * "variants" of a deterministic one just does the same work repeatedly.
@@ -118,8 +128,30 @@ export interface Treatment {
   apply(rings: Ring[], p: ParamValues, ctx: TreatmentContext): Ring[]
 }
 
+/**
+ * Each dial's own default — the value double-clicking a single dial returns to,
+ * and the baseline every preset is expressed as a delta from.
+ *
+ * This is *not* what the workbench opens on; see `initialParams`.
+ */
 export function defaults(t: Treatment): ParamValues {
   const out: ParamValues = {}
   for (const p of t.params) out[p.key] = p.default
   return out
+}
+
+/** The preset a treatment opens on, or undefined if it ships none. */
+export function landingPreset(t: Treatment): Preset | undefined {
+  if (!t.presets || t.presets.length === 0) return undefined
+  if (!t.defaultPreset) return t.presets[0]
+  return t.presets.find((p) => p.name === t.defaultPreset) ?? t.presets[0]
+}
+
+/**
+ * What the workbench opens a treatment on: its landing preset over the dial
+ * defaults, so the tool never shows an unnamed state and Reset has a name to
+ * go back to. A treatment with no presets falls through to the dial defaults.
+ */
+export function initialParams(t: Treatment): ParamValues {
+  return { ...defaults(t), ...(landingPreset(t)?.values ?? {}) }
 }

@@ -225,8 +225,57 @@ h1 {
 
 /* ---------- the plate: type and the two choices that define it ---------- */
 
+/* A button is a word; a preset is a picture with a word under it. They used to
+   be the same object — a selected chip and the download button were both a
+   solid ink rectangle — so the loudest thing on the page was a preset rather
+   than the thing the tool is for. */
 .presets {
-  margin: 0 0 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0 0 16px;
+}
+.preset {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px 7px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.preset:hover:not(.is-on) {
+  border-color: var(--muted);
+}
+/* the selected one thickens its own border rather than inverting, and loses a
+   pixel of padding so the row does not jump as the selection moves */
+.preset.is-on {
+  border-color: var(--ink);
+  border-width: 2px;
+  padding: 7px 9px 6px;
+}
+.preset-ink {
+  display: block;
+  height: 26px;
+}
+.preset-ink svg {
+  display: block;
+  height: 26px;
+  width: auto;
+}
+.preset-ink path {
+  fill: var(--ink);
+}
+.preset-name {
+  font-size: 11.5px;
+  line-height: 16px;
+  color: var(--muted);
+}
+.preset.is-on .preset-name {
+  color: var(--ink);
+  font-weight: 500;
 }
 
 .plate {

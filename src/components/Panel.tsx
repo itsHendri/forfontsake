@@ -1,5 +1,5 @@
 import { Dial } from './Dial'
-import { getTreatment, type ParamValues, type Treatment } from '../engine/treatments/registry'
+import { getTreatment, initialParams, type ParamValues, type Treatment } from '../engine/treatments/registry'
 import type { Step } from '../lib/urlState'
 
 /** one layer's picture: the letter A with only that step applied */
@@ -55,6 +55,8 @@ interface Props {
  */
 export function Panel(p: Props) {
   const specs = p.treatment.params
+  // what this treatment opened on, so a dial can say whether you moved it
+  const landing = initialParams(p.treatment)
   // Randomness belongs to the stack rather than to the step being edited: one
   // seed drives the whole thing, so the controls appear if *anything* in the
   // stack consumes randomness, not just the treatment currently selected.
@@ -201,6 +203,7 @@ export function Panel(p: Props) {
             key={spec.key}
             spec={spec}
             value={p.params[spec.key]}
+            base={landing[spec.key]}
             onChange={(v) => p.onParam(spec.key, v)}
             accent={p.overriddenKeys.has(spec.key)}
           />

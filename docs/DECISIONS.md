@@ -571,6 +571,38 @@ moved inside the main column, so the dials stay on screen while you look at 12px
 The research behind all of this is in `RESEARCH-2026-09.md`, and the explorations it came from
 are one page in the Figma file named in `STATE.md`.
 
+## A preset is a picture, and the default is one of them
+
+Two problems that turned out to be the same problem.
+
+**A selected chip and the download button were the same object** — a solid ink rectangle — so
+the loudest thing on the page was a preset rather than the thing the tool is for. Six
+alternatives were drawn: underlined, segmented, a radio dot, and pictures. Pictures won,
+because a button is a word and a preset is a picture with a word under it, and those can never
+be mistaken for one another. It is also the answer only this tool can give: the thumbnail is
+the letters actually treated at that preset, which every competitor would have to fake. The
+selected one thickens its border rather than inverting, and loses a pixel of padding so the
+row does not jump as the selection moves. Cost is one render of two glyphs per preset, keyed
+on the font and the treatment, so turning a dial does not redraw the row under the pointer.
+
+**There is no unnamed state.** Picking a treatment lands on a named preset — `defaultPreset`
+names which, otherwise the first — so one chip is always lit and the row always means
+something. This dissolved a finding rather than fixing it: thirteen of the seventeen first
+presets duplicated the treatment default exactly, which was redundancy only while the default
+was a separate nameless thing. Grit is the one that needed a real decision and now opens on
+**Sandblast**: Photocopy is a light speckle that undersells what the treatment does. Bubble,
+Bleed and Organic land on their first preset.
+
+Two functions, deliberately not one. `defaults()` is each dial's own default — the baseline a
+preset is a delta from, and what the engine, the CLI and the tests use. `initialParams()` is
+what the workbench opens on. Keeping them separate means the headless build and the recorded
+verification numbers do not move.
+
+**The consequence worth knowing:** a dial's tick, its muted-versus-marked colour and its
+double-click reset all measure from the landing preset, not from the spec default. Measured
+from the spec default they would paint every dial as changed the moment the tool opens, which
+is every time, and the signal would mean nothing.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the

@@ -11,6 +11,12 @@
  *   npx tsx scripts/style-samples.ts
  *   npx tsx scripts/style-samples.ts --text=Bounce --font=anton
  *   npx tsx scripts/style-samples.ts --only=halftone,melt
+ *   npx tsx scripts/style-samples.ts --label
+ *
+ * `--label` sets every sample in its own name — Sandblast set in Sandblast —
+ * which is the only way to see whether a preset is called the right thing.
+ * Stroke width still comes from the reference word, so a treatment's sizing is
+ * measured against one face rather than drifting with the length of the label.
  */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { parse } from '../src/engine/opentype'
@@ -42,10 +48,22 @@ const outDir = args.out ?? 'out/samples'
 
 const bytes = readFileSync(`public/fonts/${fontDir}/font.ttf`)
 const font = parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
-const shaped = shapeText(font, text)
+const labelMode = args.label === 'true'
+type Shaped = ReturnType<typeof shapeText>
+const shapeCache = new Map<string, Shaped>()
+function shapeFor(word: string): Shaped {
+  const hit = shapeCache.get(word)
+  if (hit) return hit
+  const made = shapeText(font, word)
+  shapeCache.set(word, made)
+  return made
+}
+const reference = shapeFor(text)
+// Measured once, on the reference word: sizes are percentages of the stroke,
+// so letting it drift with each label would make the presets incomparable.
 const stroke = medianStrokeWidth(
-  shaped.glyphs.map((g) => g.rings),
-  shaped.unitsPerEm * 0.1,
+  reference.glyphs.map((g) => g.rings),
+  reference.unitsPerEm * 0.1,
 )
 
 interface Row {
@@ -56,7 +74,7 @@ interface Row {
   ms: number
 }
 
-function render(treatmentId: string, apply: Treatment['apply'], params: ParamValues) {
+function render(treatmentId: string, apply: Treatment['apply'], params: ParamValues, shaped: Shaped) {
   const started = performance.now()
   let d = ''
   let contours = 0
@@ -81,18 +99,20 @@ function render(treatmentId: string, apply: Treatment['apply'], params: ParamVal
   return { d, contours, points, ms }
 }
 
-const pad = shaped.unitsPerEm * 0.12
-const sheetW = shaped.width + pad * 2
-const top = shaped.ascender + pad
-const bottom = shaped.descender - pad * 2 // melt runs below the baseline
-const sheetH = top - bottom
+// each sample gets its own box, because in label mode every one is a
+// different word and a shared viewBox would crop the long ones
 
 /**
  * The specimen itself. `currentColor` rather than a literal, so one sheet reads
  * correctly on both a light and a dark ground — the ink is whatever the page
  * says the ink is.
  */
-function svgFor(d: string): string {
+function svgFor(d: string, shaped: Shaped): string {
+  const pad = shaped.unitsPerEm * 0.12
+  const sheetW = shaped.width + pad * 2
+  const top = shaped.ascender + pad
+  const bottom = shaped.descender - pad * 2 // melt runs below the baseline
+  const sheetH = top - bottom
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${Math.round(sheetW)} ${Math.round(sheetH)}" ` +
     `preserveAspectRatio="xMidYMid meet" role="img">` +
@@ -122,8 +142,12 @@ for (const treatment of TREATMENTS) {
   ]
   for (const setting of settings) {
     const params: ParamValues = { ...base, ...setting.values }
-    const { d, contours, points, ms } = render(treatment.id, treatment.apply, params)
-    rows.push({ label: setting.label, svg: svgFor(d), contours, points, ms })
+    // in label mode the specimen is the preset's own name, and the treatment's
+    // name stands in for the unnamed default
+    const word = labelMode ? (setting.label === 'default' ? treatment.name : setting.label) : text
+    const shaped = shapeFor(word)
+    const { d, contours, points, ms } = render(treatment.id, treatment.apply, params, shaped)
+    rows.push({ label: setting.label, svg: svgFor(d, shaped), contours, points, ms })
     totalRows++
   }
 

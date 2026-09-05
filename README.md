@@ -76,13 +76,18 @@ The screens are all built on one idea: a filled letter has no darkness for a scr
 so the tone comes from the geometry instead — how deep into the stroke a mark sits, measured
 by successive insets. No raster anywhere.
 
-Treatments expose 3–4 primary dials with the rest behind a disclosure, and ship named presets
-(Photocopy, Sandblast, Rust, Marker, Balloon, Wet ink…). A dial marked `steady` is front-of-
-house but the specimen sheet's sound will not ride it — mode switches alternate rather than
-animate, and a word that strobes reads as a fault.
+Every dial a treatment has is on the page, and each ships named presets (Photocopy, Sandblast,
+Rust, Marker, Balloon, Wet ink…) shown as pictures of themselves. There is no unnamed state:
+picking a treatment lands you on one of its presets — `defaultPreset` names which, otherwise
+the first — so one is always selected and Reset has somewhere to go back to. A dial marked
+`primary` is what the specimen sheet's sound rides; one marked `steady` is front-of-house but
+the sound skips it, because mode switches alternate rather than animate and a word that
+strobes reads as a fault.
 
 `npx tsx scripts/style-samples.ts` puts every treatment at every preset on one contact sheet,
-with the contour, point and millisecond cost of each.
+with the contour, point and millisecond cost of each. Add `--label` to set each sample in
+its own name — Sandblast set in Sandblast — which is the only way to see whether a preset
+is called the right thing; `--font=anton` and `--only=halftone,melt` narrow it.
 
 ## Running it
 

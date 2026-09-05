@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { TREATMENTS, treatmentsByFamily } from './registry'
-import { defaults, FAMILY_LABEL } from './types'
+import { defaults, initialParams, landingPreset, FAMILY_LABEL } from './types'
 import { mulberry32 } from '../prng'
 import { pointCount, boundsOf, normalise } from '../paths'
 import type { Ring } from '../flatten'
@@ -111,6 +111,21 @@ describe.each(TREATMENTS.map((t) => [t.id, t] as const))('%s', (_id, t) => {
     const keys = t.params.map((s) => s.key).sort()
     for (const preset of t.presets ?? []) {
       expect(Object.keys(preset.values).sort(), `${t.id} · ${preset.name}`).toEqual(keys)
+    }
+  })
+
+  it('opens on a preset that exists', () => {
+    // there is no unnamed state: the workbench lands on a named starting point,
+    // so a defaultPreset naming a preset that has been renamed away would
+    // silently fall back and light the wrong chip
+    if (t.defaultPreset) {
+      const names = (t.presets ?? []).map((preset) => preset.name)
+      expect(names, `${t.id} · defaultPreset`).toContain(t.defaultPreset)
+    }
+    const landing = landingPreset(t)
+    if (t.presets?.length) {
+      expect(landing, `${t.id} ships presets but lands on none`).toBeDefined()
+      expect(initialParams(t)).toEqual({ ...defaults(t), ...landing!.values })
     }
   })
 

@@ -1,5 +1,12 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { TREATMENTS, getTreatment, defaults, type ParamValues, type Preset } from './engine/treatments/registry'
+import {
+  TREATMENTS,
+  getTreatment,
+  defaults,
+  initialParams,
+  type ParamValues,
+  type Preset,
+} from './engine/treatments/registry'
 import { loadLibrary, type Library } from './lib/glyphData'
 import { importFont, type Imported } from './lib/importFont'
 import { render, renderGlyphSet } from './lib/render'
@@ -87,7 +94,7 @@ function initialState(library: Library): WorkbenchState {
     seed: 1337,
     alternates: 3,
     text: FALLBACK_TEXT,
-    chain: [{ id: 'grit', params: defaults(getTreatment('grit')) }],
+    chain: [{ id: 'grit', params: initialParams(getTreatment('grit')) }],
   }
 }
 
@@ -288,6 +295,34 @@ export default function App() {
     })
   }, [library, deferredKey])
 
+  /**
+   * One picture per preset: the same two letters treated at that preset.
+   *
+   * A button is a word and a preset is a picture, which is the whole reason
+   * they can no longer be mistaken for each other. Keyed on the font and the
+   * treatment alone — the live dials must not redraw these, or every drag
+   * would rebuild the row underneath the pointer.
+   */
+  const presetThumbs = useMemo(() => {
+    if (!library || !state || !treatment?.presets) return []
+    return treatment.presets.map((preset) => {
+      try {
+        const r = render({
+          library,
+          fontId: state.fontId,
+          chain: [{ id: treatment.id, params: { ...defaults(treatment), ...preset.values } }],
+          text: 'Ag',
+          seed: 1337,
+          alternates: 1,
+        })
+        return { d: r.d, box: `0 ${-r.ascender} ${r.width} ${r.ascender - r.descender}` }
+      } catch {
+        return { d: '', box: '0 0 1 1' }
+      }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [library, state?.fontId, treatment])
+
   if (error) {
     return (
       <main className="shell">
@@ -356,7 +391,8 @@ export default function App() {
 
   const resetDials = () => {
     if (!scoped) {
-      patchStep(step, { params: defaults(treatment) })
+      // back to the named starting point, not to an unnamed baseline
+      patchStep(step, { params: initialParams(treatment) })
       return
     }
     // reset for a selection means "back to the global settings", not defaults
@@ -389,7 +425,7 @@ export default function App() {
 
   /** the last layer cannot be removed, so its control puts the dials back */
   const clearStep = (i: number) => {
-    patchStep(i, { params: defaults(getTreatment(state.chain[i].id)) })
+    patchStep(i, { params: initialParams(getTreatment(state.chain[i].id)) })
     patchOverrides((overrides) => {
       for (const o of Object.values(overrides)) o.params[i] = {}
     })
@@ -399,7 +435,7 @@ export default function App() {
     // parameters mean different things per treatment, so carrying values across
     // would land on settings nobody chose — the per-glyph deltas at this step
     // go for the same reason
-    patchStep(step, { id, params: defaults(getTreatment(id)) })
+    patchStep(step, { id, params: initialParams(getTreatment(id)) })
     patchOverrides((overrides) => {
       for (const o of Object.values(overrides)) o.params[step] = {}
     })
@@ -428,7 +464,7 @@ export default function App() {
     if (state.chain.length >= MAX_STEPS) return
     const used = new Set(state.chain.map((c) => c.id))
     const next = TREATMENTS.find((t) => !used.has(t.id)) ?? TREATMENTS[0]
-    patch({ chain: [...state.chain, { id: next.id, params: defaults(next) }] })
+    patch({ chain: [...state.chain, { id: next.id, params: initialParams(next) }] })
     setActive(state.chain.length)
   }
 
@@ -496,6 +532,7 @@ export default function App() {
         <main>
           <Presets
             presets={treatment.presets ?? []}
+            thumbs={presetThumbs}
             params={panelParams}
             onPreset={applyPreset}
           />

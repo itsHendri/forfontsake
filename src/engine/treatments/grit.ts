@@ -65,6 +65,10 @@ export const grit: Treatment = {
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.6 },
   ],
 
+  // Photocopy reads as a light speckle and undersells the treatment; Sandblast
+  // is the one that looks like what Grit is for.
+  defaultPreset: 'Sandblast',
+
   presets: [
     { name: 'Photocopy', values: { amount: 45, scale: 35, variation: 3.4, balance: 62, cluster: 20, protect: 30, roughen: 30, simplify: 0.6 } },
     { name: 'Sandblast', values: { amount: 62, scale: 18, variation: 2.2, balance: 55, cluster: 25, protect: 15, roughen: 45, simplify: 0.5 } },
