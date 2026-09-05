@@ -3,7 +3,9 @@ import {
   TREATMENTS,
   getTreatment,
   defaults,
+  hasRandomness,
   initialParams,
+  type Treatment,
   type ParamValues,
   type Preset,
 } from './engine/treatments/registry'
@@ -19,16 +21,46 @@ import {
   type Step,
 } from './lib/urlState'
 import { loadShelf, saveShelf, SHELF_LIMIT } from './lib/savedStyles'
-import { Panel, type LayerThumb } from './components/Panel'
+import { Panel } from './components/Panel'
 import { Plate } from './components/Plate'
 import { Presets } from './components/Presets'
 import { TopBar } from './components/TopBar'
+import type { Thumb } from './components/Thumb'
 import { GlyphGrid } from './components/GlyphGrid'
 import { Waterfall } from './components/Waterfall'
 import { Shelf, type Kept } from './components/Shelf'
 import { Poster } from './components/Poster'
 
 const FALLBACK_TEXT = 'Grittier letters'
+
+/** a step sitting on its treatment's landing preset, and knowing that it is */
+function landed(t: Treatment): Step {
+  const params = initialParams(t)
+  return { id: t.id, params, origin: params }
+}
+
+/**
+ * A small picture of one treatment step: a word or two put through it alone.
+ *
+ * The layer cards and the preset chips both want this, and both want the same
+ * y-flipped viewBox the rest of the app draws outlines in, so it is written
+ * once. Null when the step erases the letter or throws — a thumbnail is never
+ * worth taking the page down for.
+ */
+function thumbnail(
+  library: Library,
+  fontId: string,
+  step: Step,
+  text: string,
+  seed: number,
+): Thumb | null {
+  try {
+    const r = render({ library, fontId, chain: [step], text, seed, alternates: 1 })
+    return r.d ? { d: r.d, box: `0 ${-r.ascender} ${r.width} ${r.ascender - r.descender}` } : null
+  } catch {
+    return null
+  }
+}
 
 /**
  * Three is as deep as the stack goes.
@@ -94,7 +126,7 @@ function initialState(library: Library): WorkbenchState {
     seed: 1337,
     alternates: 3,
     text: FALLBACK_TEXT,
-    chain: [{ id: 'grit', params: initialParams(getTreatment('grit')) }],
+    chain: [landed(getTreatment('grit'))],
   }
 }
 
@@ -243,10 +275,18 @@ export default function App() {
   // The grid treats every glyph in the face, which is far more work than one
   // line — deferring it lets typing and dragging stay smooth while the grid
   // catches up a beat later.
-  const gridKey = state
-    ? { fontId: state.fontId, chain: state.chain, seed: state.seed, overrides: state.overrides }
-    : null
+  // Memoised on the state object: a fresh literal every render would give
+  // useDeferredValue a new identity each time, so selecting a layer or opening
+  // the sheet would re-run the whole glyph set over byte-identical input.
+  const gridKey = useMemo(
+    () =>
+      state
+        ? { fontId: state.fontId, chain: state.chain, seed: state.seed, overrides: state.overrides }
+        : null,
+    [state],
+  )
   const deferredKey = useDeferredValue(gridKey)
+  const deferredFontId = deferredKey?.fontId
   const glyphSet = useMemo(() => {
     if (!library || !deferredKey) return null
     try {
@@ -276,52 +316,29 @@ export default function App() {
    * deliberately left out — a layer's thumbnail describes the layer, not what
    * one selected glyph does to it.
    */
-  const layerThumbs = useMemo<(LayerThumb | null)[]>(() => {
+  const layerThumbs = useMemo(() => {
     if (!library || !deferredKey) return []
-    return deferredKey.chain.map((step) => {
-      try {
-        const r = render({
-          library,
-          fontId: deferredKey.fontId,
-          chain: [step],
-          text: 'A',
-          seed: deferredKey.seed,
-          alternates: 1,
-        })
-        return r.d ? { d: r.d, box: `0 ${-r.ascender} ${r.width} ${r.ascender - r.descender}` } : null
-      } catch {
-        return null
-      }
-    })
+    const key = deferredKey
+    return key.chain.map((step) => thumbnail(library, key.fontId, step, 'A', key.seed))
   }, [library, deferredKey])
 
   /**
    * One picture per preset: the same two letters treated at that preset.
    *
    * A button is a word and a preset is a picture, which is the whole reason
-   * they can no longer be mistaken for each other. Keyed on the font and the
-   * treatment alone — the live dials must not redraw these, or every drag
-   * would rebuild the row underneath the pointer.
+   * they can no longer be mistaken for each other. Deferred and keyed on the
+   * font and the treatment alone: the live dials must not redraw these, and a
+   * treatment with several presets is tens of milliseconds of geometry that
+   * should not stand between a click and the next paint.
    */
+  const deferredTreatmentId = useDeferredValue(treatment?.id)
   const presetThumbs = useMemo(() => {
-    if (!library || !state || !treatment?.presets) return []
-    return treatment.presets.map((preset) => {
-      try {
-        const r = render({
-          library,
-          fontId: state.fontId,
-          chain: [{ id: treatment.id, params: { ...defaults(treatment), ...preset.values } }],
-          text: 'Ag',
-          seed: 1337,
-          alternates: 1,
-        })
-        return { d: r.d, box: `0 ${-r.ascender} ${r.width} ${r.ascender - r.descender}` }
-      } catch {
-        return { d: '', box: '0 0 1 1' }
-      }
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [library, state?.fontId, treatment])
+    const t = deferredTreatmentId ? getTreatment(deferredTreatmentId) : null
+    if (!library || !deferredFontId || !t?.presets) return []
+    return t.presets.map((preset) =>
+      thumbnail(library, deferredFontId, { id: t.id, params: { ...defaults(t), ...preset.values } }, 'Ag', 1337),
+    )
+  }, [library, deferredFontId, deferredTreatmentId])
 
   if (error) {
     return (
@@ -375,7 +392,11 @@ export default function App() {
 
   const applyPreset = (preset: Preset) => {
     if (!scoped) {
-      patchStep(step, { params: { ...state.chain[step].params, ...preset.values } })
+      // over the dial defaults, not over whatever is currently set — the same
+      // composition initialParams and the preset thumbnails use, so a preset's
+      // picture and its click cannot mean different things
+      const params = { ...defaults(treatment), ...preset.values }
+      patchStep(step, { params, origin: params })
       return
     }
     patchOverrides((overrides, chainLength) => {
@@ -391,8 +412,9 @@ export default function App() {
 
   const resetDials = () => {
     if (!scoped) {
-      // back to the named starting point, not to an unnamed baseline
-      patchStep(step, { params: initialParams(treatment) })
+      // back to the named state this step is sitting on, not to an unnamed
+      // baseline and not to a preset the user never chose
+      patchStep(step, { params: state.chain[step].origin ?? initialParams(treatment) })
       return
     }
     // reset for a selection means "back to the global settings", not defaults
@@ -425,7 +447,7 @@ export default function App() {
 
   /** the last layer cannot be removed, so its control puts the dials back */
   const clearStep = (i: number) => {
-    patchStep(i, { params: initialParams(getTreatment(state.chain[i].id)) })
+    patchStep(i, landed(getTreatment(state.chain[i].id)))
     patchOverrides((overrides) => {
       for (const o of Object.values(overrides)) o.params[i] = {}
     })
@@ -435,7 +457,7 @@ export default function App() {
     // parameters mean different things per treatment, so carrying values across
     // would land on settings nobody chose — the per-glyph deltas at this step
     // go for the same reason
-    patchStep(step, { id, params: initialParams(getTreatment(id)) })
+    patchStep(step, landed(getTreatment(id)))
     patchOverrides((overrides) => {
       for (const o of Object.values(overrides)) o.params[step] = {}
     })
@@ -464,7 +486,7 @@ export default function App() {
     if (state.chain.length >= MAX_STEPS) return
     const used = new Set(state.chain.map((c) => c.id))
     const next = TREATMENTS.find((t) => !used.has(t.id)) ?? TREATMENTS[0]
-    patch({ chain: [...state.chain, { id: next.id, params: initialParams(next) }] })
+    patch({ chain: [...state.chain, landed(next)] })
     setActive(state.chain.length)
   }
 
@@ -550,7 +572,7 @@ export default function App() {
             importing={importing}
             seed={state.seed}
             alternates={state.alternates}
-            canRandomise={state.chain.some((s) => !getTreatment(s.id).deterministic)}
+            canRandomise={hasRandomness(state.chain)}
             onRandomise={() => patch({ seed: Math.floor(Math.random() * 9999) + 1 })}
             onReset={resetDials}
           />

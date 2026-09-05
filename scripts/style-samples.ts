@@ -74,7 +74,7 @@ interface Row {
   ms: number
 }
 
-function render(treatmentId: string, apply: Treatment['apply'], params: ParamValues, shaped: Shaped) {
+function render(apply: Treatment['apply'], params: ParamValues, shaped: Shaped) {
   const started = performance.now()
   let d = ''
   let contours = 0
@@ -95,7 +95,6 @@ function render(treatmentId: string, apply: Treatment['apply'], params: ParamVal
     penX = g.x
   }
   const ms = performance.now() - started
-  void treatmentId
   return { d, contours, points, ms }
 }
 
@@ -146,7 +145,7 @@ for (const treatment of TREATMENTS) {
     // name stands in for the unnamed default
     const word = labelMode ? (setting.label === 'default' ? treatment.name : setting.label) : text
     const shaped = shapeFor(word)
-    const { d, contours, points, ms } = render(treatment.id, treatment.apply, params, shaped)
+    const { d, contours, points, ms } = render(treatment.apply, params, shaped)
     rows.push({ label: setting.label, svg: svgFor(d, shaped), contours, points, ms })
     totalRows++
   }

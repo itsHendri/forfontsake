@@ -65,6 +65,19 @@ export function getTreatment(id: string): Treatment {
 export interface Step {
   id: string
   params: ParamValues
+  /**
+   * The named state this step was last set to wholesale — a preset's values,
+   * or the treatment's landing preset.
+   *
+   * A dial measures its tick, its colour and its double-click reset from here,
+   * so "you moved this" means moved from what you last chose rather than from
+   * a preset you never picked. Turning a dial deliberately leaves it alone.
+   *
+   * In memory only: `encodeState` writes `id` and `params`, so this never
+   * reaches the URL, and a shared link falls back to the landing preset —
+   * which is the honest reading of a state somebody arrived at by dragging.
+   */
+  origin?: ParamValues
 }
 
 /**
@@ -91,6 +104,17 @@ export function applyChain(rings: Ring[], chain: Step[], ctx: TreatmentContext):
     if (out.length === 0) break
   }
   return out
+}
+
+/**
+ * Whether anything in a stack consumes randomness.
+ *
+ * Gates the Randomise button, the per-glyph reroll, the cuts-per-letter dial
+ * and whether the renderer cuts alternates at all — four answers that have to
+ * agree, so they come from one place.
+ */
+export function hasRandomness(chain: Step[]): boolean {
+  return chain.some((step) => !getTreatment(step.id).deterministic)
 }
 
 /** what a stack grows a glyph by, which the advance widths have to keep up with */

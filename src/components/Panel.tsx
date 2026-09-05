@@ -1,12 +1,13 @@
 import { Dial } from './Dial'
-import { getTreatment, initialParams, type ParamValues, type Treatment } from '../engine/treatments/registry'
+import { ThumbInk, type Thumb } from './Thumb'
+import {
+  getTreatment,
+  hasRandomness,
+  initialParams,
+  type ParamValues,
+  type Treatment,
+} from '../engine/treatments/registry'
 import type { Step } from '../lib/urlState'
-
-/** one layer's picture: the letter A with only that step applied */
-export interface LayerThumb {
-  d: string
-  box: string
-}
 
 interface Props {
   /** the treatment being edited — always `chain[active]` */
@@ -18,7 +19,7 @@ interface Props {
   seed: number
   alternates: number
   /** one per step, aligned with `chain`; null while a thumbnail is unavailable */
-  thumbs: (LayerThumb | null)[]
+  thumbs: (Thumb | null)[]
   onParam: (key: string, value: number) => void
   /** a layer card's own dial — always global, never scoped to a selection */
   onLayerParam: (i: number, key: string, value: number) => void
@@ -55,12 +56,14 @@ interface Props {
  */
 export function Panel(p: Props) {
   const specs = p.treatment.params
-  // what this treatment opened on, so a dial can say whether you moved it
-  const landing = initialParams(p.treatment)
+  // The named state this step was last set to, so a dial can say whether *you*
+  // moved it. Falls back to the landing preset for a step that arrived by link
+  // or off the shelf and so never had one chosen.
+  const landing = p.chain[p.active]?.origin ?? initialParams(p.treatment)
   // Randomness belongs to the stack rather than to the step being edited: one
   // seed drives the whole thing, so the controls appear if *anything* in the
   // stack consumes randomness, not just the treatment currently selected.
-  const random = p.chain.some((step) => !getTreatment(step.id).deterministic)
+  const random = hasRandomness(p.chain)
   const stacked = p.chain.length > 1
 
   const scoped = p.scope.length > 0
@@ -117,20 +120,11 @@ export function Panel(p: Props) {
             >
               <div className="layer-head">
                 <span className="layer-thumb" aria-hidden="true">
-                  {thumb && (
-                    <svg viewBox={thumb.box} height="22" focusable="false">
-                      <g transform="scale(1,-1)">
-                        <path d={thumb.d} />
-                      </g>
-                    </svg>
-                  )}
+                  <ThumbInk thumb={thumb} height={22} />
                 </span>
-                <button
-                  type="button"
-                  className="layer-name"
-                  onClick={() => p.onSelectStep(i)}
-                  aria-pressed={on}
-                >
+                {/* the click reaches the card by bubbling; wiring it here too
+                    would select the step twice on every activation */}
+                <button type="button" className="layer-name" aria-pressed={on}>
                   {treatment.name}
                 </button>
                 {/*
@@ -180,7 +174,9 @@ export function Panel(p: Props) {
                     step={head.step}
                     value={step.params[head.key]}
                     onChange={(e) => p.onLayerParam(i, head.key, Number(e.target.value))}
-                    onDoubleClick={() => p.onLayerParam(i, head.key, head.default)}
+                    onDoubleClick={() =>
+                      p.onLayerParam(i, head.key, step.origin?.[head.key] ?? head.default)
+                    }
                   />
                   <output htmlFor={`layer-${i}-${head.key}`}>{step.params[head.key]}</output>
                 </div>

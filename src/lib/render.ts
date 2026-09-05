@@ -1,7 +1,7 @@
 import {
-  getTreatment,
   applyChain,
   chainGrowth,
+  hasRandomness,
   resolveChain,
   effectiveSeed,
   type Overrides,
@@ -126,7 +126,7 @@ export function render({
   // Cutting alternates is only worth the work if something in the stack
   // consumes randomness; a wholly deterministic stack would just draw the same
   // letter several times.
-  const varies = chain.some((s) => !getTreatment(s.id).deterministic)
+  const varies = hasRandomness(chain)
   const variants = varies ? Math.max(1, Math.round(alternates)) : 1
 
   const seen = new Map<string, number>()

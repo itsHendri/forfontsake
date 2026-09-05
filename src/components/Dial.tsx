@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { ParamSpec } from '../engine/treatments/registry'
 
 interface Props {
@@ -51,22 +51,23 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
   const defaultAt = range > 0 ? ((start - spec.min) / range) * 100 : 0
   const atDefault = value === start
 
-  // The typed value is held locally while it is being typed: committing every
-  // keystroke would fight the caret ("4" becoming 4 becoming "4") and would
-  // rebuild the whole face on the way to a two-digit number.
-  const [draft, setDraft] = useState(String(value))
-  useEffect(() => setDraft(String(value)), [value])
+  // Held locally only while it is being typed: committing every keystroke would
+  // fight the caret ("4" becoming 4 becoming "4") and would rebuild the whole
+  // face on the way to a two-digit number. `null` means "show the prop", so a
+  // value arriving from a preset or a drag needs no effect to sync it back.
+  const [draft, setDraft] = useState<string | null>(null)
 
   const commit = (raw: string) => {
+    setDraft(null)
     const n = Number(raw)
-    if (raw.trim() === '' || Number.isNaN(n)) {
-      setDraft(String(value))
-      return
-    }
-    onChange(settle(n, spec))
+    if (raw.trim() !== '' && !Number.isNaN(n)) onChange(settle(n, spec))
   }
 
-  const nudge = (dir: 1 | -1) => onChange(settle(value + dir * spec.step, spec))
+  // a nudge supersedes whatever half-typed draft is on screen
+  const nudge = (dir: 1 | -1) => {
+    setDraft(null)
+    onChange(settle(value + dir * spec.step, spec))
+  }
   const reset = () => onChange(settle(start, spec))
 
   const note = [spec.note, atDefault ? undefined : 'double-click the track to reset']
@@ -92,7 +93,7 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
             className={atDefault ? 'ctl-value is-default' : 'ctl-value'}
             type="text"
             inputMode="decimal"
-            value={draft}
+            value={draft ?? String(value)}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={(e) => commit(e.target.value)}
             onKeyDown={(e) => {
@@ -100,7 +101,7 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
                 e.preventDefault()
                 commit((e.target as HTMLInputElement).value)
               }
-              if (e.key === 'Escape') setDraft(String(value))
+              if (e.key === 'Escape') setDraft(null)
               if (e.key === 'ArrowUp') {
                 e.preventDefault()
                 nudge(1)

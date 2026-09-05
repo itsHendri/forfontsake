@@ -1,15 +1,10 @@
+import { ThumbInk, type Thumb } from './Thumb'
 import type { ParamValues, Preset } from '../engine/treatments/registry'
-
-/** one preset's picture: two letters treated at that preset */
-export interface PresetThumb {
-  d: string
-  box: string
-}
 
 interface Props {
   presets: Preset[]
   /** one per preset, aligned with `presets` */
-  thumbs: PresetThumb[]
+  thumbs: (Thumb | null)[]
   params: ParamValues
   onPreset: (preset: Preset) => void
 }
@@ -47,13 +42,7 @@ export function Presets(p: Props) {
             onClick={() => p.onPreset(preset)}
           >
             <span className="preset-ink" aria-hidden="true">
-              {thumb?.d && (
-                <svg viewBox={thumb.box} height="26" focusable="false">
-                  <g transform="scale(1,-1)">
-                    <path d={thumb.d} />
-                  </g>
-                </svg>
-              )}
+              <ThumbInk thumb={thumb} height={26} />
             </span>
             <span className="preset-name">{preset.name}</span>
           </button>

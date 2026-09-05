@@ -160,6 +160,12 @@ body {
   align-items: center;
   gap: 8px;
 }
+.export-problem {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--mark);
+}
 .topbar .export-problem {
   flex-basis: 100%;
   margin: 6px 0 0;
@@ -171,18 +177,15 @@ body {
   position: relative;
   display: inline-flex;
 }
-.tip {
+.tip,
+.ctl-note {
   position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
   z-index: 5;
-  width: max-content;
-  max-width: 300px;
-  padding: 8px 10px;
+  padding: 7px 9px;
   border-radius: 3px;
   background: var(--ink);
   color: var(--paper);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1.45;
   pointer-events: none;
   opacity: 0;
@@ -191,11 +194,19 @@ body {
     opacity 0.12s ease,
     visibility 0.12s;
 }
+.tip {
+  top: calc(100% + 8px);
+  right: 0;
+  width: max-content;
+  max-width: 300px;
+  font-size: 12px;
+  padding: 8px 10px;
+}
 .with-tip:hover .tip,
 .with-tip:focus-within .tip {
   opacity: 1;
   visibility: visible;
-  transition-delay: 0.4s;
+  transition-delay: 0.35s;
 }
 
 h1 {
@@ -752,26 +763,13 @@ h1 {
    under the dial in your hand is help. Focus-within keeps it for keyboards.
    It floats rather than taking space: shown in flow it pushed every dial below
    it down, so reading one caption jogged the whole rail — including while
-   dragging, which is exactly when you are looking at it. */
+   dragging, which is exactly when you are looking at it. Look and timing are
+   shared with the download's tooltip above; only the anchor differs. */
 .ctl-note {
-  position: absolute;
   top: 100%;
   left: 0;
   right: 0;
-  z-index: 3;
   margin: 5px 0 0;
-  padding: 7px 9px;
-  border-radius: 3px;
-  background: var(--ink);
-  font-size: 11px;
-  line-height: 1.45;
-  color: var(--paper);
-  pointer-events: none;
-  opacity: 0;
-  visibility: hidden;
-  transition:
-    opacity 0.12s ease,
-    visibility 0.12s;
 }
 .ctl:hover .ctl-note {
   opacity: 1;
@@ -891,11 +889,6 @@ select:focus-visible {
   outline-offset: 1px;
 }
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
 .chip {
   font-size: 12px;
   padding: 5px 11px;

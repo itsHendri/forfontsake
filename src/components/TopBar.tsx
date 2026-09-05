@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { buildFont, nameProblem, save, suggestName, type ExportResult } from '../lib/exportFont'
 import type { FontData } from '../lib/glyphData'
-import { getTreatment } from '../engine/treatments/registry'
+import { hasRandomness } from '../engine/treatments/registry'
 import type { Overrides, Step } from '../lib/urlState'
 
 interface Props {
@@ -65,7 +65,7 @@ export function TopBar(p: Props) {
   const problem = nameProblem(name, p.font)
   const busy = state.phase === 'building'
   // alternates only mean something if some step in the stack is random
-  const varies = p.chain.some((step) => !getTreatment(step.id).deterministic)
+  const varies = hasRandomness(p.chain)
 
   const run = async () => {
     if (problem) return
