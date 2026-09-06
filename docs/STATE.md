@@ -223,7 +223,20 @@ Things worth knowing before redesigning it:
   DECISIONS. A stray click cannot close it while sound or a recording is live, and Escape
   leaves one thing at a time. Those rules should survive whatever shape it takes.
 - The research on where this could go — Finish layers, story-size sheets, WebCodecs export,
-  what the field is doing — is in `RESEARCH-2026-09.md` under "The specimen stage".
+  what the field is doing — is in `RESEARCH-2026-09.md` under "The specimen stage", and the
+  measured look at how the field arranges a share environment is under "The share
+  environment, measured" in the same file.
+
+**Where this got to on 6 September.** The quick fixes shipped first (one Weight, no blurb, no
+stack note, an (i) on every dial, one Detail dial — see DECISIONS, "Say each thing once").
+Then seven wireframes went up as one page for Hendri to pick from: four shapes for the share
+environment (S1 Stage, S2 Toolbar, S3 Sheet layers, S4 Looks) and three for where font, style
+and presets sit on the workbench (W1 Setup row, W2 The layer owns its style, W3 Plate head).
+Recommended: S1 + W1. The page saves the pick to its own store, document `picks/layout`
+(`share`, `rail`, `notes`, `at`). Nothing in `src/` moves until that pick is read. Already
+decided regardless of the pick: format chips on the sheet (Post 4:5 · Square · Story 9:16),
+sound as modes plus Depth with the band table behind Advanced, and the sheet's state staying
+out of the URL for now.
 
 ## Design source of truth
 

@@ -308,3 +308,125 @@ real position to take, but it is further than Excalidraw goes, not a safe defaul
 4. On the last remaining layer, Delete becomes Clear.
 5. If the drawn direction is taken, rough the borders and rules only, keep the seed, and leave
    type and inputs clean.
+
+---
+
+## The share environment, measured
+
+Added 6 September, before the sheet leaves its modal. The question was how tools whose job is
+"make a post from my thing" arrange the canvas, the controls and the export — and how much of
+our rail (Finish, Sound, a per-dial band table, five exits) the field thinks belongs on screen.
+Where a site would not render headlessly (typetrials.com is an empty shell, tdbr.xyz refuses
+the fetch, OpenMosh is client-rendered) the claim rests on docs, changelogs or third-party
+write-ups and says so.
+
+### Nobody exports from a modal, and nobody picks a size in one
+
+- **Canva** ([download](https://www.canva.com/help/download-file-types/),
+  [resize](https://www.canva.com/help/resize/)) — Share is an anchored panel off the top bar;
+  inside it, Download is file type, scale, quality, transparent background, pages. Size is not
+  there: *Resize & Magic Switch* is a separate top-bar dropdown of platform presets (Instagram
+  Post, Story, YouTube thumbnail) plus custom pixels. Format is a design-time decision; download
+  is a file dialog.
+- **Adobe Express** ([change page size](https://helpx.adobe.com/lv/express/web/organize-your-designs/arrange-layers-and-pages/change-page-size.html))
+  — the same split: a *Resize* left panel with Instagram 1080×1080, 1080×1350, 1080×566, Story;
+  Download a separate top-right panel.
+- **Kapwing** ([resize](https://www.kapwing.com/tools/resize)) — *Resize Canvas* in the right
+  sidebar opens presets (16:9, 9:16, 4:5, 1:1, custom) with Fit / Fill-and-crop; Export is a
+  separate top-right button.
+- **Figma** ([export settings](https://help.figma.com/hc/en-us/articles/13402894554519-Export-formats-and-settings))
+  — export is a section of the properties sidebar, stackable rows of scale · suffix · format.
+  Size is the frame's, chosen from the frame tool's presets.
+- **Shots.so** ([shots.so](https://shots.so/)) — a full-page editor; export is a top-bar button
+  reading `1x · PNG` with a dropdown. Two fields.
+- **Ray.so** ([ray.so](https://ray.so/)) — the whole page *is* the export environment: one
+  bottom toolbar (theme, background on/off, padding chips, language), PNG / SVG / copy / share
+  URL at its end. No modal anywhere.
+- **Effect.app** ([features](https://effect.app/features)) — an export menu with a single
+  *Image / Video* switch, then fps, size, container.
+- **Unicorn Studio** ([docs](https://www.unicorn.studio/docs/getting-started/)) — an Export
+  panel with four tabs: Image, Video, Embed, Code.
+- **Jitter** ([changelog](https://jitter.video/changelog/)) — worth one line for a different
+  reason: it changed its Instagram post preset from 1:1 to 4:5.
+
+The pattern across all of them: the format is a property of the canvas, chosen with
+platform-named chips, and "export" is a two-to-four-field popover — format, scale, sometimes
+fps. Full-page editors dominate the category (Shots, Ray, Pika, Ditther); a modal appears only
+as the final file dialog, never as the room the work happens in.
+
+### What Instagram takes in 2026
+
+Feed posts accept 4:5, 1:1, 1.91:1 and — since the 2025/26 change — **3:4 (1080×1440)**
+natively, with grid thumbnails at 3:4; a 4:5 sheet shows uncropped in the feed and loses about
+7% top and bottom on the grid ([SocialBee](https://socialbee.com/blog/instagram-aspect-ratio-and-image-size/),
+[Social Media Today](https://www.socialmediatoday.com/news/instagram-adds-support-phone-camera-aspect-ratio-images/749205/)).
+Stories and Reels stay 1080×1920. The practical chip set is **Post 4:5 · Square 1:1 · Story
+9:16**, with 3:4 a candidate fourth; TypeTrials gets away with two (post, story). Keep
+1080×1350 as the default and call it what it is.
+
+### The audio-reactive tools keep the matrix off the front
+
+- **Font Gauntlet** ([Dinamo, May 2021](https://abcdinamo.com/newsletter/the-dinamo-update-issue-6-may-2021))
+  — "the higher the volume is, the higher the axis goes." One signal, one axis. The earlier
+  note here crediting it with per-axis range handles could not be verified; treat that as
+  unconfirmed.
+- **OpenMosh** ([github](https://github.com/zivavu/OpenMosh)) and Neural Frames
+  ([audio visualizer](https://www.neuralframes.com/audio-visualizer)) — the prosumer end: any
+  parameter to any band, stems to parameters. Neural Frames ships an *Autopilot* that assigns
+  the reactivity first and lets you refine after.
+- **WebLight** ([music reactive](https://www.weblight.app/effects/music-reactive)) — fixed
+  mappings behind named modes ("Disco", "Liquid Glass"). Kaleidosync — ten global sliders,
+  reactivity baked into each scene. Patatap — no controls at all.
+
+Consumer tools ship fixed or preset mappings plus one sensitivity control. A per-dial band table
+is a pro feature, and even the pro tools add an automatic mode in front of it. Ours defaulted
+to the table.
+
+### Help on a dial
+
+- NN/g, [Why So Many Info Tips Are Bad](https://www.nngroup.com/articles/info-tips-bad/) —
+  the (i) is well understood for nice-to-know information; hover on desktop, tap on touch; keep
+  it beside the control; assume most people never open it, so nothing essential goes in.
+- Carbon, [tooltip usage](https://carbondesignsystem.com/components/tooltip/usage/) — a
+  *definition tooltip* on the label where space is tight; a slider already shows its value
+  while dragging, so don't add a second thing that moves.
+- Blender's [tooltip guidelines](https://developer.blender.org/docs/features/interface/human_interface_guidelines/tooltips/)
+  and Ableton's Info View (a persistent pane describing whatever is hovered) are the two other
+  shapes: everything on hover with no icon, or one shared caption area.
+
+The value stays visible while dragging; help sits behind something you ask, and it must not
+change under the pointer.
+
+### Per-layer versus document settings
+
+- **Photoshop** — the Properties panel is context-sensitive: a layer selected shows its
+  properties; nothing selected shows Canvas, Rulers & Grids, Guides.
+- **Unicorn Studio** ([variables](https://www.unicorn.studio/docs/variables/)) — the same rule,
+  stated: scene-level variables appear when no layer is selected.
+- **Procreate** ([layer options](https://help.procreate.com/procreate/handbook/layers/layers-options))
+  — layer options on the layer, canvas settings under a different entry point (the wrench).
+- **STUDIO·ITY** ([dither](https://studio-ity.com/dither/)) — each effect layer carries its own
+  controls, opacity and blend; the source and the render are global.
+- **Ditther** ([v1.3](https://www.ditther.com/updates/v1-3/)) — *Looks* snapshot every setting
+  at once: effect, filters, background, blend, grading. One picker instead of every slider.
+
+"Nothing selected shows the document's settings" is the convention. Applied here: the sheet's
+own settings (format, layout, palette) show when no Finish or Sound card is selected; a
+selected card shows its dials beneath it.
+
+### What this suggests, ranked
+
+1. Share is a room, not a dialog — a view that replaces the workbench in the window, the sheet
+   given the height (Shots, Ray, Pika, Ditther).
+2. Format chips on the sheet — Post 4:5 · Square · Story 9:16 — not in the export (Canva,
+   Adobe Express, Kapwing).
+3. Export as a two-field popover: what · at what size (Shots' `1x · PNG`, Figma's row).
+4. Sound as named modes plus Depth, the band table behind Advanced (WebLight, Font Gauntlet,
+   Neural Frames' Autopilot).
+5. The (i) on a dial, saying the same thing every time (NN/g, Carbon). Shipped.
+6. Nothing-selected shows the sheet's settings; a selected card shows its own (Photoshop,
+   Unicorn).
+7. Looks — finish + palette + sound mode as one picture of *this* sheet — as the cheap first
+   step, with Customise behind it (Ditther).
+8. A share URL that reopens the sheet as it was (Ray.so). Nothing about the sheet is in the URL
+   today.
