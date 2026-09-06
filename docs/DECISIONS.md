@@ -707,6 +707,26 @@ which is the only arrangement where a holder can hold something dead for zero fr
 **Bloom keyed off brightness washes the sheet**, because paper is the brightest thing on it.
 A scanner's bloom is light leaking *into* the ink, so it keys off darkness instead.
 
+## The sheet outgrew its modal
+
+Not a decision yet — a problem, recorded where the next person will look for it.
+
+The specimen sheet opens as an overlay over the workbench, two columns capped at 900 px. That
+was right when it was a sheet and four buttons. It now carries a Finish picker with three
+dials, a Sound block, a per-dial binding table and five ways out, and the sheet gets whatever
+column is left: about **702 px for a 1080 × 1350 artefact**, roughly half its real size, while
+the rail measures 893 px and exactly fills its container at a 1000 px window. Fitting, not
+scrolling — so on a shorter screen the bottom clips and the downloads are what gets cut.
+
+Present mode is the cheap version of the answer and it works: rail hidden, sheet to 94vh, 846
+px. That it is so much better with the chrome gone is the argument that the chrome is in the
+wrong place, not that it should be hideable.
+
+The measurements, the constraints and the things that must survive a redesign — the Escape
+rules, the sheet being a canvas, nothing about it being in the URL — are written up in
+`STATE.md` under "The sheet wants to stop being a modal", which is where the session that
+takes this on should start.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the

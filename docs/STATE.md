@@ -79,8 +79,11 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
 
 ## Verified, and how
 
-- `npm run typecheck` · `npm run test` (76, including override URL round-trips, the poster's
-  word transform, the audio maths and the recorder's container choice) — both green.
+- `npm run typecheck` · `npm run test` (411, including override URL round-trips, the poster's
+  word transform, the layered sheet against the composed one, the word's hit-test box against
+  the transform that draws it, the sound's per-dial bindings, the audio maths, the recorder's
+  container choice, and the structural rule that keeps finishes off the path to a font file)
+  — both green.
 - `npm run verify:font` — 7 checks: size, **ots-sanitize**, fontTools, **CoreText**,
   alternates actually substitute, ligatures still form, naming + Reserved Font Names.
 - The browser export was checked by loading the result with `FontFace.load()`, which *is*
@@ -143,12 +146,24 @@ so every older invocation still means what it did.
    grow different glyphs by different amounts — the check would flag such a font. It needs to
    learn to read the override map.
 4. Sound feel is tuned by ear so far only on one machine: the Speed default (0.5), the
-   modulation depth (35% of each dial's span) and the bubble loop's mix deserve a pass on a
-   phone and real speakers.
-5. The sheet is pure SVG and has no finish layer (grain, misregistration, scanline drift
-   as pixels over the rendered sheet), and the sound gives the user no say in which dial
-   listens to which band. Both are researched and ranked in `docs/RESEARCH-2026-09.md`
-   and the "Where to look next" list in `DECISIONS.md`; a layout pass comes first.
+   Depth default (35% of a dial's span) and the bubble loop's mix deserve a pass on a phone
+   and real speakers.
+5. **The sheet is a modal, and that is now the limit on it.** It opens as an overlay over the
+   workbench, so the specimen — the artefact somebody actually leaves with — gets a column of
+   a dialog while the rail beside it has grown to Finish, Sound, per-dial bindings and the
+   exports. At 1000 px the rail is 893 px and exactly fills its container; on a shorter screen
+   the bottom clips, and the download buttons are what gets cut. This is the next piece of
+   work: see "The sheet wants to stop being a modal" below.
+6. **Recording has not been exercised since the sheet became a canvas.** The recorder now
+   captures the WebGL canvas rather than decoding SVG per frame, which is simpler and cannot
+   disagree with the screen — but headless cannot drive `MediaRecorder` meaningfully, so a
+   real take is unverified. Play the loop, record a few seconds, confirm the file plays with
+   the finish in it.
+7. **Accented characters draw nothing in the preview.** The baked glyph data carries exactly
+   70 glyphs — space, digits, basic punctuation, A–Z a–z — so typing "Café" shows a gap while
+   the character still takes its advance. Exports are unaffected: they read the real font
+   bytes and keep the full character set. Widening `PREVIEW_CHARSET` roughly doubles the
+   487 KB every visitor fetches, so this is a decision about payload rather than a task.
 
 ## Where things live
 
@@ -158,8 +173,10 @@ src/engine/extract   one font → outlines + licence; shared by the build script
 src/audio/           AudioEngine · sources (mic + bubble loop) · EnvelopeFollower ·
                      OnsetDetector · bands — FLUX's analysis stack (MIT), adapted
 src/lib/             glyphData · render · urlState · savedStyles · exportFont · importFont
-                     poster · videoRecorder · clipboard
-src/components/      Plate · ExportBar · GlyphGrid · Waterfall · Panel · Dial · Shelf · Poster
+                     poster · finish (the WebGL2 stage) · modulate (sound → dials) ·
+                     videoRecorder · clipboard
+src/components/      TopBar · Plate · Presets · GlyphGrid · Waterfall · Panel · Dial · Thumb ·
+                     Shelf · Poster (the specimen sheet, and everything on it)
 src/workers/         buildFont.worker.ts — the export *and* reading an uploaded font
 public/fonts/        7 sources + OFL.txt each; preview/ holds metrics-only subsets
 scripts/             make-glyph-data · build-font · verify-font · inline-build · figma-export
@@ -169,6 +186,44 @@ out/                 build output and scratch — gitignored, safe to delete
 
 `out/exports/` holds superseded scratch (old workbench builds, comparison SVGs). It used to
 sit in `public/`, where Vite shipped 4.4 MB of it to every visitor.
+
+## The sheet wants to stop being a modal
+
+**This is the next piece of work, and it has its own session.**
+
+The specimen sheet is the artefact somebody actually leaves with — it is the thing that gets
+posted, and it is the one part of this tool nobody else has. It currently opens as a modal
+over the workbench (`.poster-backdrop` > `.poster`, a two-column grid capped at 900 px), which
+made sense when it was a sheet and four buttons. It is now a sheet, a Finish picker with three
+dials, a Sound block, a per-dial binding table and five ways out — and the sheet itself gets
+whatever column is left.
+
+The measurements, so the next session starts from facts rather than impressions:
+
+- At a 1440 × 1000 window the rail is **893 px tall and exactly fills its container**. It is
+  not scrolling; it is fitting, and only just. On a shorter laptop the bottom clips and the
+  download buttons are what gets cut.
+- The sheet is capped at `min(78vh, 900px)`, so at that window it draws at roughly **702 px**
+  for a 1080 × 1350 artefact — about 52% of its real size. Present mode already goes to 94vh
+  and reaches 846 px, which is the clue: the sheet is better when the chrome goes away.
+- `.poster` is `max-width: 900px`, `grid-template-columns: minmax(0, 1fr) 260px`.
+
+Things worth knowing before redesigning it:
+
+- **Present mode already exists** and is the cheap version of the answer — rail hidden, sheet
+  given the window, Escape steps back one level. Whatever replaces the modal should probably
+  make that the default rather than a mode.
+- **The sheet is a WebGL canvas now**, not SVG. It scales by CSS on one axis (`width: 100%`,
+  `height: auto`) and its backing store is fixed at 1080 × 1350, so giving it more room costs
+  nothing in geometry — it is one texture upload either way.
+- **Nothing about the sheet is in the URL.** Layout, palette, seed, word placement, finish and
+  the sound bindings are all local to `Poster`. If the sheet becomes a route or a page rather
+  than an overlay, that is the moment to decide which of those deserve to be shareable.
+- **Escape and the backdrop already carry rules** — see "The sheet is a performance" in
+  DECISIONS. A stray click cannot close it while sound or a recording is live, and Escape
+  leaves one thing at a time. Those rules should survive whatever shape it takes.
+- The research on where this could go — Finish layers, story-size sheets, WebCodecs export,
+  what the field is doing — is in `RESEARCH-2026-09.md` under "The specimen stage".
 
 ## Design source of truth
 
