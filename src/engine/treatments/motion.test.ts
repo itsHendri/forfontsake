@@ -4,6 +4,7 @@ import { defaults } from './types'
 import { mulberry32 } from '../prng'
 import { pointCount } from '../paths'
 import type { Ring } from '../flatten'
+import { modulate } from '../../lib/modulate'
 import type { ParamValues, Treatment, TreatmentContext } from './types'
 
 /**
@@ -18,7 +19,8 @@ import type { ParamValues, Treatment, TreatmentContext } from './types'
  * move at all under its own primaries (a dead dial, which reads as a bug in the
  * sound rather than in the dial).
  *
- * This mirrors `modulate()` in Poster.tsx. If that changes, change this.
+ * It calls the sheet's own `modulate()` rather than a copy of it, so the thing
+ * under test is the thing that ships.
  */
 
 const ctx = (): TreatmentContext => ({
@@ -46,15 +48,7 @@ const word = (): Ring[] => [
 
 /** the sheet's modulation, at a single drive level applied to every band */
 function driven(t: Treatment, base: ParamValues, drive: number): ParamValues {
-  const out = { ...base }
-  t.params
-    .filter((s) => s.primary && !s.steady)
-    .slice(0, 4)
-    .forEach((spec) => {
-      const raw = base[spec.key] + drive * 0.35 * (spec.max - spec.min)
-      out[spec.key] = Math.min(spec.max, Math.max(spec.min, raw))
-    })
-  return out
+  return modulate([{ id: t.id, params: base }], [drive, drive, drive, drive])[0].params
 }
 
 const areaOf = (rings: Ring[]) => {

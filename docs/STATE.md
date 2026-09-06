@@ -26,7 +26,7 @@ installable font**, entirely in the browser.
 | **Per-glyph overrides** | **Done.** Select glyphs → dial deltas over the global chain, per-glyph reroll; in the URL (7th field), the shelf and the export. |
 | **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker; overrides included. |
 | Specimen sheet | Done. Instagram portrait 1080×1350, word and character set; word draggable/resizable; randomise, recolour, PNG/SVG/copy. |
-| **Sound + clip** | **Done.** Bubble loop (synthesised) or mic drives the dials; Speed dial; Record clip → MP4/WebM with audio. |
+| **Sound + clip** | **Done.** Bubble loop (synthesised) or mic drives the dials; Speed and Depth dials; **each drivable dial names the band it rides, or none**; Record clip → MP4/WebM with audio. |
 | Saved styles | Done, and kept across reloads in `localStorage`. |
 | Bring your own font | Done, from the font menu. Read in the worker, licence reported, held in memory. |
 | CLI export + verification | Done. `build:font` + `verify:font` (7 checks). |
@@ -71,8 +71,10 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
    per-glyph reroll is a nudge on the seed, never a second seed.
 6. **Sound modulates values, never the seed.** The sheet's sound mode drives primary dials
    through slow per-band envelope followers (the Speed dial scales their clock), un-snapped
-   so the geometry morphs; every frame is reproducible from its values. The audio analysis
-   is FLUX's (MIT, same author), kept in `src/audio/` with attribution.
+   so the geometry morphs; every frame is reproducible from its values. Which dial rides
+   which band is a choice — `src/lib/modulate.ts` holds the mapping, stores only the
+   overrides and derives the rest, so the default is what the sheet always did. The audio
+   analysis is FLUX's (MIT, same author), kept in `src/audio/` with attribution.
 
 ## Verified, and how
 

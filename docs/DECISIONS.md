@@ -618,48 +618,70 @@ double-click reset all measure from the landing preset, not from the spec defaul
 from the spec default they would paint every dial as changed the moment the tool opens, which
 is every time, and the signal would mean nothing.
 
+## What the sound moves is a choice, not an accident
+
+The sheet drove each step's first four primary dials in declared order — bass, mids, highs,
+level — with no say in it. On half the treatments that puts the kick on the wrong dial: Grit's
+declared order leads with Amount, which is the one you most want steady while everything else
+breathes, and a stack of three gave every layer's leading dial the same bass with no way to
+stagger them.
+
+Each drivable dial now names the band it rides, or none. Two things kept it small:
+
+**Only the overrides are stored.** The default is derived — the first four drivable dials of a
+step take the four bands in order — so opening the sheet behaves exactly as it did before, and
+the map cannot go stale when a layer is added, removed or retreated. A binding is a `Record`
+keyed by step position and dial, and a key that is absent means "whatever the default is",
+which is a different state from a key set to `null`, meaning "explicitly nothing".
+
+**Depth is one control, not one per dial.** Font Gauntlet gives every axis its own range
+handles. With up to three layers of four dials that is twelve pairs of handles in a 260px rail,
+so the swing is a single Depth slider (default 35%, the value that was hard-coded) and the band
+is per dial. If per-dial range is ever wanted, the binding map is where it goes.
+
+`modulate()` moved out of `Poster.tsx` into `src/lib/modulate.ts`, because `motion.test.ts`
+carried a hand-written copy of it under a comment reading "this mirrors modulate() in
+Poster.tsx — if that changes, change this". The test now calls the real function, which is the
+only version of that arrangement that cannot drift.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the
-specimen stage). Sizes are rough. Nothing below is started; a layout pass in a design file
-comes first for anything that touches the sheet rail or the export controls.
+specimen stage). Sizes are rough. The layout pass is done and several of these have shipped;
+what is left is below.
 
-1. **Per-dial sound binding, with range handles.** Today the sheet drives the first four
-   non-steady primary dials in declared order, and the user has no say. Font Gauntlet and
-   OpenMosh both let each control choose what it listens to and how far it may swing.
-   Medium: a `listens` field on the sheet state, `modulate()` in `Poster.tsx` reads it, a
-   per-dial control in the Sound block.
-2. **Present mode on the sheet.** Hide the rail, keep the Escape-finishes-and-saves rule
+1. **Present mode on the sheet.** Hide the rail, keep the Escape-finishes-and-saves rule
    from "The sheet is a performance". Small, and a better recording stage.
-3. **A Finish layer on the sheet** — pixels, not geometry: grain, riso misregistration,
+2. **A Finish layer on the sheet** — pixels, not geometry: grain, riso misregistration,
    scanline drift first. WebGL over the canvas the recorder already draws; Paper Shaders
    (Apache-2.0) lifted with attribution; PNG and clip pass through it, SVG and the font do
    not. Large. It is the first raster in the product, so it carries a rule and a test:
    **the `.ttf` is byte-identical with any finish on or off.**
-4. **Freeze this frame as a font.** The sheet holds the resolved dial values for every
+3. **Freeze this frame as a font.** The sheet holds the resolved dial values for every
    frame it draws, so a frame you like can go straight to `buildTreatedFont` in the worker.
    Nobody else can offer this. Small to medium.
-5. **Amount master slider** lerping source → preset, and **hover a preset to preview it**
+4. **Amount master slider** lerping source → preset, and **hover a preset to preview it**
    on the main canvas. Carried over; both nearly free because the engine is client-side and
    deterministic.
-6. **Styles view**: every preset of the current treatment as a waterfall in the page — what
+5. **Styles view**: every preset of the current treatment as a waterfall in the page — what
    `scripts/style-samples.ts` does on the CLI. Small.
-7. **WebCodecs recorder** with `MediaRecorder` as the Safari fallback, the 15 s cap lifted,
+6. **WebCodecs recorder** with `MediaRecorder` as the Safari fallback, the 15 s cap lifted,
    MP4 with the audio muxed. Medium; `src/lib/videoRecorder.ts`.
-8. **Story-size sheet** (1080×1920) as a second format; `SHEET_W/H` become a property of
+7. **Story-size sheet** (1080×1920) as a second format; `SHEET_W/H` become a property of
    the layout in `poster.ts`. Small.
-9. **Whole-window drop target** for a font, and a visible **Copy link** for the URL state.
+8. **Whole-window drop target** for a font, and a visible **Copy link** for the URL state.
    Small.
-10. **Slant and Tracking** as export-safe global dials — a shear on the outlines, a uniform
+9. **Slant and Tracking** as export-safe global dials — a shear on the outlines, a uniform
     advance change — with `verify:font` taught to accept the drift. Medium. Parked until
     the layout pass says whether they belong in the rail.
-11. **Slider craft, what is left**: drag on the label to scrub, `Shift` for fine, and tint the
+10. **Slider craft, what is left**: drag on the label to scrub, `Shift` for fine, and tint the
     label when a value is off its default (Webflow's trick, better than our tick on the track).
     The typeable value, the steppers and the dark caption shipped with the layout pass.
-12. **Tune the seventeen against each other** on the contact sheet.
+11. **Tune the seventeen against each other** on the contact sheet.
 
-Shipped from the earlier lists: the licence panel at font upload, and — with the layout pass —
-the action bar, layers as cards, every dial visible, and the size ladder's gutter.
+Shipped: the licence panel at font upload; the action bar, layers as cards, every dial visible
+and the size ladder's gutter with the layout pass; presets as pictures with one always
+selected; and per-dial sound binding.
 
 A later look at typograph.studio (AI parametric typeface generator, adjacent not
 competing) confirmed the positioning: nothing in the niche outputs specimen sheets or

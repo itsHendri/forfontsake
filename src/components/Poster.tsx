@@ -10,6 +10,17 @@ import {
 import { saveFile } from '../lib/exportFont'
 import { copyText } from '../lib/clipboard'
 import { getTreatment } from '../engine/treatments/registry'
+import {
+  BANDS,
+  BAND_LABEL,
+  DEFAULT_DEPTH,
+  bandFor,
+  bindKey,
+  drivable,
+  modulate,
+  type Band,
+  type Bindings,
+} from '../lib/modulate'
 import { AudioEngine } from '../audio/AudioEngine'
 import { EnvelopeFollower } from '../audio/EnvelopeFollower'
 import { createLoopSource, createMicSource } from '../audio/sources'
@@ -29,32 +40,6 @@ interface Props {
 }
 
 const IDENTITY: WordTransform = { dx: 0, dy: 0, scale: 1 }
-
-/**
- * The dials, ridden by the sound.
- *
- * Each step's primary dials are driven in declared order by bass (with a kick
- * on the beat), mids, highs and overall level — set point plus up to 35% of
- * the dial's span, clamped to its range. Deliberately *not* snapped to the
- * dial's step: the seed is fixed, so the geometry is a continuous function of
- * the values, and un-snapped values are what let one frame morph into the
- * next instead of clicking through increments. The seed is never touched —
- * this is pure parameter modulation, so a captured frame is exactly
- * reproducible from the values it was drawn with.
- */
-function modulate(chain: Step[], drive: number[]): Step[] {
-  return chain.map((step) => {
-    // `steady` dials are skipped: they choose which picture rather than move
-    // within one, so driving them alternates rather than animates.
-    const primary = getTreatment(step.id).params.filter((s) => s.primary && !s.steady)
-    const params = { ...step.params }
-    primary.slice(0, drive.length).forEach((spec, i) => {
-      const raw = (step.params[spec.key] ?? spec.default) + drive[i] * 0.35 * (spec.max - spec.min)
-      params[spec.key] = Math.min(spec.max, Math.max(spec.min, raw))
-    })
-    return { id: step.id, params }
-  })
-}
 
 // The geometry rebuilds as fast as the chain can afford — a light chain on a
 // short word reaches ~30fps and genuinely morphs; the heavy treatments sit
@@ -121,9 +106,24 @@ export function Poster(p: Props) {
   // run on, so low values are a slow drift and 1.5 is back to eager
   const [soundSpeed, setSoundSpeed] = useState(0.5)
   const soundSpeedRef = useRef(soundSpeed)
+  // How far a driven dial swings, as a share of its span. Tuned by ear at 0.35
+  // and kept as the default; adjustable because a heavy treatment on a short
+  // word wants less travel than a light one on a long word.
+  const [depth, setDepth] = useState(DEFAULT_DEPTH)
+  const depthRef = useRef(depth)
+  // Only the dials somebody has actually reassigned. Deriving the rest keeps
+  // the map from going stale when a layer is added, removed or retreated.
+  const [bindings, setBindings] = useState<Bindings>({})
+  const bindingsRef = useRef(bindings)
   useEffect(() => {
     soundSpeedRef.current = soundSpeed
   }, [soundSpeed])
+  useEffect(() => {
+    depthRef.current = depth
+  }, [depth])
+  useEffect(() => {
+    bindingsRef.current = bindings
+  }, [bindings])
   const engineRef = useRef<AudioEngine | null>(null)
   const rafRef = useRef<number | null>(null)
   // how long the last sheet took to build, so the tick can back off adaptively
@@ -190,7 +190,7 @@ export function Poster(p: Props) {
       // ...but rebuild the geometry at a pace the chain can afford
       if (now - lastBuild >= Math.max(tier, buildCost.current * 1.5)) {
         lastBuild = now
-        setModChain(modulate(p.chain, drive))
+        setModChain(modulate(p.chain, drive, bindingsRef.current, depthRef.current))
       }
       rafRef.current = requestAnimationFrame(loop)
     }
@@ -218,6 +218,12 @@ export function Poster(p: Props) {
   const layout = LAYOUTS[layoutIndex % LAYOUTS.length]
   // the number is the seed's, so the same sheet always carries the same one
   const number = (sheetSeed % 999) + 1
+
+  // Only worth explaining the omission when there is one: most stacks have no
+  // steady dials at all, and a note about an absence that isn't there is noise.
+  const hasSteady = p.chain.some((step) =>
+    getTreatment(step.id).params.some((spec) => spec.primary && spec.steady),
+  )
 
   // the sound rides the word sheet only — 69 glyphs re-treated at 10 Hz is
   // more than the heavy chains can afford
@@ -543,6 +549,75 @@ export function Poster(p: Props) {
                   onDoubleClick={() => setSoundSpeed(0.5)}
                 />
                 <p className="ctl-note">low is a slow drift, high is eager</p>
+              </div>
+              <div className="ctl">
+                <div className="ctl-head">
+                  <label htmlFor="sound-depth">Depth</label>
+                  <output htmlFor="sound-depth" className={depth === DEFAULT_DEPTH ? 'is-default' : undefined}>
+                    {Math.round(depth * 100)}%
+                  </output>
+                </div>
+                <input
+                  id="sound-depth"
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={depth}
+                  onChange={(e) => setDepth(Number(e.target.value))}
+                  onDoubleClick={() => setDepth(DEFAULT_DEPTH)}
+                />
+                <p className="ctl-note">how far a dial swings from where you left it</p>
+              </div>
+
+              {/*
+                Which dial listens to what. The sheet used to assign these in
+                declared order with no say in it, so whichever dial a treatment
+                happened to list first got the bass — and on half the
+                treatments that is the wrong dial to put a kick on.
+              */}
+              <div className="binds">
+                <h2>What the sound moves</h2>
+                {p.chain.map((step, i) =>
+                  drivable(step).map((spec, order) => {
+                    const id = `bind-${i}-${spec.key}`
+                    const band = bandFor(bindings, i, spec.key, order)
+                    return (
+                      <div className="bind" key={id}>
+                        <label htmlFor={id}>
+                          {spec.label}
+                          {p.chain.length > 1 && (
+                            <em> {getTreatment(step.id).name}</em>
+                          )}
+                        </label>
+                        <select
+                          id={id}
+                          value={band ?? ''}
+                          className={band ? undefined : 'is-off'}
+                          onChange={(e) =>
+                            setBindings((b) => ({
+                              ...b,
+                              [bindKey(i, spec.key)]: (e.target.value || null) as Band | null,
+                            }))
+                          }
+                        >
+                          <option value="">Nothing</option>
+                          {BANDS.map((b) => (
+                            <option key={b} value={b}>
+                              {BAND_LABEL[b]}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )
+                  }),
+                )}
+                {hasSteady && (
+                  <p className="sheet-note muted">
+                    Dials that switch between pictures rather than move within one are not
+                    listed — driven, they strobe rather than animate.
+                  </p>
+                )}
               </div>
               <div className="row">
                 <button

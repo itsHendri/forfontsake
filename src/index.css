@@ -506,6 +506,43 @@ h1 {
 .poster-side .sound {
   margin: 2px 0 8px;
 }
+
+/* Which dial listens to which band. A row per drivable dial, so a stack of
+   three is a dozen rows — hence a select rather than a segmented control,
+   which would not fit the rail and would read as a dozen little toolbars. */
+.binds {
+  margin: 14px 0 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.bind {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.bind label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* which layer the dial belongs to, shown only once a stack has more than one */
+.bind label em {
+  font-style: normal;
+  color: var(--muted);
+}
+.bind select {
+  flex: 0 0 auto;
+  width: 88px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+.bind select.is-off {
+  color: var(--muted);
+}
 .poster-side .sound button.is-live {
   color: var(--mark);
   box-shadow: inset 0 0 0 1px var(--mark);
