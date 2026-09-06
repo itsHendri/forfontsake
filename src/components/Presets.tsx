@@ -1,5 +1,5 @@
 import { ThumbInk, type Thumb } from './Thumb'
-import type { ParamValues, Preset } from '../engine/treatments/registry'
+import { presetMatches, type ParamValues, type Preset } from '../engine/treatments/registry'
 
 interface Props {
   presets: Preset[]
@@ -7,11 +7,6 @@ interface Props {
   thumbs: (Thumb | null)[]
   params: ParamValues
   onPreset: (preset: Preset) => void
-}
-
-/** a preset is only "on" while the dials still match it exactly */
-function matches(preset: Preset, params: ParamValues) {
-  return Object.keys(preset.values).every((k) => params[k] === preset.values[k])
 }
 
 /**
@@ -31,7 +26,7 @@ export function Presets(p: Props) {
   return (
     <div className="presets" role="group" aria-label="Presets">
       {p.presets.map((preset, i) => {
-        const on = matches(preset, p.params)
+        const on = presetMatches(preset, p.params)
         const thumb = p.thumbs[i]
         return (
           <button

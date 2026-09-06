@@ -28,7 +28,10 @@ export const soak: Treatment = {
     { key: 'swell', label: 'Swell', min: 0, max: 120, step: 1, default: 14, note: 'ink taken on, as % of stroke', primary: true },
     { key: 'melt', label: 'Melt', min: 0, max: 160, step: 1, default: 55, note: 'how far the corners go', primary: true },
     { key: 'counters', label: 'Keep counters', min: 0, max: 100, step: 1, default: 65, note: 'how much of each hole survives', primary: true },
-    { key: 'squeeze', label: 'Squeeze', min: 0, max: 100, step: 1, default: 60, note: 'how hard the ink presses in on the holes', primary: true },
+    // "Press", not "Squeeze": Bubble's counter guard is also a squeeze under
+    // the hood, and two dials wearing near-identical names in a stack of the
+    // two read as one control shown twice
+    { key: 'squeeze', label: 'Press', min: 0, max: 100, step: 1, default: 60, note: 'how hard the ink presses in on the holes', primary: true },
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.5 },
   ],
 

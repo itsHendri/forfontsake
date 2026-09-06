@@ -440,9 +440,30 @@ export default function App() {
     })
   }
 
-  /** a layer card's own dial — global by definition, never scoped */
-  const setLayerParam = (i: number, key: string, value: number) => {
-    patchStep(i, { params: { ...state.chain[i].params, [key]: value } })
+  /**
+   * Detail: one dial over the whole stack.
+   *
+   * `simplify` stays a parameter of every step — in the URL, on the shelf and
+   * in the CLI — so nothing about the state changes shape; the dial writes the
+   * same value into all of them. Scoped, it writes the delta into every
+   * selected glyph at every step, the way a single dial does at one step.
+   */
+  const setSimplify = (value: number) => {
+    if (!scoped) {
+      patch({
+        chain: state.chain.map((s) => ({ ...s, params: { ...s.params, simplify: value } })),
+      })
+      return
+    }
+    patchOverrides((overrides, chainLength) => {
+      for (const ch of scopeChars) {
+        const o = overrideFor(overrides, ch, chainLength)
+        state.chain.forEach((s, i) => {
+          if (s.params.simplify === value) delete o.params[i].simplify
+          else o.params[i].simplify = value
+        })
+      }
+    })
   }
 
   /** the last layer cannot be removed, so its control puts the dials back */
@@ -615,7 +636,7 @@ export default function App() {
           alternates={state.alternates}
           thumbs={layerThumbs}
           onParam={setParam}
-          onLayerParam={setLayerParam}
+          onSimplify={setSimplify}
           onSelectStep={setActive}
           onAddStep={addStep}
           onRemoveStep={removeStep}

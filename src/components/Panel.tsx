@@ -4,6 +4,7 @@ import {
   getTreatment,
   hasRandomness,
   initialParams,
+  STACK_WIDE_KEYS,
   type ParamValues,
   type Treatment,
 } from '../engine/treatments/registry'
@@ -21,8 +22,8 @@ interface Props {
   /** one per step, aligned with `chain`; null while a thumbnail is unavailable */
   thumbs: (Thumb | null)[]
   onParam: (key: string, value: number) => void
-  /** a layer card's own dial — always global, never scoped to a selection */
-  onLayerParam: (i: number, key: string, value: number) => void
+  /** the one dial that runs over the whole stack — see Detail below */
+  onSimplify: (value: number) => void
   onSelectStep: (i: number) => void
   onAddStep: () => void
   onRemoveStep: (i: number) => void
@@ -45,17 +46,21 @@ interface Props {
  * The rail: what is stacked on the letters, and every dial that shapes it.
  *
  * Layers are cards rather than tabs because a stack is a list of things, not a
- * set of modes — and because each card can carry its own picture and its own
- * headline dial, which is the tweak people reach for most and the one that
- * should not need a trip anywhere. The picture is the treated letter itself,
- * which is a thumbnail most tools would have to fake.
+ * set of modes — and because each card can carry its own picture, the treated
+ * letter itself, which is a thumbnail most tools would have to fake. The card
+ * used to carry the layer's headline dial as well; it went, because the same
+ * dial sat first in the group directly beneath it and two sliders saying one
+ * thing read as a fault.
  *
  * There are no disclosures. Every dial the treatment has is on the page: eight
  * sliders in a column is not a wall, and hiding half of them behind "More"
  * only teaches people that the tool has parts it would rather they left alone.
+ * The one exception is Simplify, which every treatment carries with the same
+ * meaning — that is one dial over the stack (Detail), not one per layer.
  */
 export function Panel(p: Props) {
-  const specs = p.treatment.params
+  const specs = p.treatment.params.filter((s) => !STACK_WIDE_KEYS.has(s.key))
+  const detail = p.treatment.params.find((s) => s.key === 'simplify')
   // The named state this step was last set to, so a dial can say whether *you*
   // moved it. Falls back to the landing preset for a step that arrived by link
   // or off the shelf and so never had one chosen.
@@ -109,7 +114,6 @@ export function Panel(p: Props) {
         <h2>Layers</h2>
         {p.chain.map((step, i) => {
           const treatment = getTreatment(step.id)
-          const head = treatment.params.find((s) => s.primary)
           const thumb = p.thumbs[i]
           const on = i === p.active
           return (
@@ -159,28 +163,6 @@ export function Panel(p: Props) {
                   </button>
                 )}
               </div>
-              {/*
-                Scoped editing is about glyphs, so the card's global dial would
-                be answering a different question than the panel below it.
-              */}
-              {head && !scoped && (
-                <div className="layer-dial" onClick={(e) => e.stopPropagation()}>
-                  <label htmlFor={`layer-${i}-${head.key}`}>{head.label}</label>
-                  <input
-                    id={`layer-${i}-${head.key}`}
-                    type="range"
-                    min={head.min}
-                    max={head.max}
-                    step={head.step}
-                    value={step.params[head.key]}
-                    onChange={(e) => p.onLayerParam(i, head.key, Number(e.target.value))}
-                    onDoubleClick={() =>
-                      p.onLayerParam(i, head.key, step.origin?.[head.key] ?? head.default)
-                    }
-                  />
-                  <output htmlFor={`layer-${i}-${head.key}`}>{step.params[head.key]}</output>
-                </div>
-              )}
             </div>
           )
         })}
@@ -189,7 +171,6 @@ export function Panel(p: Props) {
             + Add layer
           </button>
         )}
-        {stacked && <p className="note">Applied top to bottom — each one works on what the last one left.</p>}
       </div>
 
       <div className="group settings">
@@ -234,6 +215,29 @@ export function Panel(p: Props) {
             }}
             value={p.seed}
             onChange={p.onSeed}
+          />
+        </div>
+      )}
+
+      {/*
+        Detail is Simplify, once. Every treatment carries a simplify dial with
+        the same meaning, so a stack of three showed it three times over. The
+        state keeps it per step — the URL, the shelf and the CLI are untouched —
+        and this dial writes the same value into all of them.
+      */}
+      {detail && (
+        <div className="group output">
+          <h2>Output</h2>
+          <Dial
+            spec={{
+              ...detail,
+              label: 'Detail',
+              note: 'how much of the outline survives — low keeps every point, high is smoother and lighter',
+            }}
+            value={p.params.simplify}
+            base={landing.simplify}
+            onChange={p.onSimplify}
+            accent={p.overriddenKeys.has('simplify')}
           />
         </div>
       )}

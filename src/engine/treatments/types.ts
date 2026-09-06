@@ -68,6 +68,25 @@ export interface Preset {
 }
 
 /**
+ * Dials the workbench shows once for the whole stack rather than once per
+ * layer. Every treatment carries `simplify` with the same meaning, so the rail
+ * offers it as a single Detail dial that writes into every step — the state
+ * still holds it per step, so the URL, the shelf and the CLI see nothing new.
+ */
+export const STACK_WIDE_KEYS: ReadonlySet<string> = new Set(['simplify'])
+
+/**
+ * A preset is "on" while the dials still match it exactly — except the
+ * stack-wide ones, which one Detail dial moves on every layer at once and
+ * which must not un-light a chip whose picture still describes the letters.
+ */
+export function presetMatches(preset: Preset, params: ParamValues): boolean {
+  return Object.keys(preset.values).every(
+    (k) => STACK_WIDE_KEYS.has(k) || params[k] === preset.values[k],
+  )
+}
+
+/**
  * What kind of thing a treatment does to a letter.
  *
  * Seventeen names in one list is a wall; grouped, the picker answers "what

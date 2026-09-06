@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { TREATMENTS, treatmentsByFamily } from './registry'
-import { defaults, initialParams, landingPreset, FAMILY_LABEL } from './types'
+import { defaults, initialParams, landingPreset, presetMatches, FAMILY_LABEL, STACK_WIDE_KEYS } from './types'
 import { mulberry32 } from '../prng'
 import { pointCount, boundsOf, normalise } from '../paths'
 import type { Ring } from '../flatten'
@@ -164,5 +164,46 @@ describe.each(TREATMENTS.map((t) => [t.id, t] as const))('%s', (_id, t) => {
     // free to run below the baseline the way a descender does
     expect((before.minX - after.minX) / 100).toBeLessThan(promised + slack)
     expect((after.maxX - before.maxX) / 100).toBeLessThan(promised + slack)
+  })
+})
+
+describe('one Detail dial over the stack', () => {
+  // The workbench shows simplify once for the whole stack. A preset chip must
+  // stay lit when that dial moves, or every Detail change un-lights whatever
+  // preset the layer is sitting on while its picture still describes the letters.
+  it('a preset stays matched when only a stack-wide dial has moved', () => {
+    for (const t of TREATMENTS) {
+      for (const preset of t.presets ?? []) {
+        const params = { ...defaults(t), ...preset.values }
+        expect(presetMatches(preset, params), `${t.id} · ${preset.name}`).toBe(true)
+        for (const key of STACK_WIDE_KEYS) {
+          const moved = { ...params, [key]: params[key] + 1 }
+          expect(presetMatches(preset, moved), `${t.id} · ${preset.name} · ${key}`).toBe(true)
+        }
+      }
+    }
+  })
+
+  it('a preset un-matches when any other dial has moved', () => {
+    for (const t of TREATMENTS) {
+      for (const preset of t.presets ?? []) {
+        const params = { ...defaults(t), ...preset.values }
+        for (const key of Object.keys(preset.values)) {
+          if (STACK_WIDE_KEYS.has(key)) continue
+          const moved = { ...params, [key]: params[key] + 1 }
+          expect(presetMatches(preset, moved), `${t.id} · ${preset.name} · ${key}`).toBe(false)
+        }
+      }
+    }
+  })
+
+  it('every treatment carries the stack-wide dials', () => {
+    // the Output group reads the dial off the active step; a treatment without
+    // it would leave the group blank on that layer
+    for (const t of TREATMENTS) {
+      for (const key of STACK_WIDE_KEYS) {
+        expect(t.params.map((s) => s.key), t.id).toContain(key)
+      }
+    }
   })
 })

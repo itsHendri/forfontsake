@@ -173,15 +173,15 @@ export function Plate(p: Props) {
           {groupTreatments(p.treatments).map((g) => (
             <optgroup key={g.label} label={g.label}>
               {g.items.map((t) => (
-                <option key={t.id} value={t.id}>
+                // the blurb rides the option as hover help; as a line beside
+                // the picker it described what the letters already showed
+                <option key={t.id} value={t.id} title={t.blurb}>
                   {t.name}
                 </option>
               ))}
             </optgroup>
           ))}
         </select>
-
-        <p className="plate-note">{p.treatment.blurb}</p>
       </div>
 
       <div className="plate-type" ref={boxRef}>

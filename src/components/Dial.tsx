@@ -70,14 +70,31 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
   }
   const reset = () => onChange(settle(start, spec))
 
-  const note = [spec.note, atDefault ? undefined : 'double-click the track to reset']
-    .filter(Boolean)
-    .join(' · ')
+  // What the tip says depends on the spec and the landing value only — never on
+  // the value in hand. A caption that grew a "double-click to reset" clause the
+  // moment the value moved changed under the pointer mid-drag and read as a
+  // glitch; now it sits behind an (i) and says the same thing every time.
+  const resetTo = Number(settle(start, spec).toFixed(decimals(spec.step)))
+  const note = spec.note
+    ? `${spec.note[0].toUpperCase()}${spec.note.slice(1)}. Double-click the track to reset to ${resetTo}.`
+    : `Double-click the track to reset to ${resetTo}.`
 
   return (
     <div className={accent ? 'ctl is-override' : 'ctl'}>
       <div className="ctl-head">
-        <label htmlFor={id}>{spec.label}</label>
+        <span className="ctl-label">
+          <label htmlFor={id}>{spec.label}</label>
+          {/* help you ask for, not help that follows the pointer: the note is
+              nice-to-know, so it lives behind the icon and never in the flow */}
+          <span className="with-tip ctl-info">
+            <button type="button" className="info-btn" aria-label={`About ${spec.label.toLowerCase()}`}>
+              i
+            </button>
+            <span className="tip" role="tooltip" id={noteId}>
+              {note}
+            </span>
+          </span>
+        </span>
         <div className="stepper">
           <button
             type="button"
@@ -138,14 +155,9 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
           value={value}
           onChange={(e) => onChange(Number(e.target.value))}
           onDoubleClick={reset}
-          aria-describedby={note ? noteId : undefined}
+          aria-describedby={noteId}
         />
       </div>
-      {note && (
-        <p className="ctl-note" id={noteId}>
-          {note}
-        </p>
-      )}
     </div>
   )
 }

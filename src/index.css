@@ -309,12 +309,6 @@ h1 {
   padding: 5px 9px;
   font-size: 13px;
 }
-.plate-note {
-  margin: 0 0 0 auto;
-  font-size: 12px;
-  color: var(--muted);
-  text-align: right;
-}
 .plate-foot {
   display: flex;
   align-items: baseline;
@@ -825,6 +819,41 @@ h1 {
   font-size: 14px;
   font-weight: 500;
 }
+.ctl-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+/* Help you ask for. The note used to float under the dial in your hand and
+   changed wording as the value moved; now it is a small (i) that speaks only
+   when hovered or focused, and says the same thing every time. */
+.info-btn {
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 50%;
+  cursor: help;
+}
+.info-btn:hover,
+.info-btn:focus-visible {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+.ctl-info .tip {
+  left: 0;
+  right: auto;
+  max-width: 240px;
+}
 .ctl-head output {
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 12px;
@@ -1087,29 +1116,6 @@ select:focus-visible {
   color: var(--mark);
   border-color: var(--mark);
 }
-.layer-dial {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.layer-dial label {
-  flex: none;
-  font-size: 12px;
-  color: var(--muted);
-}
-.layer-dial input[type='range'] {
-  flex: 1 1 auto;
-  height: 14px;
-}
-.layer-dial output {
-  flex: none;
-  min-width: 3ch;
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 11px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
 .add-layer {
   width: 100%;
   padding: 8px;
@@ -1184,11 +1190,6 @@ select:focus-visible {
   }
   .panel {
     position: static;
-  }
-  .plate-note {
-    margin-left: 0;
-    text-align: left;
-    flex-basis: 100%;
   }
 }
 @media (prefers-reduced-motion: reduce) {

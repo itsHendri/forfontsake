@@ -727,6 +727,41 @@ rules, the sheet being a canvas, nothing about it being in the URL — are writt
 `STATE.md` under "The sheet wants to stop being a modal", which is where the session that
 takes this on should start.
 
+## Say each thing once: the rail after the second look
+
+A session's use of the layout pass turned up four things that were said twice or said
+unasked, all in the rail and the plate. Fixed together, September 2026.
+
+**The layer card lost its dial.** It carried the layer's headline dial as a shortcut, and the
+same dial sat first in the settings group directly beneath it — Bubble showed Weight twice
+within 60 px. A shortcut to something already in view is not a shortcut. The card is the
+thumbnail, the name and the remove control now; the dials are the group under it.
+
+**The blurb and the stack note went.** "Fattened and rounded, the way a marker nib turns a
+corner" described what the letters beside it already showed, and "Applied top to bottom — each
+one works on what the last one left" explained an order the cards' own order shows. The blurb
+survives as the option's hover title; the note is gone.
+
+**Help lives behind an (i), and never moves.** The caption under a dial only ever showed on
+hover, but hover is where your pointer is while dragging, and the caption grew a "double-click
+the track to reset" clause the moment the value left the preset — so the text changed under the
+hand mid-drag and read as a glitch. Now each dial has a small (i) beside its label; hover or
+focus it and the tip says the note and the reset value, and says the same thing every time
+because it depends on the spec and the landing value, not on the value in hand. NN/g's rule
+holds: the tip is nice-to-know, never an instruction the dial needs. The value stays visible
+while dragging, which is the help that matters then.
+
+**Simplify is one dial, and it is called Detail.** All seventeen treatments carry `simplify`
+with the same meaning, so a stack of three offered it three times. The rail now shows it once,
+in an Output group, and the dial writes the same value into every layer. Nothing about the
+state moved: `simplify` stays a parameter of each step in the URL, on the shelf and in the CLI
+(`STACK_WIDE_KEYS` in `types.ts` names the set). A preset chip judges itself on every dial
+*except* those — `presetMatches` — because otherwise every Detail change un-lit whatever preset
+the layer was sitting on while its picture still described the letters. Keep counters stays
+per layer: it appears on three treatments under different keys with different mechanics, and
+Soak's second one — `squeeze`, a press on the holes — was relabelled **Press** so that no two
+dials in a Bubble + Soak stack wear the same name.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the
