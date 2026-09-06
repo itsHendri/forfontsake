@@ -463,6 +463,46 @@ h1 {
      border to sit on the panel without a second frame around it */
   box-shadow: 0 2px 18px color-mix(in srgb, var(--ink) 28%, transparent);
 }
+/* Present mode: the rail goes, the sheet takes the window, and the ground
+   darkens so nothing competes with the letters. Nothing about the export
+   changes — the recorder draws the sheet at its own 1080×1350 either way — so
+   this is for looking at, and for pointing a camera at. */
+.poster-backdrop.is-presenting {
+  padding: 0;
+  background: color-mix(in srgb, var(--ink) 92%, transparent);
+}
+.poster.is-presenting {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: none;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  overflow: visible;
+}
+.poster.is-presenting .poster-side {
+  display: none;
+}
+.poster.is-presenting .poster-sheet svg {
+  max-height: 94vh;
+}
+.present-bar {
+  position: fixed;
+  left: 20px;
+  bottom: 18px;
+  z-index: 21;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* the ground here is ink, not paper, so the caption has to invert with it —
+   `muted` on a 92% ink backdrop is about 2.5:1 and unreadable */
+.present-bar p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--paper);
+  opacity: 0.72;
+}
+
 /* the outgoing sheet, fading off the top of the incoming one — what turns a
    10 Hz geometry rebuild into a morph instead of a flick-book */
 .sheet-ghost {

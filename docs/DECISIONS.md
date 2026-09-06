@@ -503,6 +503,25 @@ front-of-house dials, presets carrying every key, ink left on a stem and a count
 period, and a `growth()` that does not under-promise. A new treatment gets all of it the
 moment it is registered.
 
+### Present mode, and Escape leaving one thing at a time
+
+The rail goes, the sheet takes the window, and the ground darkens. It changes nothing about
+what comes out — the recorder draws the sheet at its own 1080×1350 either way — so this is for
+looking at, and for pointing a camera at.
+
+Two rules make it safe to be in. A stray click on the backdrop already could not close the
+sheet while sound or a recording was live; presenting joins that list, because it is a
+performance too. And **Escape leaves one thing at a time**: from a performance it returns the
+rail rather than throwing away the sheet and whatever was playing, and a second press closes
+as it always did. There is a visible way back as well, since the rail's own Close is hidden —
+a mode you can only leave by guessing at a key is a trap.
+
+The recording control follows into the bar when a take is running. The rail is hidden, so a
+countdown with no way to stop it would be the same trap in a different shape.
+
+The caption there is set in `paper`, not `muted`: the ground in this one mode is ink, and
+`muted` on it measures about 2.5:1.
+
 ## Dials the sound may not ride
 
 The specimen sheet drives each step's primary dials from audio, which quietly assumes a dial
@@ -650,38 +669,36 @@ Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field,
 specimen stage). Sizes are rough. The layout pass is done and several of these have shipped;
 what is left is below.
 
-1. **Present mode on the sheet.** Hide the rail, keep the Escape-finishes-and-saves rule
-   from "The sheet is a performance". Small, and a better recording stage.
-2. **A Finish layer on the sheet** — pixels, not geometry: grain, riso misregistration,
+1. **A Finish layer on the sheet** — pixels, not geometry: grain, riso misregistration,
    scanline drift first. WebGL over the canvas the recorder already draws; Paper Shaders
    (Apache-2.0) lifted with attribution; PNG and clip pass through it, SVG and the font do
    not. Large. It is the first raster in the product, so it carries a rule and a test:
    **the `.ttf` is byte-identical with any finish on or off.**
-3. **Freeze this frame as a font.** The sheet holds the resolved dial values for every
+2. **Freeze this frame as a font.** The sheet holds the resolved dial values for every
    frame it draws, so a frame you like can go straight to `buildTreatedFont` in the worker.
    Nobody else can offer this. Small to medium.
-4. **Amount master slider** lerping source → preset, and **hover a preset to preview it**
+3. **Amount master slider** lerping source → preset, and **hover a preset to preview it**
    on the main canvas. Carried over; both nearly free because the engine is client-side and
    deterministic.
-5. **Styles view**: every preset of the current treatment as a waterfall in the page — what
+4. **Styles view**: every preset of the current treatment as a waterfall in the page — what
    `scripts/style-samples.ts` does on the CLI. Small.
-6. **WebCodecs recorder** with `MediaRecorder` as the Safari fallback, the 15 s cap lifted,
+5. **WebCodecs recorder** with `MediaRecorder` as the Safari fallback, the 15 s cap lifted,
    MP4 with the audio muxed. Medium; `src/lib/videoRecorder.ts`.
-7. **Story-size sheet** (1080×1920) as a second format; `SHEET_W/H` become a property of
+6. **Story-size sheet** (1080×1920) as a second format; `SHEET_W/H` become a property of
    the layout in `poster.ts`. Small.
-8. **Whole-window drop target** for a font, and a visible **Copy link** for the URL state.
+7. **Whole-window drop target** for a font, and a visible **Copy link** for the URL state.
    Small.
-9. **Slant and Tracking** as export-safe global dials — a shear on the outlines, a uniform
+8. **Slant and Tracking** as export-safe global dials — a shear on the outlines, a uniform
     advance change — with `verify:font` taught to accept the drift. Medium. Parked until
     the layout pass says whether they belong in the rail.
-10. **Slider craft, what is left**: drag on the label to scrub, `Shift` for fine, and tint the
+9. **Slider craft, what is left**: drag on the label to scrub, `Shift` for fine, and tint the
     label when a value is off its default (Webflow's trick, better than our tick on the track).
     The typeable value, the steppers and the dark caption shipped with the layout pass.
-11. **Tune the seventeen against each other** on the contact sheet.
+10. **Tune the seventeen against each other** on the contact sheet.
 
 Shipped: the licence panel at font upload; the action bar, layers as cards, every dial visible
 and the size ladder's gutter with the layout pass; presets as pictures with one always
-selected; and per-dial sound binding.
+selected; per-dial sound binding; and Present mode.
 
 A later look at typograph.studio (AI parametric typeface generator, adjacent not
 competing) confirmed the positioning: nothing in the niche outputs specimen sheets or

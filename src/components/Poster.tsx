@@ -129,13 +129,28 @@ export function Poster(p: Props) {
   // how long the last sheet took to build, so the tick can back off adaptively
   const buildCost = useRef(0)
 
+  // The rail hidden and the sheet given the whole window: for looking at, and
+  // for pointing a camera at. It changes nothing about what gets exported —
+  // the recorder draws the sheet at its own 1080×1350 either way.
+  const [presenting, setPresenting] = useState(false)
+
   // Closing must never discard work: a take in flight is finished and saved
   // on the way out, and the backdrop stops being a close target while sound
   // or recording is live — a stray click outside the sheet must not kill a
-  // performance. Close and Escape always work.
+  // performance. Escape always gets you out, but out of one thing at a time:
+  // from a performance it returns the rail rather than throwing away the sheet
+  // and whatever was playing.
   const closeRef = useRef<() => void>(p.onClose)
+  const presentingRef = useRef(presenting)
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && closeRef.current()
+    presentingRef.current = presenting
+  }, [presenting])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (presentingRef.current) setPresenting(false)
+      else closeRef.current()
+    }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
@@ -419,14 +434,15 @@ export function Poster(p: Props) {
 
   return (
     <div
-      className="poster-backdrop"
+      className={presenting ? 'poster-backdrop is-presenting' : 'poster-backdrop'}
       onClick={() => {
-        if (!soundSource && !recorderRef.current) p.onClose()
+        // presenting is a performance too — leaving it is deliberate or not at all
+        if (!presenting && !soundSource && !recorderRef.current) p.onClose()
       }}
       role="presentation"
     >
       <div
-        className="poster"
+        className={presenting ? 'poster is-presenting' : 'poster'}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
@@ -455,6 +471,22 @@ export function Poster(p: Props) {
           )}
         </div>
 
+        {presenting && (
+          <div className="present-bar">
+            <button type="button" onClick={() => setPresenting(false)}>
+              Stop presenting
+            </button>
+            {/* the rail is hidden, and a take running with no way to stop it
+                and no countdown would be a trap */}
+            {recording && (
+              <button type="button" className="is-live" onClick={() => void finishRecording()}>
+                Stop · {recSeconds}s
+              </button>
+            )}
+            <p className="muted">Escape returns the controls.</p>
+          </div>
+        )}
+
         <div className="poster-side">
           <h2>Specimen No. {String(number).padStart(3, '0')}</h2>
 
@@ -480,6 +512,9 @@ export function Poster(p: Props) {
             </button>
             <button type="button" onClick={() => setPaletteIndex((i) => i + 1)}>
               Recolour
+            </button>
+            <button type="button" onClick={() => setPresenting(true)} title="Hide everything but the sheet">
+              Present
             </button>
           </div>
 
