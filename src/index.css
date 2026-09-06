@@ -482,7 +482,7 @@ h1 {
 .poster.is-presenting .poster-side {
   display: none;
 }
-.poster.is-presenting .poster-sheet svg {
+.poster.is-presenting .poster-sheet canvas {
   max-height: 94vh;
 }
 .present-bar {
@@ -503,34 +503,32 @@ h1 {
   opacity: 0.72;
 }
 
-/* the outgoing sheet, fading off the top of the incoming one — what turns a
-   10 Hz geometry rebuild into a morph instead of a flick-book */
-.sheet-ghost {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  animation: sheet-ghost-fade 350ms linear forwards;
-}
-@keyframes sheet-ghost-fade {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-.poster-sheet svg {
+/* The sheet is a canvas: the cross-fade between rebuilds lives in the shader
+   now, so there is no second copy of the sheet in the DOM to fade over. */
+.poster-sheet canvas {
   display: block;
   width: 100%;
   height: auto;
   max-height: min(78vh, 900px);
-}
-.poster-sheet [data-part='word'] {
-  cursor: grab;
-  /* only the word refuses touch scrolling — a swipe on the paper scrolls the
-     overlay, a swipe on the word drags it */
+  /* the word is found by hit-testing the box the sheet reports, since a canvas
+     has no element to point at — see onWord in Poster.tsx */
   touch-action: none;
 }
+.sheet-live {
+  display: block;
+}
+
+/* A finish is pixels over the rendered sheet, so it sits with the palette and
+   the layout — things that belong to the sheet rather than to the font. */
+.finish {
+  margin: 14px 0 4px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+}
+.finish .ctl {
+  margin-top: 10px;
+}
+
 .word-place {
   margin-bottom: 8px;
 }

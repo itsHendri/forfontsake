@@ -26,6 +26,7 @@ installable font**, entirely in the browser.
 | **Per-glyph overrides** | **Done.** Select glyphs → dial deltas over the global chain, per-glyph reroll; in the URL (7th field), the shelf and the export. |
 | **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker; overrides included. |
 | Specimen sheet | Done. Instagram portrait 1080×1350, word and character set; word draggable/resizable; randomise, recolour, PNG/SVG/copy. |
+| **Finishes** | **Done.** The sheet renders through WebGL2: grain, riso misregistration and a scanner losing sync, over the rendered page. Pixels, never geometry — a structural test keeps finishes off the path from a chain to a font file, and the SVG download stays letterforms only. |
 | **Sound + clip** | **Done.** Bubble loop (synthesised) or mic drives the dials; Speed and Depth dials; **each drivable dial names the band it rides, or none**; Present mode hides the rail and gives the sheet the window; Record clip → MP4/WebM with audio. |
 | Saved styles | Done, and kept across reloads in `localStorage`. |
 | Bring your own font | Done, from the font menu. Read in the worker, licence reported, held in memory. |

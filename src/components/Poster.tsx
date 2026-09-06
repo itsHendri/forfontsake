@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildPoster,
+  buildPosterLayers,
   LAYOUTS,
   POSTER_PALETTES,
   SHEET_W,
@@ -25,6 +26,13 @@ import { AudioEngine } from '../audio/AudioEngine'
 import { EnvelopeFollower } from '../audio/EnvelopeFollower'
 import { createLoopSource, createMicSource } from '../audio/sources'
 import { startSheetRecorder, type SheetRecorder } from '../lib/videoRecorder'
+import {
+  FINISHES,
+  createFinishView,
+  finishDefaults,
+  getFinish,
+  type FinishView,
+} from '../lib/finish'
 import type { AudioFrame } from '../audio/frame'
 import type { FontData } from '../lib/glyphData'
 import type { Overrides, Step } from '../lib/urlState'
@@ -133,6 +141,11 @@ export function Poster(p: Props) {
   // for pointing a camera at. It changes nothing about what gets exported —
   // the recorder draws the sheet at its own 1080×1350 either way.
   const [presenting, setPresenting] = useState(false)
+  // The finish belongs to the sheet, not to the font: it is pixels over the
+  // rendered page and never reaches the outlines, so it lives here with the
+  // palette and the layout rather than in the workbench state or the URL.
+  const [finishId, setFinishId] = useState('none')
+  const [finishParams, setFinishParams] = useState<Record<string, number>>({})
 
   // Closing must never discard work: a take in flight is finished and saved
   // on the way out, and the backdrop stops being a close target while sound
@@ -248,9 +261,8 @@ export function Poster(p: Props) {
 
   const sheetChain = layout.id === 'word' && modChain ? modChain : p.chain
 
-  const svg = useMemo(() => {
-    const t0 = performance.now()
-    const out = buildPoster({
+  const sheetReq = useMemo(
+    () => ({
       font: p.font,
       fontId: p.fontId,
       chain: sheetChain,
@@ -261,32 +273,111 @@ export function Poster(p: Props) {
       palette,
       number,
       wordTransform: wordT,
-    })
+    }),
+    [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, layout.id, palette, number, wordT],
+  )
+
+  const layers = useMemo(() => {
+    const t0 = performance.now()
+    const out = buildPosterLayers(sheetReq)
     buildCost.current = performance.now() - t0
     return out
-  }, [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, layout.id, palette, number, wordT])
+  }, [sheetReq])
+
+  // The composed sheet is what the SVG download and the clipboard hand over,
+  // and it is built only when one of them is pressed: composing it alongside
+  // the layers would run the whole treatment chain twice per rebuild.
+  const composed = () => buildPoster(sheetReq)
 
   const stem = `forfontsake-${p.chain.map((c) => c.id).join('-')}-${layout.id}-${String(number).padStart(3, '0')}`
 
-  // every new sheet reaches a running recorder
-  useEffect(() => {
-    recorderRef.current?.update(svg)
-  }, [svg])
+  /*
+   * The sheet on the GPU.
+   *
+   * The view owns a canvas and outlives every rebuild: handing it a new pair of
+   * layers uploads two textures and keeps the outgoing pair, so the cross-fade
+   * that turns a rebuild into a morph is a uniform rather than a second copy of
+   * the sheet in the DOM.
+   */
+  const viewRef = useRef<FinishView | null>(null)
+  const holdRef = useRef<HTMLDivElement | null>(null)
+  const fadeRef = useRef(0)
+  const lastLayers = useRef<{ ground: string; word: string | null } | null>(null)
+  const [glError, setGlError] = useState<string | null>(null)
+  // bumped whenever a view is made, so the sheet is handed to the new one
+  // rather than waiting on layers that may never change again
+  const [viewAge, setViewAge] = useState(0)
 
-  // While sound plays, the outgoing sheet lingers briefly over the incoming
-  // one — the sheets are opaque, so an old one fading off the top reads as
-  // the letters morphing rather than a cut.
-  const lastSvgRef = useRef(svg)
-  const ghostKeyRef = useRef(0)
-  const [ghost, setGhost] = useState<{ svg: string; key: number } | null>(null)
-  useEffect(() => {
-    if (soundSource && lastSvgRef.current !== svg) {
-      setGhost({ svg: lastSvgRef.current, key: ++ghostKeyRef.current })
-    } else if (!soundSource && ghostKeyRef.current > 0) {
-      setGhost(null)
+  /*
+   * Creation and teardown both live on the ref, deliberately.
+   *
+   * Split across a ref and an unmount effect they interleave under StrictMode's
+   * double mount: the effect's cleanup loses the GL context while the first
+   * canvas is still in the DOM, so the sheet renders onto a dead one and comes
+   * out blank. Doing both here means a holder can only ever have the live
+   * canvas in it, and `lastLayers` is cleared so the new view is handed a sheet
+   * rather than waiting for one that never changes.
+   */
+  const mount = useCallback((el: HTMLDivElement | null) => {
+    viewRef.current?.destroy()
+    viewRef.current = null
+    lastLayers.current = null
+    holdRef.current = el
+    if (!el) return
+    el.replaceChildren()
+    try {
+      const view = createFinishView(1)
+      viewRef.current = view
+      el.appendChild(view.canvas)
+      setGlError(null)
+      setViewAge((n) => n + 1)
+    } catch (e) {
+      setGlError(e instanceof Error ? e.message : String(e))
     }
-    lastSvgRef.current = svg
-  }, [svg, soundSource])
+  }, [])
+
+  // a new sheet, and the fade over the old one that makes it a morph
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view) return
+    const same =
+      lastLayers.current?.ground === layers.ground && lastLayers.current?.word === layers.word
+    if (same) return
+    lastLayers.current = { ground: layers.ground, word: layers.word }
+    void view.setSheet(layers.ground, layers.word).then(() => {
+      fadeRef.current = 1
+    })
+  }, [layers, viewAge])
+
+  const finishSpec = getFinish(finishId)
+  useEffect(() => {
+    viewRef.current?.setFinish(finishId, finishParams)
+  }, [finishId, finishParams])
+
+  // One loop while the sheet is open. It is a full-screen quad over 1080×1350 —
+  // a rounding error next to the geometry that produced the sheet — and having
+  // one loop means the fade, the drag and the dials all reach the screen the
+  // same way.
+  useEffect(() => {
+    let raf = 0
+    let last = performance.now()
+    const tick = (now: number) => {
+      const dt = (now - last) / 1000
+      last = now
+      if (fadeRef.current > 0) {
+        // a slower drift earns a longer dissolve, as the CSS version did
+        fadeRef.current = Math.max(0, fadeRef.current - dt / (0.35 / Math.max(0.35, soundSpeed)))
+      }
+      const view = viewRef.current
+      if (view) {
+        view.setFade(fadeRef.current)
+        view.draw()
+      }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [soundSpeed])
 
   const finishRecording = async () => {
     const recorder = recorderRef.current
@@ -319,13 +410,9 @@ export function Poster(p: Props) {
     if (!engine || recorderRef.current) return
     setNote(null)
     try {
-      recorderRef.current = startSheetRecorder(
-        SHEET_W,
-        SHEET_H,
-        svg,
-        palette.paper,
-        engine.captureStream(),
-      )
+      const canvas = viewRef.current?.canvas
+      if (!canvas) throw new Error('The sheet is not ready to record yet.')
+      recorderRef.current = startSheetRecorder(canvas, engine.captureStream())
       recStemRef.current = stem
       setRecSeconds(0)
       setRecording(true)
@@ -340,18 +427,38 @@ export function Poster(p: Props) {
     }
   }
 
+  /*
+   * The SVG stays letterforms only.
+   *
+   * A finish is pixels, and there is no honest way to put pixels into a vector
+   * file — so the download says so rather than quietly handing over a sheet
+   * that does not match the screen.
+   */
   const downloadSvg = async () => {
-    await saveFile(new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), `${stem}.svg`)
+    await saveFile(new Blob([composed()], { type: 'image/svg+xml;charset=utf-8' }), `${stem}.svg`)
+    if (finishId !== 'none') setNote('The SVG carries the letters, not the finish — a finish is pixels.')
   }
 
-  // Rasterised at 2× so the sheet holds up posted anywhere that shows it large.
+  // Drawn again at 2× so the sheet holds up posted anywhere that shows it
+  // large. The same pipeline as the screen, one throwaway view wider: two ways
+  // of applying a finish would be two finishes.
   const downloadPng = async () => {
     setBusy(true)
     setNote(null)
     try {
-      const src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
-      const blob = await rasterise(src, SHEET_W * 2, SHEET_H * 2)
-      await saveFile(blob, `${stem}.png`)
+      const shot = createFinishView(2)
+      try {
+        shot.setFinish(finishId, finishParams)
+        shot.setOffset(wordT.dx, wordT.dy)
+        await shot.setSheet(layers.ground, layers.word)
+        shot.draw()
+        const blob = await new Promise<Blob>((resolve, reject) =>
+          shot.canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('could not draw the sheet'))), 'image/png'),
+        )
+        await saveFile(blob, `${stem}.png`)
+      } finally {
+        shot.destroy()
+      }
     } catch (e) {
       setNote(e instanceof Error ? e.message : String(e))
     } finally {
@@ -360,7 +467,7 @@ export function Poster(p: Props) {
   }
 
   const copySvg = async () => {
-    const ok = await copyText(svg)
+    const ok = await copyText(composed())
     setNote(
       ok
         ? 'Copied as SVG — paste into Figma or any editor.'
@@ -370,22 +477,37 @@ export function Poster(p: Props) {
 
   /** one client-space delta, in sheet pixels */
   const toSheet = (px: number) => {
-    const el = sheetRef.current?.querySelector('svg')
-    return el ? px * (SHEET_W / el.clientWidth) : px
+    const el = viewRef.current?.canvas
+    return el && el.clientWidth ? px * (SHEET_W / el.clientWidth) : px
   }
 
-  const wordGroup = () =>
-    sheetRef.current?.querySelector<SVGGElement>('[data-part="word"]') ?? null
+  /**
+   * Is the pointer on the word?
+   *
+   * The sheet is a canvas now, so there is no element to hit. `buildPosterLayers`
+   * hands back the rectangle the word is drawn in — without its drag, because
+   * the drag is the shader's uniform — so the test adds the drag back and asks
+   * whether the point is inside. A test pins that box to the transform beside
+   * it, since a box that drifts means dragging quietly starts missing.
+   */
+  const onWord = (e: React.PointerEvent<HTMLDivElement>) => {
+    const box = layers.wordBox
+    const el = viewRef.current?.canvas
+    if (!box || !el) return false
+    const r = el.getBoundingClientRect()
+    if (!r.width || !r.height) return false
+    const x = ((e.clientX - r.left) / r.width) * SHEET_W - wordT.dx
+    const y = ((e.clientY - r.top) / r.height) * SHEET_H - wordT.dy
+    return x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h
+  }
 
   /**
-   * Dragging mutates the live group's transform and commits on release. A full
-   * rebuild per pointermove would re-run the whole treatment chain — tens of
-   * milliseconds on the heavy ones — where moving one attribute is free.
+   * Dragging moves a uniform and commits on release. A full rebuild per
+   * pointermove would re-run the whole treatment chain — tens of milliseconds
+   * on the heavy ones — where changing one uniform is free.
    */
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (layout.id !== 'word') return
-    const target = e.target as Element
-    if (!target.closest?.('[data-part="word"]')) return
+    if (layout.id !== 'word' || !onWord(e)) return
     e.preventDefault()
     dragRef.current = { startX: e.clientX, startY: e.clientY, base: wordT }
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -393,16 +515,10 @@ export function Poster(p: Props) {
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current
-    const g = wordGroup()
-    if (!drag || !g) return
-    const dx = drag.base.dx + toSheet(e.clientX - drag.startX)
-    const dy = drag.base.dy + toSheet(e.clientY - drag.startY)
-    const rest = g.dataset.baseTransform ?? g.getAttribute('transform') ?? ''
-    // remember the untouched transform so each move replaces, not accumulates
-    if (!g.dataset.baseTransform) g.dataset.baseTransform = rest
-    g.setAttribute(
-      'transform',
-      `translate(${dx - drag.base.dx}, ${dy - drag.base.dy}) ${rest}`,
+    if (!drag) return
+    viewRef.current?.setOffset(
+      drag.base.dx + toSheet(e.clientX - drag.startX),
+      drag.base.dy + toSheet(e.clientY - drag.startY),
     )
   }
 
@@ -458,17 +574,8 @@ export function Poster(p: Props) {
           onPointerUp={onPointerUp}
           onWheel={onWheel}
         >
-          <div className="sheet-live" dangerouslySetInnerHTML={{ __html: svg }} />
-          {ghost && (
-            <div
-              className="sheet-ghost"
-              key={ghost.key}
-              aria-hidden="true"
-              // a slower drift earns a longer dissolve
-              style={{ animationDuration: `${Math.round(350 / Math.max(0.35, soundSpeed))}ms` }}
-              dangerouslySetInnerHTML={{ __html: ghost.svg }}
-            />
-          )}
+          <div className="sheet-live" ref={mount} />
+          {glError && <p className="notice is-bad">{glError}</p>}
         </div>
 
         {presenting && (
@@ -546,6 +653,53 @@ export function Poster(p: Props) {
               </p>
             </div>
           )}
+
+          <div className="finish">
+            <h2>Finish</h2>
+            <div className="chips">
+              {FINISHES.map((f) => (
+                <button
+                  type="button"
+                  key={f.id}
+                  className={f.id === finishId ? 'chip is-on' : 'chip'}
+                  onClick={() => {
+                    setFinishId(f.id)
+                    setFinishParams(finishDefaults(f))
+                  }}
+                  title={f.blurb}
+                >
+                  {f.name}
+                </button>
+              ))}
+            </div>
+            <p className="muted sheet-note">{finishSpec.blurb}</p>
+            {finishSpec.params.map((spec) => (
+              <div className="ctl" key={spec.key}>
+                <div className="ctl-head">
+                  <label htmlFor={`finish-${spec.key}`}>{spec.label}</label>
+                  <output
+                    htmlFor={`finish-${spec.key}`}
+                    className={(finishParams[spec.key] ?? spec.default) === spec.default ? 'is-default' : undefined}
+                  >
+                    {finishParams[spec.key] ?? spec.default}
+                  </output>
+                </div>
+                <input
+                  id={`finish-${spec.key}`}
+                  type="range"
+                  min={spec.min}
+                  max={spec.max}
+                  step={spec.step}
+                  value={finishParams[spec.key] ?? spec.default}
+                  onChange={(e) =>
+                    setFinishParams((v) => ({ ...v, [spec.key]: Number(e.target.value) }))
+                  }
+                  onDoubleClick={() => setFinishParams((v) => ({ ...v, [spec.key]: spec.default }))}
+                />
+                {spec.note && <p className="ctl-note">{spec.note}</p>}
+              </div>
+            ))}
+          </div>
 
           {layout.id === 'word' && (
             <div className="sound">
@@ -701,29 +855,3 @@ export function Poster(p: Props) {
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
-/**
- * SVG string to PNG, through an image and a canvas.
- *
- * The canvas stays untainted because the source is a data URI of our own
- * making with nothing external in it — which is also why the poster embeds no
- * fonts it did not draw as outlines.
- */
-function rasterise(src: string, width: number, height: number): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      canvas.width = width
-      canvas.height = height
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return reject(new Error('no 2d canvas'))
-      ctx.drawImage(img, 0, 0, width, height)
-      canvas.toBlob((blob) => {
-        if (blob) resolve(blob)
-        else reject(new Error('the sheet could not be rendered'))
-      }, 'image/png')
-    }
-    img.onerror = () => reject(new Error('the sheet could not be rendered'))
-    img.src = src
-  })
-}

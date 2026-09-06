@@ -225,7 +225,15 @@ function chrome(req: PosterRequest, bandTop: number, footTop: number) {
 }
 
 /** one word, set as large as the sheet will take it */
-function bandWord(req: PosterRequest, bandTop: number, bandBottom: number) {
+/** where the word sits on the sheet, in sheet units, before its drag offset */
+export interface WordBox {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+function placeWord(req: PosterRequest, bandTop: number, bandBottom: number) {
   const word = drawWord(req)
 
   // The type is set to the sheet rather than the sheet to the type. Fitting to
@@ -255,11 +263,28 @@ function bandWord(req: PosterRequest, bandTop: number, bandBottom: number) {
       `scale(${t.scale}) translate(${-cx}, ${-cy}) `
   }
 
-  return (
+  // The same rectangle the transform above puts the word in, minus the drag —
+  // the canvas has no DOM to hit-test, so the pointer is tested against this.
+  // Scaling is about the word's centre, so the box grows about it too.
+  const grow = t?.scale ?? 1
+  const w = word.width * scale
+  const cx = MARGIN + w / 2
+  const cy = blockTop + capHeight / 2
+  const box: WordBox = {
+    x: cx - (w * grow) / 2,
+    y: cy - (capHeight * grow) / 2,
+    w: w * grow,
+    h: capHeight * grow,
+  }
+
+  const markup =
     `<g data-part="word" transform="${placed}translate(${MARGIN}, ${baseline}) scale(${scale}, ${-scale})">` +
     `<path d="${word.d}" fill="${req.palette.ink}" fill-rule="evenodd"/></g>`
-  )
+  return { markup, box }
 }
+
+const bandWord = (req: PosterRequest, bandTop: number, bandBottom: number) =>
+  placeWord(req, bandTop, bandBottom).markup
 
 /**
  * The whole alphabet, on a grid.
@@ -347,7 +372,11 @@ export function buildPoster(req: PosterRequest): string {
  * other, because two ways of drawing the same sheet is precisely the sort of
  * pair that drifts.
  */
-export function buildPosterLayers(req: PosterRequest): { ground: string; word: string | null } {
+export function buildPosterLayers(req: PosterRequest): {
+  ground: string
+  word: string | null
+  wordBox: WordBox | null
+} {
   const footTop = SHEET_H - MARGIN - 64
   const bandTop = MARGIN + 96
   const bandBottom = footTop - 48
@@ -358,11 +387,16 @@ export function buildPosterLayers(req: PosterRequest): { ground: string; word: s
   const paper = `<rect width="${SHEET_W}" height="${SHEET_H}" fill="${req.palette.paper}"/>`
 
   if (layout.id === 'chars') {
-    return { ground: wrap(paper + head + bandChars(req, bandTop, bandBottom) + foot), word: null }
+    return {
+      ground: wrap(paper + head + bandChars(req, bandTop, bandBottom) + foot),
+      word: null,
+      wordBox: null,
+    }
   }
   const anchored: PosterRequest = {
     ...req,
     wordTransform: req.wordTransform ? { ...req.wordTransform, dx: 0, dy: 0 } : undefined,
   }
-  return { ground: wrap(paper + head + foot), word: wrap(bandWord(anchored, bandTop, bandBottom)) }
+  const { markup, box } = placeWord(anchored, bandTop, bandBottom)
+  return { ground: wrap(paper + head + foot), word: wrap(markup), wordBox: box }
 }

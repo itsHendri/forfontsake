@@ -34,20 +34,23 @@ export interface SheetRecording {
 }
 
 export interface SheetRecorder {
-  /** hand over the newest sheet — frames keep painting the last decoded one */
-  update(svg: string): void
   /** finish and return the file */
   stop(): Promise<SheetRecording>
   /** abandon without a file (closing the overlay mid-take) */
   cancel(): void
 }
 
+/**
+ * A take of the sheet.
+ *
+ * The sheet is already being drawn to a canvas every frame by the finish
+ * stage, so recording is that canvas's own stream — no second canvas, no
+ * decoding SVG per frame, and no chance of the video and the screen showing
+ * different things. The cross-fade between geometry rebuilds is in the shader,
+ * so it comes along for free.
+ */
 export function startSheetRecorder(
-  width: number,
-  height: number,
-  firstSvg: string,
-  /** painted under every frame, so the first frames are paper rather than black */
-  background: string,
+  canvas: HTMLCanvasElement,
   audio: MediaStream | null,
 ): SheetRecorder {
   if (typeof MediaRecorder === 'undefined') {
@@ -55,35 +58,6 @@ export function startSheetRecorder(
   }
   const mimeType = pickMimeType((t) => MediaRecorder.isTypeSupported(t))
   if (!mimeType) throw new Error('This browser cannot record video.')
-
-  const canvas = document.createElement('canvas')
-  canvas.width = width
-  canvas.height = height
-  const ctx = canvas.getContext('2d')
-  if (!ctx) throw new Error('no 2d canvas')
-
-  // Decoding is async and out-of-order arrival is possible; a frame may only
-  // ever replace an older one, or a loud moment could paint over a later calm.
-  // The outgoing frame is kept and faded over the incoming one, so the video
-  // dissolves between geometry rebuilds the way the live sheet does.
-  const FADE_MS = 350
-  let img: HTMLImageElement | null = null
-  let prev: HTMLImageElement | null = null
-  let swappedAt = 0
-  let seq = 0
-  const load = (svg: string) => {
-    const mine = ++seq
-    const next = new Image()
-    next.onload = () => {
-      if (mine === seq) {
-        prev = img
-        img = next
-        swappedAt = performance.now()
-      }
-    }
-    next.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
-  }
-  load(firstSvg)
 
   const stream = canvas.captureStream(30)
   if (audio) for (const track of audio.getAudioTracks()) stream.addTrack(track)
@@ -96,31 +70,13 @@ export function startSheetRecorder(
   // a timeslice so a long take is many small chunks rather than one giant one
   recorder.start(1000)
 
-  let raf = 0
-  const draw = () => {
-    ctx.fillStyle = background
-    ctx.fillRect(0, 0, width, height)
-    if (img) ctx.drawImage(img, 0, 0, width, height)
-    // the sheets are opaque, so the old one fading off the top reads as a morph
-    const fade = 1 - (performance.now() - swappedAt) / FADE_MS
-    if (prev && fade > 0) {
-      ctx.globalAlpha = fade
-      ctx.drawImage(prev, 0, 0, width, height)
-      ctx.globalAlpha = 1
-    }
-    raf = requestAnimationFrame(draw)
-  }
-  raf = requestAnimationFrame(draw)
-
   // only the canvas's own track is ours to stop — the audio tracks belong to
   // the engine's tap and must survive for the next take
   const teardown = () => {
-    cancelAnimationFrame(raf)
     stream.getVideoTracks().forEach((t) => t.stop())
   }
 
   return {
-    update: load,
     stop: () =>
       new Promise<SheetRecording>((resolve, reject) => {
         recorder.onstop = () => {

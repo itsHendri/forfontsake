@@ -663,42 +663,81 @@ carried a hand-written copy of it under a comment reading "this mirrors modulate
 Poster.tsx — if that changes, change this". The test now calls the real function, which is the
 only version of that arrangement that cannot drift.
 
+## The finish layer, and the one raster in the product
+
+Everything else here is outlines. A finish is the exception: a pass over the *rendered sheet*,
+the way ink and paper and a scanner are passes over a printed page. So it carries a rule, and
+`finish.test.ts` holds it structurally rather than behaviourally — **nothing on the path from a
+chain to a font file may know finishes exist**. A behavioural test would only prove it for the
+three finishes that exist today.
+
+**The sheet is a canvas now.** One WebGL2 program, four textures, a full-screen quad. Three
+things moved into it and two of them got simpler:
+
+- **The cross-fade is a uniform.** It used to be a second copy of the whole sheet in the DOM
+  under a CSS animation. Two textures and a `mix` do the same job, and the recorder gets it
+  for free instead of reimplementing it.
+- **The recorder captures the canvas.** It used to keep its own canvas, decode each new sheet
+  from an SVG data URI, and hand-roll the fade with out-of-order arrival guards. All of that
+  is gone: `canvas.captureStream()` on the canvas the screen is already showing, which also
+  makes it impossible for the video and the screen to disagree.
+- **Dragging is still free, and that took work.** `buildPosterLayers` cuts the sheet into a
+  ground and a word, each the size of the sheet, with the word's *placement offset removed* —
+  the offset becomes the uniform. A rebuild re-runs the whole treatment chain, so the old code
+  mutated the live SVG group's transform to avoid one; the new code changes a float. Scale
+  stays baked, because resizing is already debounced and can afford the rebuild.
+
+**Hit-testing without a DOM.** A canvas has no `[data-part="word"]` to point at, so the sheet
+reports the rectangle it drew the word in and the pointer is tested against it. A test pins
+that box to the transform beside it, because a box that drifts means dragging quietly starts
+missing.
+
+**The PNG is the same pipeline, one throwaway view wider.** Two ways of applying a finish
+would be two finishes. The SVG download is unchanged and still letterforms only — it says so
+when a finish is on, rather than handing over a sheet that does not match the screen.
+
+Two things cost real time and are worth knowing:
+
+**A StrictMode double mount left a dead canvas.** Creation was on a ref callback and teardown
+in an unmount effect; under StrictMode's mount-unmount-mount the effect's cleanup lost the GL
+context while the first canvas was still in the holder, so everything rendered onto a dead one
+and came out blank with `getError()` reporting `CONTEXT_LOST_WEBGL`. Both now live on the ref,
+which is the only arrangement where a holder can hold something dead for zero frames.
+
+**Bloom keyed off brightness washes the sheet**, because paper is the brightest thing on it.
+A scanner's bloom is light leaking *into* the ink, so it keys off darkness instead.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the
 specimen stage). Sizes are rough. The layout pass is done and several of these have shipped;
 what is left is below.
 
-1. **A Finish layer on the sheet** — pixels, not geometry: grain, riso misregistration,
-   scanline drift first. WebGL over the canvas the recorder already draws; Paper Shaders
-   (Apache-2.0) lifted with attribution; PNG and clip pass through it, SVG and the font do
-   not. Large. It is the first raster in the product, so it carries a rule and a test:
-   **the `.ttf` is byte-identical with any finish on or off.**
-2. **Freeze this frame as a font.** The sheet holds the resolved dial values for every
+1. **Freeze this frame as a font.** The sheet holds the resolved dial values for every
    frame it draws, so a frame you like can go straight to `buildTreatedFont` in the worker.
    Nobody else can offer this. Small to medium.
-3. **Amount master slider** lerping source → preset, and **hover a preset to preview it**
+2. **Amount master slider** lerping source → preset, and **hover a preset to preview it**
    on the main canvas. Carried over; both nearly free because the engine is client-side and
    deterministic.
-4. **Styles view**: every preset of the current treatment as a waterfall in the page — what
+3. **Styles view**: every preset of the current treatment as a waterfall in the page — what
    `scripts/style-samples.ts` does on the CLI. Small.
-5. **WebCodecs recorder** with `MediaRecorder` as the Safari fallback, the 15 s cap lifted,
+4. **WebCodecs recorder** with `MediaRecorder` as the Safari fallback, the 15 s cap lifted,
    MP4 with the audio muxed. Medium; `src/lib/videoRecorder.ts`.
-6. **Story-size sheet** (1080×1920) as a second format; `SHEET_W/H` become a property of
+5. **Story-size sheet** (1080×1920) as a second format; `SHEET_W/H` become a property of
    the layout in `poster.ts`. Small.
-7. **Whole-window drop target** for a font, and a visible **Copy link** for the URL state.
+6. **Whole-window drop target** for a font, and a visible **Copy link** for the URL state.
    Small.
-8. **Slant and Tracking** as export-safe global dials — a shear on the outlines, a uniform
+7. **Slant and Tracking** as export-safe global dials — a shear on the outlines, a uniform
     advance change — with `verify:font` taught to accept the drift. Medium. Parked until
     the layout pass says whether they belong in the rail.
-9. **Slider craft, what is left**: drag on the label to scrub, `Shift` for fine, and tint the
+8. **Slider craft, what is left**: drag on the label to scrub, `Shift` for fine, and tint the
     label when a value is off its default (Webflow's trick, better than our tick on the track).
     The typeable value, the steppers and the dark caption shipped with the layout pass.
-10. **Tune the seventeen against each other** on the contact sheet.
+9. **Tune the seventeen against each other** on the contact sheet.
 
 Shipped: the licence panel at font upload; the action bar, layers as cards, every dial visible
 and the size ladder's gutter with the layout pass; presets as pictures with one always
-selected; per-dial sound binding; and Present mode.
+selected; per-dial sound binding; Present mode; and the finish layer.
 
 A later look at typograph.studio (AI parametric typeface generator, adjacent not
 competing) confirmed the positioning: nothing in the niche outputs specimen sheets or

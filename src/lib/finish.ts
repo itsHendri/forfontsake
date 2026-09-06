@@ -146,8 +146,11 @@ void main() {
     float band = floor(uv.y / max(uPx.y * uP.x * 400.0, uPx.y));
     float slip = (hash(vec2(band, 3.7)) - 0.5) * uP.y * uPx.x * 120.0;
     c = sheetFaded(uv + vec2(slip, 0.0));
-    float bloom = smoothstep(0.55, 1.0, dot(c, vec3(0.299, 0.587, 0.114)));
-    c += bloom * uP.z * 0.35;
+    // Bloom is light leaking *into* the ink, which is what an over-exposed
+    // scan does. Keyed off brightness it caught the paper instead and washed
+    // the whole sheet, because paper is the brightest thing on it.
+    float dark = 1.0 - dot(c, vec3(0.299, 0.587, 0.114));
+    c += dark * uP.z * 0.30;
   } else {
     c = sheetFaded(uv);
   }

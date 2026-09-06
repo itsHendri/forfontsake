@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
+  SHEET_W,
+  SHEET_H,
   buildPoster,
   buildPosterLayers,
   settingsLine,
@@ -163,5 +165,43 @@ describe('poster', () => {
     const { ground, word } = buildPosterLayers(req('chars'))
     expect(word).toBeNull()
     expect(ground).toBe(buildPoster(req('chars')))
+  })
+
+  /*
+   * The canvas has no DOM to hit-test, so this rectangle is what tells a
+   * pointer whether it is on the word or on the paper. If it drifts from the
+   * transform beside it, dragging starts missing.
+   */
+  it('boxes the word where the sheet actually draws it', () => {
+    const { wordBox, word } = buildPosterLayers(req('word'))
+    expect(wordBox).toBeTruthy()
+    const box = wordBox!
+    expect(box.w).toBeGreaterThan(0)
+    expect(box.h).toBeGreaterThan(0)
+    // inside the sheet, and inside the margins the sheet reserves
+    expect(box.x).toBeGreaterThanOrEqual(0)
+    expect(box.y).toBeGreaterThanOrEqual(0)
+    expect(box.x + box.w).toBeLessThanOrEqual(SHEET_W + 1)
+    expect(box.y + box.h).toBeLessThanOrEqual(SHEET_H + 1)
+    // the box's left edge is where the word layer's own transform puts it
+    const translate = word!.match(/translate\((-?[\d.]+), (-?[\d.]+)\) scale\(/)
+    expect(translate).toBeTruthy()
+    expect(box.x).toBeCloseTo(Number(translate![1]), 0)
+  })
+
+  it(`grows the box about the word's centre, as the scale does`, () => {
+    const one = buildPosterLayers({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 1 } }).wordBox!
+    const two = buildPosterLayers({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 2 } }).wordBox!
+    expect(two.w).toBeCloseTo(one.w * 2, 3)
+    expect(two.h).toBeCloseTo(one.h * 2, 3)
+    // same centre, so growing the word does not shove it off the sheet
+    expect(two.x + two.w / 2).toBeCloseTo(one.x + one.w / 2, 3)
+    expect(two.y + two.h / 2).toBeCloseTo(one.y + one.h / 2, 3)
+  })
+
+  it(`leaves the drag out of the box, because that is the shader's job`, () => {
+    const still = buildPosterLayers({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 1 } }).wordBox!
+    const moved = buildPosterLayers({ ...req('word'), wordTransform: { dx: 300, dy: 90, scale: 1 } }).wordBox!
+    expect(moved).toEqual(still)
   })
 })
