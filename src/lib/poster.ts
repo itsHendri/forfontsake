@@ -313,6 +313,11 @@ function bandChars(req: PosterRequest, bandTop: number, bandBottom: number) {
     .join('')
 }
 
+/** the sheet's own frame, so every layer is cut to the same size */
+const wrap = (body: string) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SHEET_W} ${SHEET_H}" ` +
+  `width="${SHEET_W}" height="${SHEET_H}">${body}</svg>`
+
 export function buildPoster(req: PosterRequest): string {
   const footTop = SHEET_H - MARGIN - 64
   const bandTop = MARGIN + 96
@@ -322,13 +327,42 @@ export function buildPoster(req: PosterRequest): string {
   const { head, foot } = chrome(req, bandTop, footTop)
   const band = layout.id === 'chars' ? bandChars(req, bandTop, bandBottom) : bandWord(req, bandTop, bandBottom)
 
-  return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SHEET_W} ${SHEET_H}" ` +
-    `width="${SHEET_W}" height="${SHEET_H}">` +
-    `<rect width="${SHEET_W}" height="${SHEET_H}" fill="${req.palette.paper}"/>` +
-    head +
-    band +
-    foot +
-    `</svg>`
+  return wrap(
+    `<rect width="${SHEET_W}" height="${SHEET_H}" fill="${req.palette.paper}"/>` + head + band + foot,
   )
+}
+
+/**
+ * The same sheet, cut into two images the size of the sheet.
+ *
+ * The live view composites these on the GPU rather than drawing one SVG,
+ * because dragging the word can then be an offset on a texture instead of a
+ * rebuild — and a rebuild re-runs the whole treatment chain, which is tens of
+ * milliseconds on the heavy ones. The word layer is drawn with its placement
+ * *offset removed* for exactly that reason: the offset becomes the uniform.
+ * Scale stays baked, because resizing is debounced and can afford a rebuild.
+ *
+ * `buildPoster` remains the one composed sheet, and is still what the SVG
+ * download and the clipboard hand over. A test pins the two against each
+ * other, because two ways of drawing the same sheet is precisely the sort of
+ * pair that drifts.
+ */
+export function buildPosterLayers(req: PosterRequest): { ground: string; word: string | null } {
+  const footTop = SHEET_H - MARGIN - 64
+  const bandTop = MARGIN + 96
+  const bandBottom = footTop - 48
+
+  const layout = LAYOUTS.find((l) => l.id === req.layout) ?? LAYOUTS[0]
+  const { head, foot } = chrome(req, bandTop, footTop)
+  // the same order the composed sheet uses: paper, head, band, foot
+  const paper = `<rect width="${SHEET_W}" height="${SHEET_H}" fill="${req.palette.paper}"/>`
+
+  if (layout.id === 'chars') {
+    return { ground: wrap(paper + head + bandChars(req, bandTop, bandBottom) + foot), word: null }
+  }
+  const anchored: PosterRequest = {
+    ...req,
+    wordTransform: req.wordTransform ? { ...req.wordTransform, dx: 0, dy: 0 } : undefined,
+  }
+  return { ground: wrap(paper + head + foot), word: wrap(bandWord(anchored, bandTop, bandBottom)) }
 }

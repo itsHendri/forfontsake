@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { buildPoster, settingsLine, chainName, LAYOUTS, POSTER_PALETTES } from './poster'
+import {
+  buildPoster,
+  buildPosterLayers,
+  settingsLine,
+  chainName,
+  LAYOUTS,
+  POSTER_PALETTES,
+} from './poster'
 import { defaults, getTreatment } from '../engine/treatments/registry'
 import type { FontData } from './glyphData'
 
@@ -119,5 +126,42 @@ describe('poster', () => {
     const svg = buildPoster({ ...req('word'), font: { ...font, label: 'A & B <script>' } })
     expect(svg).toContain('&amp;')
     expect(svg).not.toContain('<script>')
+  })
+
+  /*
+   * Two ways of drawing one sheet is the sort of pair that drifts, so the
+   * composed sheet and the layered one are pinned to each other here.
+   */
+  it('cuts into layers that put the sheet back together', () => {
+    const r = req('word')
+    const { ground, word } = buildPosterLayers(r)
+    expect(word).toBeTruthy()
+    // every mark the composed sheet carries is in one layer or the other
+    const composed = buildPoster(r)
+    const marks = composed.match(/<(path|text|rect|line)[^>]*>/g) ?? []
+    expect(marks.length).toBeGreaterThan(4)
+    for (const mark of marks) {
+      expect(ground.includes(mark) || word!.includes(mark), mark.slice(0, 60)).toBe(true)
+    }
+  })
+
+  it('leaves the word layer where it is when only the offset moves', () => {
+    const still = buildPosterLayers({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 1.4 } })
+    const dragged = buildPosterLayers({ ...req('word'), wordTransform: { dx: 220, dy: -60, scale: 1.4 } })
+    // the offset is the shader's uniform, so it must not reach the geometry
+    expect(dragged.word).toBe(still.word)
+    expect(dragged.ground).toBe(still.ground)
+  })
+
+  it('bakes a resize into the word layer, because that one does rebuild', () => {
+    const small = buildPosterLayers({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 1 } })
+    const large = buildPosterLayers({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 1.8 } })
+    expect(large.word).not.toBe(small.word)
+  })
+
+  it('keeps the whole character set on the ground layer', () => {
+    const { ground, word } = buildPosterLayers(req('chars'))
+    expect(word).toBeNull()
+    expect(ground).toBe(buildPoster(req('chars')))
   })
 })
