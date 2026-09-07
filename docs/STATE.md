@@ -256,12 +256,32 @@ wrong name for a room — Share is what you do at the end. Whether that room is 
 and whether a background image, an inverted palette and your own text layers are in scope, are
 both Hendri's to call.
 
+**Round two, 7 September.** Hendri picked the tabbed rail (S5) as the direction and gave notes,
+which are now settled across every frame in band 04 of the Share page: the format picker moves
+into the header bar; a close **×** replaces the back-to-workbench link, so the room reads as
+something you leave; **Present is gone** (it named a mode nobody could picture, and the sheet
+already has most of the window); export becomes **one type plus Download**, which removes Copy
+SVG and Copy link; and **Record clip stops being a button** — MP4 is a type, so recording is
+what Download does when you are making a clip. Four frames differ only in how the
+sheet-versus-motion choice is made: R1 shows the two modes as pictures, R2 drops modes for a
+list of selectable aspects, R3 moves the question to the exit beside the button that acts on
+it, and R4 combines R2's list with R3's exit. R4 is the recommendation.
+
+**The Figma file is three pages now**, split on Hendri's instruction because the work had become
+two environments: **Workbench**, **Share**, and **Presets, components & reference**. The band
+numbers restart per page. This supersedes the one-page consolidation of 4 September, which was
+right when everything was one screen's worth of work.
+
 ## Design source of truth
 
 The original Figma file lived in the SwissBorg org and was deleted deliberately when that
 access ended. A new one was started on 4 Sept 2026 as the board for the next layout pass:
 `https://www.figma.com/design/ie27RUJUSlkglzarqTMZIO`. **One page, seven sections**, in
 reading order — a cover block at the top lists them:
+
+Reorganised into three pages on 7 September — **Workbench**, **Share** and **Presets,
+components & reference** — so the table below reads as history rather than as the current
+band numbering.
 
 | | | |
 | --- | --- | --- |
