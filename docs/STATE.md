@@ -267,6 +267,23 @@ sheet-versus-motion choice is made: R1 shows the two modes as pictures, R2 drops
 list of selectable aspects, R3 moves the question to the exit beside the button that acts on
 it, and R4 combines R2's list with R3's exit. R4 is the recommendation.
 
+**Round three, 7 September.** Hendri rejected all four of round two as drawn but kept the parts
+that worked. Settled: the **visual picker moves to Layout** — Word versus Character set, as two
+real renders, because that is the thing that visibly changes — and the size picker and close ×
+sit together top right. What was still unresolved is **static versus video**: where the switch
+lives, and how it relates to sound and to the export types. Four placements are drawn in band
+05 of the Share page (V1 centred in the header bar, V2 on the canvas above the sheet, V3 at the
+head of the rail, V4 no switch at all with sound deciding), two drawn static and two video so
+both halves are visible.
+
+**The wiring, which was the real question.** Choosing MP4 must never turn sound on. The
+dependency runs one way: sound is what makes a moving export possible, so the export list
+follows the state of the room rather than driving it. In Static, sound is *absent* rather than
+greyed, so the ambiguity cannot arise. A table on the band 05 card states this for both states.
+Terminology is still open — Static · Video (Hendri's words), Still · Clip (the recommendation,
+since "clip" says short and postable), or Sheet · Motion (round two's, which named our
+furniture rather than the outcome).
+
 **The Figma file is three pages now**, split on Hendri's instruction because the work had become
 two environments: **Workbench**, **Share**, and **Presets, components & reference**. The band
 numbers restart per page. This supersedes the one-page consolidation of 4 September, which was
