@@ -7,6 +7,8 @@ import {
   settingsLine,
   chainName,
   LAYOUTS,
+  FORMATS,
+  getFormat,
   POSTER_PALETTES,
 } from './poster'
 import { defaults, getTreatment } from '../engine/treatments/registry'
@@ -203,5 +205,61 @@ describe('poster', () => {
     const still = buildPosterLayers({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 1 } }).wordBox!
     const moved = buildPosterLayers({ ...req('word'), wordTransform: { dx: 300, dy: 90, scale: 1 } }).wordBox!
     expect(moved).toEqual(still)
+  })
+})
+
+describe('formats', () => {
+  it('cuts the sheet to every format it offers', () => {
+    for (const f of FORMATS) {
+      const svg = buildPoster({ ...req('word'), format: f.id })
+      expect(svg, f.id).toContain(`viewBox="0 0 ${f.w} ${f.h}"`)
+      expect(svg, f.id).toContain(`width="${f.w}" height="${f.h}"`)
+    }
+  })
+
+  it('keeps the default sheet exactly as it was when no format is asked for', () => {
+    expect(buildPoster(req('word'))).toBe(buildPoster({ ...req('word'), format: 'post' }))
+  })
+
+  it('falls back rather than throwing on an unknown format', () => {
+    expect(getFormat('nope')).toBe(FORMATS[0])
+    expect(buildPoster({ ...req('word'), format: 'nope' })).toBe(buildPoster(req('word')))
+  })
+
+  it('keeps the word inside the sheet at every format', () => {
+    for (const f of FORMATS) {
+      const { wordBox } = buildPosterLayers({ ...req('word'), format: f.id })
+      expect(wordBox, f.id).not.toBeNull()
+      expect(wordBox!.x, f.id).toBeGreaterThanOrEqual(-1)
+      expect(wordBox!.y, f.id).toBeGreaterThanOrEqual(-1)
+      expect(wordBox!.x + wordBox!.w, f.id).toBeLessThanOrEqual(f.w + 1)
+      expect(wordBox!.y + wordBox!.h, f.id).toBeLessThanOrEqual(f.h + 1)
+    }
+  })
+
+  it('keeps the layers and the composed sheet agreeing at every format', () => {
+    // the pair that drifts: two ways of drawing one sheet, now times three sizes
+    for (const f of FORMATS) {
+      for (const layout of LAYOUTS) {
+        const r = { ...req(layout.id), format: f.id }
+        const { ground, word } = buildPosterLayers(r)
+        const composed = buildPoster(r)
+        const marks = composed.match(/<(path|text|rect|line)[^>]*>/g) ?? []
+        expect(marks.length, `${f.id}/${layout.id}`).toBeGreaterThan(4)
+        for (const mark of marks) {
+          expect(
+            ground.includes(mark) || (word !== null && word.includes(mark)),
+            `${f.id}/${layout.id} · ${mark.slice(0, 50)}`,
+          ).toBe(true)
+        }
+      }
+    }
+  })
+
+  it('sets the character grid to the sheet it is on', () => {
+    // a story is 570px taller than a post, so the grid must not be identical
+    const post = buildPoster({ ...req('chars'), format: 'post' })
+    const story = buildPoster({ ...req('chars'), format: 'story' })
+    expect(story).not.toBe(post)
   })
 })

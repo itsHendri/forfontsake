@@ -86,3 +86,66 @@ export function modulate(
     return { id: step.id, params }
   })
 }
+
+/**
+ * What the sound does to the letters, as a named thing rather than a matrix.
+ *
+ * The sheet used to expose one row per drivable dial with a band picker on it.
+ * That is a prosumer control — OpenMosh and Neural Frames have it, and even
+ * they put an automatic mode in front of it, while the closest peer (Dinamo's
+ * Font Gauntlet) maps one signal to one axis and stops. So the front of house
+ * is three named movements and a Depth slider, and the per-dial map underneath
+ * is still exactly the `Bindings` record it always was — a mode is just a
+ * function that fills one in.
+ */
+export interface SoundMode {
+  id: string
+  name: string
+  note: string
+  /** the band a dial rides, given its position among its step's drivable dials */
+  band(order: number): Band | null
+}
+
+export const MODES: SoundMode[] = [
+  {
+    id: 'pulse',
+    name: 'Pulse',
+    note: 'the beat moves the headline dial, and the rest hold still',
+    band: (order) => (order === 0 ? 'bass' : order === 1 ? 'level' : null),
+  },
+  {
+    id: 'breathe',
+    name: 'Breathe',
+    note: 'the body of the sound swells every dial at once',
+    band: () => 'mid',
+  },
+  {
+    id: 'shimmer',
+    name: 'Shimmer',
+    note: 'the top end only, so the detail moves and the shape does not',
+    band: (order) => (order === 0 ? 'high' : 'mid'),
+  },
+]
+
+export const DEFAULT_MODE = MODES[0]
+
+export function getMode(id: string): SoundMode {
+  return MODES.find((m) => m.id === id) ?? DEFAULT_MODE
+}
+
+/**
+ * A mode, resolved into the binding map `modulate` already understands.
+ *
+ * Rebuilt from the chain rather than stored, for the same reason the old
+ * overrides were derived: a map keyed by step position goes stale the moment a
+ * layer is added, removed or retreated, and a stale map drives the wrong dial.
+ */
+export function bindingsFor(mode: SoundMode, chain: Step[]): Bindings {
+  const out: Bindings = {}
+  chain.forEach((step, i) => {
+    drivable(step).forEach((spec, order) => {
+      out[bindKey(i, spec.key)] = mode.band(order)
+    })
+  })
+  return out
+}

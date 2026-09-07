@@ -427,104 +427,230 @@ h1 {
 
 /* ---------- specimen sheet ---------- */
 
-.poster-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  display: grid;
-  place-items: center;
-  padding: 24px;
-  background: color-mix(in srgb, var(--ink) 72%, transparent);
+/* ---------- the sheet, as a room rather than a dialog ---------- */
+
+/* It replaced the overlay because the overlay had become the limit on it: a
+   1080×1350 artefact drew at about 702px inside a 900px dialog while the rail
+   beside it exactly filled its container. Here the sheet gets the window and
+   the rail is a column, not a competitor. */
+.sheet-view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--paper);
 }
-.poster {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
-  gap: 26px;
-  align-items: start;
-  max-width: 900px;
-  max-height: 100%;
-  overflow: auto;
-  padding: 22px;
-  background: var(--plate);
-  border: 1px solid var(--rule);
-  border-radius: 2px;
-}
-.poster-sheet {
-  display: block;
-  position: relative;
-  width: 100%;
-  /* the sheet has its own paper colour, so it needs a shadow rather than a
-     border to sit on the panel without a second frame around it */
-  box-shadow: 0 2px 18px color-mix(in srgb, var(--ink) 28%, transparent);
-}
-/* Present mode: the rail goes, the sheet takes the window, and the ground
-   darkens so nothing competes with the letters. Nothing about the export
-   changes — the recorder draws the sheet at its own 1080×1350 either way — so
-   this is for looking at, and for pointing a camera at. */
-.poster-backdrop.is-presenting {
-  padding: 0;
-  background: color-mix(in srgb, var(--ink) 92%, transparent);
-}
-.poster.is-presenting {
-  grid-template-columns: minmax(0, 1fr);
-  max-width: none;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  overflow: visible;
-}
-.poster.is-presenting .poster-side {
-  display: none;
-}
-.poster.is-presenting .poster-sheet canvas {
-  max-height: 94vh;
-}
-.present-bar {
-  position: fixed;
-  left: 20px;
-  bottom: 18px;
-  z-index: 21;
+.sheet-bar {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
+  flex: none;
+  padding: 12px 26px;
+  border-bottom: 1px solid var(--rule);
 }
-/* the ground here is ink, not paper, so the caption has to invert with it —
-   `muted` on a 92% ink backdrop is about 2.5:1 and unreadable */
-.present-bar p {
-  margin: 0;
+.sheet-name {
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.sheet-no {
   font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* centred whatever sits either side of it, because it governs the whole room */
+.mode-switch {
+  margin: 0 auto;
+  display: flex;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.mode-switch .seg {
+  padding: 6px 18px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+}
+.mode-switch .seg.is-on {
+  background: var(--ink);
   color: var(--paper);
-  opacity: 0.72;
+  font-weight: 500;
+}
+.mode-switch .seg:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.sheet-close {
+  flex: none;
+  padding: 5px 11px;
+  font-size: 15px;
+  line-height: 1;
+}
+/* the bar's own controls size to their content — `select` is full width by
+   default here, which would eat the space the switch is centred in */
+.sheet-bar select,
+.sheet-rail select {
+  width: auto;
+  flex: none;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.sheet-bar > * {
+  flex: none;
 }
 
-/* The sheet is a canvas: the cross-fade between rebuilds lives in the shader
-   now, so there is no second copy of the sheet in the DOM to fade over. */
-.poster-sheet canvas {
-  display: block;
-  width: 100%;
-  height: auto;
-  max-height: min(78vh, 900px);
-  /* the word is found by hit-testing the box the sheet reports, since a canvas
-     has no element to point at — see onWord in Poster.tsx */
-  touch-action: none;
+.sheet-body {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 30px;
+  padding: 20px 26px 24px;
+}
+.sheet-stage {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .sheet-live {
   display: block;
+  max-height: 100%;
+}
+/* the canvas is sized by the format, so it is let to keep its own aspect and
+   simply fit whichever axis runs out first */
+.sheet-stage canvas {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: calc(100vh - 148px);
+  box-shadow: 0 4px 28px color-mix(in srgb, var(--ink) 26%, transparent);
+  touch-action: none;
+}
+.rec-pill {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  padding: 5px 12px 5px 10px;
+  border-radius: 20px;
+  background: var(--mark);
+  color: var(--paper);
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.rec-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--paper);
 }
 
-/* A finish is pixels over the rendered sheet, so it sits with the palette and
-   the layout — things that belong to the sheet rather than to the font. */
-.finish {
-  margin: 14px 0 4px;
-  padding-top: 12px;
+.sheet-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-left: 26px;
+  border-left: 1px solid var(--rule);
+}
+.sheet-rail .group {
+  gap: 12px;
+}
+.sheet-rail .group.ruled {
+  padding-top: 16px;
   border-top: 1px solid var(--rule);
 }
-.finish .ctl {
-  margin-top: 10px;
+.sheet-rail h2 {
+  margin: 0;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-weight: 500;
+}
+.sheet-rail button.is-live {
+  color: var(--mark);
+  box-shadow: inset 0 0 0 1px var(--mark);
+}
+/* the exits sit at the foot of the rail, where you leave from */
+.rail-push {
+  flex: 1 1 auto;
+  min-height: 8px;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* A layout is the one choice here whose difference is entirely visual, so it
+   is shown rather than named — the argument the workbench presets won on. */
+.layout-pick {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.layout-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.layout-cell img,
+.layout-blank {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--rule);
+}
+.layout-blank {
+  aspect-ratio: 4 / 5;
+  background: var(--track);
+}
+.layout-cell:hover:not(.is-on):not(:disabled) {
+  border-color: var(--muted);
+}
+/* thickens rather than inverts, and loses a pixel so the row does not jump */
+.layout-cell.is-on {
+  border-color: var(--ink);
+  border-width: 2px;
+  padding: 7px;
+  color: var(--ink);
+  font-weight: 500;
+}
+.layout-cell.is-barred {
+  opacity: 0.38;
+  cursor: not-allowed;
 }
 
 .word-place {
-  margin-bottom: 8px;
+  margin-top: 2px;
 }
 .linkish {
   padding: 0;
@@ -535,71 +661,19 @@ h1 {
   cursor: pointer;
   text-decoration: underline;
 }
-.poster-side .sound {
-  margin: 2px 0 8px;
-}
 
-/* Which dial listens to which band. A row per drivable dial, so a stack of
-   three is a dozen rows — hence a select rather than a segmented control,
-   which would not fit the rail and would read as a dozen little toolbars. */
-.binds {
-  margin: 14px 0 4px;
-  padding-top: 12px;
-  border-top: 1px solid var(--rule);
-}
-.bind {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.bind label {
-  flex: 1 1 auto;
-  min-width: 0;
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* which layer the dial belongs to, shown only once a stack has more than one */
-.bind label em {
-  font-style: normal;
-  color: var(--muted);
-}
-.bind select {
-  flex: 0 0 auto;
-  width: 88px;
-  padding: 4px 6px;
-  font-size: 12px;
-}
-.bind select.is-off {
-  color: var(--muted);
-}
-.poster-side .sound button.is-live {
-  color: var(--mark);
-  box-shadow: inset 0 0 0 1px var(--mark);
-}
-.poster-side h2 {
-  margin: 0 0 6px;
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--muted);
-  font-weight: 500;
-}
-.poster-side p {
-  margin: 0 0 14px;
-  font-size: 13px;
-  line-height: 1.5;
-}
-.poster-side .row {
-  margin-bottom: 8px;
-}
-
-@media (max-width: 720px) {
-  .poster {
+@media (max-width: 900px) {
+  .sheet-body {
     grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+  .sheet-rail {
+    padding-left: 0;
+    border-left: 0;
+    overflow: visible;
+  }
+  .sheet-stage canvas {
+    max-height: 60vh;
   }
 }
 

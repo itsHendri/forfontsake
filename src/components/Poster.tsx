@@ -2,25 +2,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildPoster,
   buildPosterLayers,
+  FORMATS,
+  getFormat,
   LAYOUTS,
   POSTER_PALETTES,
-  SHEET_W,
-  SHEET_H,
   type WordTransform,
 } from '../lib/poster'
 import { saveFile } from '../lib/exportFont'
-import { copyText } from '../lib/clipboard'
 import { getTreatment } from '../engine/treatments/registry'
 import {
-  BANDS,
-  BAND_LABEL,
   DEFAULT_DEPTH,
-  bandFor,
-  bindKey,
-  drivable,
+  DEFAULT_MODE,
+  MODES,
+  bindingsFor,
+  getMode,
   modulate,
-  type Band,
-  type Bindings,
 } from '../lib/modulate'
 import { AudioEngine } from '../audio/AudioEngine'
 import { EnvelopeFollower } from '../audio/EnvelopeFollower'
@@ -94,6 +90,22 @@ export function Poster(p: Props) {
   const [sheetSeed, setSheetSeed] = useState(p.seed)
   const [paletteIndex, setPaletteIndex] = useState(0)
   const [layoutIndex, setLayoutIndex] = useState(0)
+  /*
+   * Static or video: the one choice the whole room hangs off.
+   *
+   * It is a mode rather than a consequence of turning the sound on, because the
+   * clip is the capability nobody else in this niche has and a mode nobody can
+   * see is a mode nobody uses. The rule underneath it runs one way only —
+   * sound is what makes a moving export possible, never the reverse — so in
+   * static there is no sound anywhere to wonder about, and choosing MP4 can
+   * never silently start it.
+   */
+  const [mode, setMode] = useState<'static' | 'video'>('static')
+  // The sheet's size is a property of the sheet, not of the export. Every tool
+  // in this category splits them that way; the download stays type and scale.
+  const [formatId, setFormatId] = useState(FORMATS[0].id)
+  const [soundModeId, setSoundModeId] = useState(DEFAULT_MODE.id)
+  const [stillType, setStillType] = useState<'png' | 'svg'>('png')
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | null>(null)
   const [wordT, setWordT] = useState<WordTransform>(IDENTITY)
@@ -119,10 +131,7 @@ export function Poster(p: Props) {
   // word wants less travel than a light one on a long word.
   const [depth, setDepth] = useState(DEFAULT_DEPTH)
   const depthRef = useRef(depth)
-  // Only the dials somebody has actually reassigned. Deriving the rest keeps
-  // the map from going stale when a layer is added, removed or retreated.
-  const [bindings, setBindings] = useState<Bindings>({})
-  const bindingsRef = useRef(bindings)
+  const soundModeRef = useRef(soundModeId)
   useEffect(() => {
     soundSpeedRef.current = soundSpeed
   }, [soundSpeed])
@@ -130,17 +139,13 @@ export function Poster(p: Props) {
     depthRef.current = depth
   }, [depth])
   useEffect(() => {
-    bindingsRef.current = bindings
-  }, [bindings])
+    soundModeRef.current = soundModeId
+  }, [soundModeId])
   const engineRef = useRef<AudioEngine | null>(null)
   const rafRef = useRef<number | null>(null)
   // how long the last sheet took to build, so the tick can back off adaptively
   const buildCost = useRef(0)
 
-  // The rail hidden and the sheet given the whole window: for looking at, and
-  // for pointing a camera at. It changes nothing about what gets exported —
-  // the recorder draws the sheet at its own 1080×1350 either way.
-  const [presenting, setPresenting] = useState(false)
   // The finish belongs to the sheet, not to the font: it is pixels over the
   // rendered page and never reaches the outlines, so it lives here with the
   // palette and the layout rather than in the workbench state or the URL.
@@ -154,15 +159,9 @@ export function Poster(p: Props) {
   // from a performance it returns the rail rather than throwing away the sheet
   // and whatever was playing.
   const closeRef = useRef<() => void>(p.onClose)
-  const presentingRef = useRef(presenting)
-  useEffect(() => {
-    presentingRef.current = presenting
-  }, [presenting])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      if (presentingRef.current) setPresenting(false)
-      else closeRef.current()
+      if (e.key === 'Escape') closeRef.current()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -218,7 +217,9 @@ export function Poster(p: Props) {
       // ...but rebuild the geometry at a pace the chain can afford
       if (now - lastBuild >= Math.max(tier, buildCost.current * 1.5)) {
         lastBuild = now
-        setModChain(modulate(p.chain, drive, bindingsRef.current, depthRef.current))
+        setModChain(
+          modulate(p.chain, drive, bindingsFor(getMode(soundModeRef.current), p.chain), depthRef.current),
+        )
       }
       rafRef.current = requestAnimationFrame(loop)
     }
@@ -244,22 +245,24 @@ export function Poster(p: Props) {
 
   const palette = POSTER_PALETTES[paletteIndex % POSTER_PALETTES.length]
   const layout = LAYOUTS[layoutIndex % LAYOUTS.length]
+  const format = getFormat(formatId)
   // the number is the seed's, so the same sheet always carries the same one
   const number = (sheetSeed % 999) + 1
 
-  // Only worth explaining the omission when there is one: most stacks have no
-  // steady dials at all, and a note about an absence that isn't there is noise.
-  const hasSteady = p.chain.some((step) =>
-    getTreatment(step.id).params.some((spec) => spec.primary && spec.steady),
-  )
 
-  // the sound rides the word sheet only — 69 glyphs re-treated at 10 Hz is
-  // more than the heavy chains can afford
+  /*
+   * The sound rides the word sheet only, and only in video.
+   *
+   * 69 glyphs re-treated at 10 Hz is far past what the engine can afford — the
+   * heavy chains sit near 7 fps on a single word — so the character set cannot
+   * move. That is an engine limit rather than a decision, which is why the
+   * control says so rather than simply refusing.
+   */
   useEffect(() => {
-    if (layout.id !== 'word') stopSound()
-  }, [layout.id, stopSound])
+    if (layout.id !== 'word' || mode !== 'video') stopSound()
+  }, [layout.id, mode, stopSound])
 
-  const sheetChain = layout.id === 'word' && modChain ? modChain : p.chain
+  const sheetChain = layout.id === 'word' && mode === 'video' && modChain ? modChain : p.chain
 
   const sheetReq = useMemo(
     () => ({
@@ -270,11 +273,12 @@ export function Poster(p: Props) {
       seed: sheetSeed,
       word: p.word,
       layout: layout.id,
+      format: format.id,
       palette,
       number,
       wordTransform: wordT,
     }),
-    [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, layout.id, palette, number, wordT],
+    [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, layout.id, format.id, palette, number, wordT],
   )
 
   const layers = useMemo(() => {
@@ -318,6 +322,10 @@ export function Poster(p: Props) {
    * canvas in it, and `lastLayers` is cleared so the new view is handed a sheet
    * rather than waiting for one that never changes.
    */
+  // read through a ref so the mount callback stays stable: it is keyed on the
+  // format in the DOM instead, which is what forces a fresh canvas at a new size
+  const formatRef = useRef(format)
+  formatRef.current = format
   const mount = useCallback((el: HTMLDivElement | null) => {
     viewRef.current?.destroy()
     viewRef.current = null
@@ -326,7 +334,7 @@ export function Poster(p: Props) {
     if (!el) return
     el.replaceChildren()
     try {
-      const view = createFinishView(1)
+      const view = createFinishView(1, formatRef.current.w, formatRef.current.h)
       viewRef.current = view
       el.appendChild(view.canvas)
       setGlError(null)
@@ -446,7 +454,7 @@ export function Poster(p: Props) {
     setBusy(true)
     setNote(null)
     try {
-      const shot = createFinishView(2)
+      const shot = createFinishView(2, format.w, format.h)
       try {
         shot.setFinish(finishId, finishParams)
         shot.setOffset(wordT.dx, wordT.dy)
@@ -466,19 +474,11 @@ export function Poster(p: Props) {
     }
   }
 
-  const copySvg = async () => {
-    const ok = await copyText(composed())
-    setNote(
-      ok
-        ? 'Copied as SVG — paste into Figma or any editor.'
-        : 'The browser would not let the page use the clipboard. Download the SVG instead.',
-    )
-  }
 
   /** one client-space delta, in sheet pixels */
   const toSheet = (px: number) => {
     const el = viewRef.current?.canvas
-    return el && el.clientWidth ? px * (SHEET_W / el.clientWidth) : px
+    return el && el.clientWidth ? px * (format.w / el.clientWidth) : px
   }
 
   /**
@@ -496,8 +496,8 @@ export function Poster(p: Props) {
     if (!box || !el) return false
     const r = el.getBoundingClientRect()
     if (!r.width || !r.height) return false
-    const x = ((e.clientX - r.left) / r.width) * SHEET_W - wordT.dx
-    const y = ((e.clientY - r.top) / r.height) * SHEET_H - wordT.dy
+    const x = ((e.clientX - r.left) / r.width) * format.w - wordT.dx
+    const y = ((e.clientY - r.top) / r.height) * format.h - wordT.dy
     return x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h
   }
 
@@ -547,114 +547,184 @@ export function Poster(p: Props) {
   }
 
   const moved = wordT.dx !== 0 || wordT.dy !== 0 || wordT.scale !== 1
+  const chainName = p.chain.map((c) => getTreatment(c.id).name).join(' + ')
+  const inVideo = mode === 'video'
+
+  /*
+   * A picture of each layout, drawn from the real engine.
+   *
+   * The layouts are the one choice on this screen where the difference is
+   * entirely visual, so it is shown rather than named — the same argument the
+   * workbench presets won on. Memoised on everything except the dials, because
+   * the chain the sheet is handed does not change while you are in here (the
+   * sound modulates a copy), so this is two renders per visit rather than two
+   * per frame.
+   */
+  const layoutThumbs = useMemo(
+    () =>
+      LAYOUTS.map((l) => {
+        try {
+          const svg = buildPoster({ ...sheetReq, chain: p.chain, layout: l.id, wordTransform: IDENTITY })
+          return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
+        } catch {
+          return null
+        }
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [p.font, p.fontId, p.chain, p.overrides, sheetSeed, p.word, format.id, palette, number],
+  )
+
+  /** leaving static for video, or the other way, and what each costs */
+  const setStatic = () => {
+    stopSound()
+    setMode('static')
+  }
+  const setVideo = () => {
+    // the character set cannot move, so entering video puts you on the word
+    if (layout.id !== 'word') setLayoutIndex(LAYOUTS.findIndex((l) => l.id === 'word'))
+    setMode('video')
+  }
+
+  const download = () => (stillType === 'svg' ? void downloadSvg() : void downloadPng())
 
   return (
-    <div
-      className={presenting ? 'poster-backdrop is-presenting' : 'poster-backdrop'}
-      onClick={() => {
-        // presenting is a performance too — leaving it is deliberate or not at all
-        if (!presenting && !soundSource && !recorderRef.current) p.onClose()
-      }}
-      role="presentation"
-    >
-      <div
-        className={presenting ? 'poster is-presenting' : 'poster'}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label="Specimen sheet"
-      >
+    <div className="sheet-view">
+      <header className="sheet-bar">
+        <b className="sheet-name">{chainName}</b>
+        <span className="sheet-no">Specimen No. {String(number).padStart(3, '0')}</span>
+
+        {/*
+          Static or video, centred above everything it governs. It is the only
+          control disabled while a take runs: you cannot change what you are
+          recording halfway through it.
+        */}
+        <div className="mode-switch" role="group" aria-label="Still or video">
+          <button
+            type="button"
+            className={inVideo ? 'seg' : 'seg is-on'}
+            aria-pressed={!inVideo}
+            disabled={recording}
+            onClick={setStatic}
+          >
+            Static
+          </button>
+          <button
+            type="button"
+            className={inVideo ? 'seg is-on' : 'seg'}
+            aria-pressed={inVideo}
+            disabled={recording}
+            onClick={setVideo}
+          >
+            Video
+          </button>
+        </div>
+
+        <label className="visually-hidden" htmlFor="sheet-format">
+          Sheet size
+        </label>
+        <select id="sheet-format" value={format.id} onChange={(e) => setFormatId(e.target.value)}>
+          {FORMATS.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.name} {f.ratio} · {f.w} × {f.h}
+            </option>
+          ))}
+        </select>
+        {/* closing finishes a take rather than losing it — see handleClose */}
+        <button type="button" className="sheet-close" onClick={handleClose} aria-label="Close the sheet">
+          ✕
+        </button>
+      </header>
+
+      <div className="sheet-body">
         <div
-          className="poster-sheet"
+          className="sheet-stage"
           ref={sheetRef}
-          role="img"
-          aria-label={`Specimen sheet number ${number}`}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onWheel={onWheel}
         >
-          <div className="sheet-live" ref={mount} />
+          {recording && (
+            <p className="rec-pill" role="status">
+              <span className="rec-dot" aria-hidden="true" />
+              Recording · 0:{String(recSeconds).padStart(2, '0')}
+            </p>
+          )}
+          <div
+            className="sheet-live"
+            /* a new size needs a new canvas, so the holder is keyed on it */
+            key={format.id}
+            ref={mount}
+            role="img"
+            aria-label={`Specimen sheet number ${number}`}
+          />
           {glError && <p className="notice is-bad">{glError}</p>}
         </div>
 
-        {presenting && (
-          <div className="present-bar">
-            <button type="button" onClick={() => setPresenting(false)}>
-              Stop presenting
-            </button>
-            {/* the rail is hidden, and a take running with no way to stop it
-                and no countdown would be a trap */}
-            {recording && (
-              <button type="button" className="is-live" onClick={() => void finishRecording()}>
-                Stop · {recSeconds}s
-              </button>
-            )}
-            <p className="muted">Escape returns the controls.</p>
-          </div>
-        )}
-
-        <div className="poster-side">
-          <h2>Specimen No. {String(number).padStart(3, '0')}</h2>
-
-          {/* The sheets, paged rather than listed — two is not a menu. */}
-          <div className="sheets">
-            {LAYOUTS.map((l, i) => (
-              <button
-                type="button"
-                key={l.id}
-                className={i === layoutIndex % LAYOUTS.length ? 'chip is-on' : 'chip'}
-                onClick={() => setLayoutIndex(i)}
-                title={l.note}
-              >
-                {l.name}
-              </button>
-            ))}
-          </div>
-          <p className="muted sheet-note">{layout.note}</p>
-
-          <div className="row">
-            <button type="button" onClick={() => setSheetSeed(Math.floor(Math.random() * 9999) + 1)}>
-              Randomise
-            </button>
-            <button type="button" onClick={() => setPaletteIndex((i) => i + 1)}>
-              Recolour
-            </button>
-            <button type="button" onClick={() => setPresenting(true)} title="Hide everything but the sheet">
-              Present
-            </button>
-          </div>
-
-          {layout.id === 'word' && (
-            <div className="word-place ctl">
-              <div className="ctl-head">
-                <label htmlFor="word-size">Word size</label>
-                <output htmlFor="word-size" className={wordT.scale === 1 ? 'is-default' : undefined}>
-                  {wordT.scale.toFixed(2)}
-                </output>
-              </div>
-              <input
-                id="word-size"
-                type="range"
-                min={0.25}
-                max={2}
-                step={0.05}
-                value={wordT.scale}
-                onChange={(e) => setWordT((t) => ({ ...t, scale: Number(e.target.value) }))}
-                onDoubleClick={() => setWordT((t) => ({ ...t, scale: 1 }))}
-              />
-              <p className="muted sheet-note">
-                Drag the word to place it{moved ? ' · ' : '.'}
-                {moved && (
-                  <button type="button" className="linkish" onClick={() => setWordT(IDENTITY)}>
-                    Reset position
+        <aside className="sheet-rail">
+          <div className="group">
+            <h2>Layout</h2>
+            <div className="layout-pick">
+              {LAYOUTS.map((l, i) => {
+                const on = l.id === layout.id
+                const barred = inVideo && l.id !== 'word'
+                return (
+                  <button
+                    type="button"
+                    key={l.id}
+                    className={`layout-cell${on ? ' is-on' : ''}${barred ? ' is-barred' : ''}`}
+                    aria-pressed={on}
+                    disabled={barred}
+                    title={barred ? 'The character set cannot move' : l.note}
+                    onClick={() => setLayoutIndex(i)}
+                  >
+                    {layoutThumbs[i] ? (
+                      <img src={layoutThumbs[i]!} alt="" />
+                    ) : (
+                      <span className="layout-blank" />
+                    )}
+                    <span>{l.name}</span>
                   </button>
-                )}
-              </p>
+                )
+              })}
             </div>
-          )}
+            {inVideo && (
+              <p className="note">
+                The character set cannot move — 69 glyphs re-treated per frame is more than the
+                engine can afford.
+              </p>
+            )}
+            {layout.id === 'word' && (
+              <div className="ctl word-place">
+                <div className="ctl-head">
+                  <label htmlFor="word-size">Word size</label>
+                  <output htmlFor="word-size" className={wordT.scale === 1 ? 'is-default' : undefined}>
+                    {wordT.scale.toFixed(2)}
+                  </output>
+                </div>
+                <input
+                  id="word-size"
+                  type="range"
+                  min={0.25}
+                  max={2}
+                  step={0.05}
+                  value={wordT.scale}
+                  onChange={(e) => setWordT((t) => ({ ...t, scale: Number(e.target.value) }))}
+                  onDoubleClick={() => setWordT((t) => ({ ...t, scale: 1 }))}
+                />
+                <p className="note">
+                  Drag the word to place it{moved ? ' · ' : '.'}
+                  {moved && (
+                    <button type="button" className="linkish" onClick={() => setWordT(IDENTITY)}>
+                      Reset position
+                    </button>
+                  )}
+                </p>
+              </div>
+            )}
+          </div>
 
-          <div className="finish">
+          <div className="group ruled">
             <h2>Finish</h2>
             <div className="chips">
               {FINISHES.map((f) => (
@@ -662,6 +732,7 @@ export function Poster(p: Props) {
                   type="button"
                   key={f.id}
                   className={f.id === finishId ? 'chip is-on' : 'chip'}
+                  aria-pressed={f.id === finishId}
                   onClick={() => {
                     setFinishId(f.id)
                     setFinishParams(finishDefaults(f))
@@ -672,7 +743,6 @@ export function Poster(p: Props) {
                 </button>
               ))}
             </div>
-            <p className="muted sheet-note">{finishSpec.blurb}</p>
             {finishSpec.params.map((spec) => (
               <div className="ctl" key={spec.key}>
                 <div className="ctl-head">
@@ -691,18 +761,29 @@ export function Poster(p: Props) {
                   max={spec.max}
                   step={spec.step}
                   value={finishParams[spec.key] ?? spec.default}
-                  onChange={(e) =>
-                    setFinishParams((v) => ({ ...v, [spec.key]: Number(e.target.value) }))
-                  }
+                  onChange={(e) => setFinishParams((v) => ({ ...v, [spec.key]: Number(e.target.value) }))}
                   onDoubleClick={() => setFinishParams((v) => ({ ...v, [spec.key]: spec.default }))}
                 />
-                {spec.note && <p className="ctl-note">{spec.note}</p>}
               </div>
             ))}
+            <div className="row">
+              <button type="button" onClick={() => setSheetSeed(Math.floor(Math.random() * 9999) + 1)}>
+                Randomise
+              </button>
+              <button type="button" onClick={() => setPaletteIndex((i) => i + 1)}>
+                Recolour
+              </button>
+            </div>
           </div>
 
-          {layout.id === 'word' && (
-            <div className="sound">
+          {/*
+            Sound exists only in video. Not greyed, not collapsed — absent — so
+            "does picking MP4 turn the sound on?" is a question that cannot come
+            up: it is sound that makes a moving export possible, never the other
+            way round.
+          */}
+          {inVideo && (
+            <div className="group ruled sound">
               <h2>Sound</h2>
               <div className="row">
                 <button
@@ -719,6 +800,39 @@ export function Poster(p: Props) {
                 >
                   {soundSource === 'mic' ? 'Stop mic' : 'Use mic'}
                 </button>
+              </div>
+              <div className="chips">
+                {MODES.map((m) => (
+                  <button
+                    type="button"
+                    key={m.id}
+                    className={m.id === soundModeId ? 'chip is-on' : 'chip'}
+                    aria-pressed={m.id === soundModeId}
+                    onClick={() => setSoundModeId(m.id)}
+                    title={m.note}
+                  >
+                    {m.name}
+                  </button>
+                ))}
+              </div>
+              <p className="note">{getMode(soundModeId).note}</p>
+              <div className="ctl">
+                <div className="ctl-head">
+                  <label htmlFor="sound-depth">Depth</label>
+                  <output htmlFor="sound-depth" className={depth === DEFAULT_DEPTH ? 'is-default' : undefined}>
+                    {Math.round(depth * 100)}%
+                  </output>
+                </div>
+                <input
+                  id="sound-depth"
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={depth}
+                  onChange={(e) => setDepth(Number(e.target.value))}
+                  onDoubleClick={() => setDepth(DEFAULT_DEPTH)}
+                />
               </div>
               <div className="ctl">
                 <div className="ctl-head">
@@ -737,117 +851,69 @@ export function Poster(p: Props) {
                   onChange={(e) => setSoundSpeed(Number(e.target.value))}
                   onDoubleClick={() => setSoundSpeed(0.5)}
                 />
-                <p className="ctl-note">low is a slow drift, high is eager</p>
               </div>
-              <div className="ctl">
-                <div className="ctl-head">
-                  <label htmlFor="sound-depth">Depth</label>
-                  <output htmlFor="sound-depth" className={depth === DEFAULT_DEPTH ? 'is-default' : undefined}>
-                    {Math.round(depth * 100)}%
-                  </output>
-                </div>
-                <input
-                  id="sound-depth"
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={depth}
-                  onChange={(e) => setDepth(Number(e.target.value))}
-                  onDoubleClick={() => setDepth(DEFAULT_DEPTH)}
-                />
-                <p className="ctl-note">how far a dial swings from where you left it</p>
-              </div>
-
-              {/*
-                Which dial listens to what. The sheet used to assign these in
-                declared order with no say in it, so whichever dial a treatment
-                happened to list first got the bass — and on half the
-                treatments that is the wrong dial to put a kick on.
-              */}
-              <div className="binds">
-                <h2>What the sound moves</h2>
-                {p.chain.map((step, i) =>
-                  drivable(step).map((spec, order) => {
-                    const id = `bind-${i}-${spec.key}`
-                    const band = bandFor(bindings, i, spec.key, order)
-                    return (
-                      <div className="bind" key={id}>
-                        <label htmlFor={id}>
-                          {spec.label}
-                          {p.chain.length > 1 && (
-                            <em> {getTreatment(step.id).name}</em>
-                          )}
-                        </label>
-                        <select
-                          id={id}
-                          value={band ?? ''}
-                          className={band ? undefined : 'is-off'}
-                          onChange={(e) =>
-                            setBindings((b) => ({
-                              ...b,
-                              [bindKey(i, spec.key)]: (e.target.value || null) as Band | null,
-                            }))
-                          }
-                        >
-                          <option value="">Nothing</option>
-                          {BANDS.map((b) => (
-                            <option key={b} value={b}>
-                              {BAND_LABEL[b]}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )
-                  }),
-                )}
-                {hasSteady && (
-                  <p className="sheet-note muted">
-                    Dials that switch between pictures rather than move within one are not
-                    listed — driven, they strobe rather than animate.
-                  </p>
-                )}
-              </div>
-              <div className="row">
-                <button
-                  type="button"
-                  className={recording ? 'is-live' : undefined}
-                  disabled={!soundSource}
-                  onClick={() => (recording ? void finishRecording() : startRecording())}
-                >
-                  {recording ? `Stop · ${recSeconds}s` : 'Record clip'}
-                </button>
-              </div>
-              {soundSource && (
-                <p className="muted sheet-note">
-                  {recording
-                    ? `Recording the sheet and the sound — up to ${MAX_RECORD_SECONDS} seconds, then it saves itself.`
-                    : 'The dials are riding the sound. Download a still, or record a clip to post.'}
-                </p>
-              )}
             </div>
           )}
 
-          <div className="row">
-            <button type="button" className="save" onClick={downloadPng} disabled={busy}>
-              {busy ? 'Rendering…' : 'Download PNG'}
-            </button>
-            <button type="button" onClick={downloadSvg}>
-              Download SVG
-            </button>
-          </div>
+          <div className="rail-push" />
 
-          <div className="row">
-            <button type="button" onClick={copySvg}>
-              Copy SVG
-            </button>
-            <button type="button" onClick={handleClose}>
-              Close
-            </button>
+          {/*
+            One type and one button. Copy SVG and Copy link went with this: a
+            second row of verbs beside a download is furniture, and the type
+            select already says everything the extra buttons said.
+          */}
+          <div className="group ruled">
+            <h2>Export</h2>
+            {inVideo ? (
+              <>
+                <div className="row">
+                  <span className="pill">MP4</span>
+                  <span className="pill">up to {MAX_RECORD_SECONDS}s</span>
+                  <button
+                    type="button"
+                    className={recording ? 'is-live' : 'save'}
+                    disabled={!soundSource && !recording}
+                    onClick={() => (recording ? void finishRecording() : startRecording())}
+                  >
+                    {recording ? `Stop · ${recSeconds}s` : 'Record & download'}
+                  </button>
+                </div>
+                <p className="note">
+                  {recording
+                    ? 'It saves itself at the end, and closing finishes the take rather than losing it.'
+                    : soundSource
+                      ? 'The dials are riding the sound. The take starts when you press it.'
+                      : 'Start the loop or the mic first — a clip is a recording of something moving.'}
+                </p>
+              </>
+            ) : (
+              <>
+                <div className="row">
+                  <label className="visually-hidden" htmlFor="still-type">
+                    File type
+                  </label>
+                  <select
+                    id="still-type"
+                    value={stillType}
+                    onChange={(e) => setStillType(e.target.value as 'png' | 'svg')}
+                  >
+                    <option value="png">PNG · 2×</option>
+                    <option value="svg">SVG</option>
+                  </select>
+                  <button type="button" className="save" onClick={download} disabled={busy}>
+                    {busy ? 'Rendering…' : 'Download'}
+                  </button>
+                </div>
+                <p className="note">
+                  {stillType === 'svg'
+                    ? 'Letterforms only — a finish is pixels, so it cannot travel in a vector file.'
+                    : `${format.w} × ${format.h}, drawn again at 2× so it holds up posted large.`}
+                </p>
+              </>
+            )}
+            {note && <p className="note">{note}</p>}
           </div>
-
-          {note && <p className="muted">{note}</p>}
-        </div>
+        </aside>
       </div>
     </div>
   )

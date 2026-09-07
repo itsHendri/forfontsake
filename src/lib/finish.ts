@@ -1,5 +1,6 @@
 import { SHEET_W, SHEET_H } from './poster'
 
+
 /**
  * Finishes: pixels, not geometry.
  *
@@ -221,11 +222,15 @@ export interface FinishView {
  * Scale is a device-pixel multiplier: the live view runs at 1 and the PNG at 2,
  * so one pipeline serves the screen, the download and the recording rather than
  * three that have to be kept agreeing.
+ *
+ * The sheet's own size comes in too, because the format is a property of the
+ * sheet now: a story is 1080×1920 where a post is 1080×1350, and the drag
+ * offset below is expressed as a fraction of whichever one this view holds.
  */
-export function createFinishView(scale = 1): FinishView {
+export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H): FinishView {
   const canvas = document.createElement('canvas')
-  canvas.width = SHEET_W * scale
-  canvas.height = SHEET_H * scale
+  canvas.width = sheetW * scale
+  canvas.height = sheetH * scale
   const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true, antialias: false })
   if (!gl) throw new Error('This browser cannot show finishes — it has no WebGL2.')
 
@@ -318,7 +323,7 @@ export function createFinishView(scale = 1): FinishView {
       liveWord = w
     },
     setOffset(dx, dy) {
-      offset = [dx / SHEET_W, dy / SHEET_H]
+      offset = [dx / sheetW, dy / sheetH]
     },
     setFinish(id, next) {
       finishId = id

@@ -25,9 +25,9 @@ installable font**, entirely in the browser.
 | Glyph grid, waterfall | Done. All 69 preview glyphs; the grid is also the override selection surface. |
 | **Per-glyph overrides** | **Done.** Select glyphs → dial deltas over the global chain, per-glyph reroll; in the URL (7th field), the shelf and the export. |
 | **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker; overrides included. |
-| Specimen sheet | Done. Instagram portrait 1080×1350, word and character set; word draggable/resizable; randomise, recolour, PNG/SVG/copy. |
+| Specimen sheet | **A room of its own, not a modal.** Replaces the workbench, keeps the URL, closes with a ×. Three formats (Post 4:5, Square, Story 9:16) chosen in the header; layout picked as two engine-drawn pictures; word draggable/resizable; randomise and recolour. At 1440×1000 the sheet draws at 852 px, against 702 in the modal. |
 | **Finishes** | **Done.** The sheet renders through WebGL2: grain, riso misregistration and a scanner losing sync, over the rendered page. Pixels, never geometry — a structural test keeps finishes off the path from a chain to a font file, and the SVG download stays letterforms only. |
-| **Sound + clip** | **Done.** Bubble loop (synthesised) or mic drives the dials; Speed and Depth dials; **each drivable dial names the band it rides, or none**; Present mode hides the rail and gives the sheet the window; Record clip → MP4/WebM with audio. |
+| **Sound + clip** | **Done, behind a Static / Video switch.** Sound exists only in video, so choosing MP4 can never start it. Three named modes — Pulse, Breathe, Shimmer — plus Depth and Speed. The export *is* the take: no separate Record button. The character set cannot move and says why. |
 | Saved styles | Done, and kept across reloads in `localStorage`. |
 | Bring your own font | Done, from the font menu. Read in the worker, licence reported, held in memory. |
 | CLI export + verification | Done. `build:font` + `verify:font` (7 checks). |
@@ -148,7 +148,9 @@ so every older invocation still means what it did.
 4. Sound feel is tuned by ear so far only on one machine: the Speed default (0.5), the
    Depth default (35% of a dial's span) and the bubble loop's mix deserve a pass on a phone
    and real speakers.
-5. **The sheet is a modal, and that is now the limit on it.** It opens as an overlay over the
+5. ~~**The sheet is a modal, and that is now the limit on it.**~~ **Done** — see DECISIONS,
+   "The sheet is a room, and it asks one question at the top". The paragraph below is kept
+   because the measurements in it are what the redesign was judged against. It opens as an overlay over the
    workbench, so the specimen — the artefact somebody actually leaves with — gets a column of
    a dialog while the rail beside it has grown to Finish, Sound, per-dial bindings and the
    exports. At 1000 px the rail is 893 px and exactly fills its container; on a shorter screen

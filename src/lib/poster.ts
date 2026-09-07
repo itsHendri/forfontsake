@@ -59,6 +59,35 @@ export interface WordTransform {
   scale: number
 }
 
+/**
+ * A sheet size, named for the thing it is posted as.
+ *
+ * The size is a property of the sheet, not of the export: every tool in this
+ * category — Canva, Adobe Express, Kapwing, Jitter — chooses it on the canvas
+ * and keeps the download dialog to file type and scale, because you want to see
+ * the composition at the size you are going to post it at. Nothing else in the
+ * sheet is measured in absolute pixels; the margin is, and holds at all three.
+ */
+export interface SheetFormat {
+  id: string
+  /** what it is posted as, not what shape it is */
+  name: string
+  ratio: string
+  w: number
+  h: number
+}
+
+export const FORMATS: SheetFormat[] = [
+  { id: 'post', name: 'Post', ratio: '4:5', w: 1080, h: 1350 },
+  { id: 'square', name: 'Square', ratio: '1:1', w: 1080, h: 1080 },
+  { id: 'story', name: 'Story', ratio: '9:16', w: 1080, h: 1920 },
+]
+
+/** the format a request is set in; an unknown id falls back to the first */
+export function getFormat(id?: string): SheetFormat {
+  return FORMATS.find((f) => f.id === id) ?? FORMATS[0]
+}
+
 export interface PosterRequest {
   font: FontData
   fontId: string
@@ -71,16 +100,26 @@ export interface PosterRequest {
   number: number
   /** which of LAYOUTS to set it in; out of range falls back to the first */
   layout?: string
+  /** which of FORMATS to cut it to; out of range falls back to the first */
+  format?: string
   /** the user's placement of the word; only the word layout reads it */
   wordTransform?: WordTransform
   /** per-character exceptions to the chain, exactly as the workbench has them */
   overrides?: Overrides
 }
 
-// Instagram portrait, 4:5 — the sheet is made to be posted.
-export const SHEET_W = 1080
-export const SHEET_H = 1350
+// Instagram portrait, 4:5 — still the default, and what a request with no
+// format set means. Kept as named constants because the share-image script and
+// the hit-test both want the default sheet without asking for it.
+export const SHEET_W = FORMATS[0].w
+export const SHEET_H = FORMATS[0].h
 const MARGIN = 76
+
+/** the band the type is set in, derived from whatever height the format has */
+function bandOf(h: number) {
+  const footTop = h - MARGIN - 64
+  return { footTop, bandTop: MARGIN + 96, bandBottom: footTop - 48 }
+}
 
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
@@ -203,6 +242,7 @@ const esc2 = esc
  * with the sheet as the URL state, not as furniture.
  */
 function chrome(req: PosterRequest, bandTop: number, footTop: number) {
+  const { w: sheetW } = getFormat(req.format)
   const small = (x: number, y: number, text: string, fill: string, size = 17, anchor = 'start') =>
     `<text x="${x}" y="${y}" font-family="${mono}" font-size="${size}" letter-spacing="2.4" ` +
     `fill="${fill}" text-anchor="${anchor}">${esc2(text.toUpperCase())}</text>`
@@ -210,16 +250,16 @@ function chrome(req: PosterRequest, bandTop: number, footTop: number) {
   const number = String(req.number).padStart(3, '0')
 
   const head =
-    `<line x1="${MARGIN}" y1="${bandTop - 60}" x2="${SHEET_W - MARGIN}" y2="${bandTop - 60}" ` +
+    `<line x1="${MARGIN}" y1="${bandTop - 60}" x2="${sheetW - MARGIN}" y2="${bandTop - 60}" ` +
     `stroke="${req.palette.ink}" stroke-width="2"/>` +
     small(MARGIN, bandTop - 80, "For Font's Sake", req.palette.ink) +
-    small(SHEET_W - MARGIN, bandTop - 80, `No. ${number}`, req.palette.mark, 17, 'end')
+    small(sheetW - MARGIN, bandTop - 80, `No. ${number}`, req.palette.mark, 17, 'end')
 
   const foot =
-    `<line x1="${MARGIN}" y1="${footTop}" x2="${SHEET_W - MARGIN}" y2="${footTop}" ` +
+    `<line x1="${MARGIN}" y1="${footTop}" x2="${sheetW - MARGIN}" y2="${footTop}" ` +
     `stroke="${req.palette.ink}" stroke-width="2"/>` +
     small(MARGIN, footTop + 38, `${chainName(req.chain)} on ${req.font.label} · Seed ${req.seed}`, req.palette.ink, 15) +
-    small(SHEET_W - MARGIN, footTop + 38, 'forfontsake.xyz', req.palette.mark, 15, 'end')
+    small(sheetW - MARGIN, footTop + 38, 'forfontsake.xyz', req.palette.mark, 15, 'end')
 
   return { head, foot, small }
 }
@@ -235,12 +275,13 @@ export interface WordBox {
 
 function placeWord(req: PosterRequest, bandTop: number, bandBottom: number) {
   const word = drawWord(req)
+  const { w: sheetW } = getFormat(req.format)
 
   // The type is set to the sheet rather than the sheet to the type. Fitting to
   // the measure alone would set a three-letter word at a size the sheet cannot
   // hold, so the height of the band caps it, and whatever is left over becomes
   // margin rather than overflow.
-  const measure = SHEET_W - MARGIN * 2
+  const measure = sheetW - MARGIN * 2
   const band = bandBottom - bandTop
   const wordHeight = word.ascender - word.descender
   const scale = Math.min(
@@ -299,7 +340,7 @@ function bandChars(req: PosterRequest, bandTop: number, bandBottom: number) {
   const glyphs = drawGlyphs(req, chars)
   if (glyphs.length === 0) return ''
 
-  const measure = SHEET_W - MARGIN * 2
+  const measure = getFormat(req.format).w - MARGIN * 2
   const band = bandBottom - bandTop
   // Square-ish cells: pick the column count whose resulting grid comes closest
   // to filling the band without overflowing it.
@@ -339,21 +380,22 @@ function bandChars(req: PosterRequest, bandTop: number, bandBottom: number) {
 }
 
 /** the sheet's own frame, so every layer is cut to the same size */
-const wrap = (body: string) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${SHEET_W} ${SHEET_H}" ` +
-  `width="${SHEET_W}" height="${SHEET_H}">${body}</svg>`
+const wrap = (body: string, w: number, h: number) =>
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" ` +
+  `width="${w}" height="${h}">${body}</svg>`
 
 export function buildPoster(req: PosterRequest): string {
-  const footTop = SHEET_H - MARGIN - 64
-  const bandTop = MARGIN + 96
-  const bandBottom = footTop - 48
+  const { w, h } = getFormat(req.format)
+  const { footTop, bandTop, bandBottom } = bandOf(h)
 
   const layout = LAYOUTS.find((l) => l.id === req.layout) ?? LAYOUTS[0]
   const { head, foot } = chrome(req, bandTop, footTop)
   const band = layout.id === 'chars' ? bandChars(req, bandTop, bandBottom) : bandWord(req, bandTop, bandBottom)
 
   return wrap(
-    `<rect width="${SHEET_W}" height="${SHEET_H}" fill="${req.palette.paper}"/>` + head + band + foot,
+    `<rect width="${w}" height="${h}" fill="${req.palette.paper}"/>` + head + band + foot,
+    w,
+    h,
   )
 }
 
@@ -377,18 +419,17 @@ export function buildPosterLayers(req: PosterRequest): {
   word: string | null
   wordBox: WordBox | null
 } {
-  const footTop = SHEET_H - MARGIN - 64
-  const bandTop = MARGIN + 96
-  const bandBottom = footTop - 48
+  const { w, h } = getFormat(req.format)
+  const { footTop, bandTop, bandBottom } = bandOf(h)
 
   const layout = LAYOUTS.find((l) => l.id === req.layout) ?? LAYOUTS[0]
   const { head, foot } = chrome(req, bandTop, footTop)
   // the same order the composed sheet uses: paper, head, band, foot
-  const paper = `<rect width="${SHEET_W}" height="${SHEET_H}" fill="${req.palette.paper}"/>`
+  const paper = `<rect width="${w}" height="${h}" fill="${req.palette.paper}"/>`
 
   if (layout.id === 'chars') {
     return {
-      ground: wrap(paper + head + bandChars(req, bandTop, bandBottom) + foot),
+      ground: wrap(paper + head + bandChars(req, bandTop, bandBottom) + foot, w, h),
       word: null,
       wordBox: null,
     }
@@ -398,5 +439,5 @@ export function buildPosterLayers(req: PosterRequest): {
     wordTransform: req.wordTransform ? { ...req.wordTransform, dx: 0, dy: 0 } : undefined,
   }
   const { markup, box } = placeWord(anchored, bandTop, bandBottom)
-  return { ground: wrap(paper + head + foot), word: wrap(markup), wordBox: box }
+  return { ground: wrap(paper + head + foot, w, h), word: wrap(markup, w, h), wordBox: box }
 }

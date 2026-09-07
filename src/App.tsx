@@ -557,6 +557,30 @@ export default function App() {
     setSaved((list) => [state, ...list.filter((s) => encodeState(s) !== key)].slice(0, SHELF_LIMIT))
   }
 
+  /*
+   * The sheet is a room, not a dialog.
+   *
+   * It used to open as an overlay over the workbench, which cost it half its
+   * width for a rail the workbench could not use anyway — 702px of a 1080×1350
+   * artefact. It replaces the workbench instead and brings its own bar, so the
+   * specimen gets the window and closing brings the bench back exactly as it
+   * was. The state lives on either side of this line, so nothing is rebuilt.
+   */
+  if (posterOpen) {
+    return (
+      <Poster
+        font={library[state.fontId]}
+        fontId={state.fontId}
+        chain={state.chain}
+        overrides={state.overrides}
+        seed={state.seed}
+        // one word sets a sheet; a sentence would come out too small to read
+        word={specimenText.split(/\s+/)[0] || treatment.name}
+        onClose={() => setPosterOpen(false)}
+      />
+    )
+  }
+
   return (
     <div className="wrap">
       <TopBar
@@ -658,18 +682,6 @@ export default function App() {
         onForget={(id) => setSaved((list) => list.filter((_, i) => i !== id))}
       />
 
-      {posterOpen && (
-        <Poster
-          font={library[state.fontId]}
-          fontId={state.fontId}
-          chain={state.chain}
-          overrides={state.overrides}
-          seed={state.seed}
-          // one word sets a sheet; a sentence would come out too small to read
-          word={specimenText.split(/\s+/)[0] || treatment.name}
-          onClose={() => setPosterOpen(false)}
-        />
-      )}
     </div>
   )
 }

@@ -707,9 +707,58 @@ which is the only arrangement where a holder can hold something dead for zero fr
 **Bloom keyed off brightness washes the sheet**, because paper is the brightest thing on it.
 A scanner's bloom is light leaking *into* the ink, so it keys off darkness instead.
 
+## The sheet is a room, and it asks one question at the top
+
+The problem is recorded below as it stood; this is what was done about it.
+
+**Share replaces the workbench rather than opening over it.** Same URL, same state, its own
+bar, and a close × top right — the room reads as something you leave rather than somewhere you
+navigated to, which is why it is a × and not a back link. Measured at a 1440 × 1000 window the
+sheet now draws at **852 px**, against 702 px in the modal and 846 px in Present mode. Present
+itself is gone: it named a mode nobody could picture, and with the rail this quiet the sheet
+already has the window.
+
+**The format is a property of the sheet, never of the export.** Post 4:5, Square and Story
+9:16 live in the header beside the ×, and `SHEET_W`/`SHEET_H` became `FORMATS` in `poster.ts`
+with the old constants kept as the default so every older caller still means the same sheet.
+Every tool in this category splits it the same way — Canva, Adobe Express, Kapwing and Jitter
+choose the size on the canvas and keep the download to type and scale — and not one export
+screen in the whole research pass carried a ratio control.
+
+**Static or Video is the one question at the top, and the dependency runs one way.** Sound is
+what makes a moving export possible; choosing MP4 never turns sound on. In static there is no
+sound in the room at all — absent, not greyed — so the question cannot arise. It is a mode
+rather than a consequence of the sound being on because the clip is the capability nobody else
+in this niche has, and a mode nobody can see is a mode nobody uses.
+
+**The character set cannot be a video, and the control says so.** 69 glyphs re-treated per
+frame is far past what the engine affords when the heavy chains sit near 7 fps on a single
+word — the sheet already stopped the sound whenever the layout was not `word`. In video that
+layout is disabled *with the reason on the page*, rather than being selectable and inert.
+
+**The layout is chosen as two pictures**, drawn by the engine at the current format, because it
+is the one choice here whose difference is entirely visual — the same argument the workbench
+presets won on, and the one no competitor can answer. They are memoised on everything except
+the dials, so it is two renders per visit rather than two per frame.
+
+**Export is one type and one button.** Copy SVG and Copy link went with it: a second row of
+verbs beside a download is furniture, and the type select already says what they said. **Record
+clip stopped being a button** — in video the export *is* the take, which is what fixed it
+feeling hidden. While a take runs the mode switch is the only disabled control, because turning
+a dial mid-take is the point of recording a performance; and the older rule holds that nothing
+about leaving may cost a take, so the × finishes and saves.
+
+**What the sound moves became three named modes** — Pulse, Breathe, Shimmer — plus Depth. The
+per-dial band table went from the front of house. Consumer tools ship named mappings and one
+intensity control; the matrix is a prosumer feature that even OpenMosh and Neural Frames put an
+automatic mode in front of, and the closest peer, Dinamo's Font Gauntlet, maps one signal to one
+axis and stops. The map underneath is unchanged: a mode is a function that fills in the same
+`Bindings` record, rebuilt from the chain rather than stored so it cannot go stale when a layer
+is added or removed.
+
 ## The sheet outgrew its modal
 
-Not a decision yet — a problem, recorded where the next person will look for it.
+The problem as it stood before the section above resolved it.
 
 The specimen sheet opens as an overlay over the workbench, two columns capped at 900 px. That
 was right when it was a sheet and four buttons. It now carries a Finish picker with three

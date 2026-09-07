@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest'
-import { BANDS, DEFAULT_DEPTH, bandFor, drivable, modulate, type Bindings } from './modulate'
+import {
+  BANDS,
+  DEFAULT_DEPTH,
+  DEFAULT_MODE,
+  MODES,
+  bandFor,
+  bindKey,
+  bindingsFor,
+  drivable,
+  getMode,
+  modulate,
+  type Bindings,
+} from './modulate'
 import { defaults, getTreatment } from '../engine/treatments/registry'
 import type { Step } from './urlState'
 
@@ -90,5 +102,46 @@ describe('what the sound moves', () => {
     const dials = drivable(step())
     if (dials.length <= BANDS.length) return
     expect(bandFor({}, 0, dials[BANDS.length].key, BANDS.length)).toBeNull()
+  })
+})
+
+describe('sound modes', () => {
+  const chain: Step[] = [{ id: 'grit', params: defaults(getTreatment('grit')) }]
+
+  it('fills a binding for every drivable dial, and only those', () => {
+    for (const mode of MODES) {
+      const map = bindingsFor(mode, chain)
+      const keys = drivable(chain[0]).map((s) => bindKey(0, s.key))
+      expect(Object.keys(map).sort()).toEqual(keys.sort())
+    }
+  })
+
+  it('rebuilds against the chain it is given, so a second layer is covered', () => {
+    const two: Step[] = [...chain, { id: 'bubble', params: defaults(getTreatment('bubble')) }]
+    const map = bindingsFor(MODES[0], two)
+    expect(Object.keys(map).some((k) => k.startsWith('1:'))).toBe(true)
+  })
+
+  it('Pulse leaves all but the first two dials still', () => {
+    const map = bindingsFor(getMode('pulse'), chain)
+    const specs = drivable(chain[0])
+    expect(map[bindKey(0, specs[0].key)]).toBe('bass')
+    for (const spec of specs.slice(2)) expect(map[bindKey(0, spec.key)]).toBeNull()
+  })
+
+  it('Breathe moves every dial together', () => {
+    const map = bindingsFor(getMode('breathe'), chain)
+    expect(Object.values(map).every((b) => b === 'mid')).toBe(true)
+  })
+
+  it('an unknown mode id falls back rather than throwing', () => {
+    expect(getMode('nope')).toBe(DEFAULT_MODE)
+  })
+
+  it('a mode actually moves the dials it binds', () => {
+    const map = bindingsFor(getMode('breathe'), chain)
+    const moved = modulate(chain, [0, 1, 0, 0], map, 0.5)
+    const spec = drivable(chain[0])[0]
+    expect(moved[0].params[spec.key]).not.toBe(chain[0].params[spec.key])
   })
 })
