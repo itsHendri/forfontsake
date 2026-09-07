@@ -232,11 +232,29 @@ stack note, an (i) on every dial, one Detail dial — see DECISIONS, "Say each t
 Then seven wireframes went up as one page for Hendri to pick from: four shapes for the share
 environment (S1 Stage, S2 Toolbar, S3 Sheet layers, S4 Looks) and three for where font, style
 and presets sit on the workbench (W1 Setup row, W2 The layer owns its style, W3 Plate head).
-Recommended: S1 + W1. The page saves the pick to its own store, document `picks/layout`
-(`share`, `rail`, `notes`, `at`). Nothing in `src/` moves until that pick is read. Already
-decided regardless of the pick: format chips on the sheet (Post 4:5 · Square · Story 9:16),
-sound as modes plus Depth with the band table behind Advanced, and the sheet's state staying
-out of the URL for now.
+**Redrawn in Figma on 7 September**, at Hendri's request, as native layers over the file's own
+components and the Letterpress variables — band **09 · The share environment** (six rooms) and
+band **10 · Font, style, presets** (three hierarchies), in
+`https://www.figma.com/design/ie27RUJUSlkglzarqTMZIO`. Two rooms were added after a second
+research pass over Mobbin's screenshot library and a walk through Ditther:
+**S5 · Tabbed rail** (a `Sheet | Motion` segmented control at the head of the rail, and the
+sound binding moved onto each dial's own row instead of a table) and **S6 · Composer** (the
+sheet as a canvas with layers, a replaceable background, a dock of things to add, toggle-gated
+sections and Ditther's fused slider rows). A card at the foot of band 09 carries the spectrum
+and the open questions.
+
+Recommended: **S5 next, S6 as the direction**, with W2 if the composer is where this is going.
+The artifact still holds the pick, saved to its own store as document `picks/layout`
+(`share`, `rail`, `naming`, `scope`, `notes`, `at`). Nothing in `src/` moves until that pick is
+read. Already decided regardless of it: format lives on the canvas and never in the export
+(Post 4:5 · Square · Story 9:16), sound becomes named modes plus Depth, and the sheet's state
+stays out of the URL for now.
+
+**The open question the Ditther conversation raised**, recorded because it changes more than
+layout: the workbench makes a *font* and the second room makes a *post*, so "Share" may be the
+wrong name for a room — Share is what you do at the end. Whether that room is called Compose,
+and whether a background image, an inverted palette and your own text layers are in scope, are
+both Hendri's to call.
 
 ## Design source of truth
 

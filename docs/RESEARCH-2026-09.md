@@ -430,3 +430,84 @@ selected card shows its dials beneath it.
    step, with Customise behind it (Ditther).
 8. A share URL that reopens the sheet as it was (Ray.so). Nothing about the sheet is in the URL
    today.
+
+### The screenshot record — what shipped products actually draw
+
+The pass above read documentation. A second pass, 7 September, read Mobbin's screenshot library —
+real shipped UI rather than help pages — and then took Ditther apart in the browser, because that
+is the tool Hendri named as closest to what the share room should be. Three negative findings
+first, because they are the strongest claims:
+
+- **No app in the set puts effect sliders in a modal over its canvas.** Modals appear only for
+  export, resize and format. Creative dials are always in a persistent rail, a persistent bottom
+  tray, or a floating panel you can move.
+- **No export screen returned contains an aspect-ratio control**, which confirms the
+  documentation pass from a different kind of source.
+- **No app shows document-wide and per-layer settings in one panel at once.** Per-layer settings
+  replace the list in place; document settings live somewhere else.
+
+The patterns worth taking:
+
+- **Riveo** ([export sheet](https://mobbin.com/screens/a3b0cc43-2952-4161-972e-643d1cb4e530),
+  [effect properties](https://mobbin.com/screens/d60f7063-a292-4337-bba3-4c6d7639daf1)) — the most
+  useful screen found. Effect parameters are rows: enums as segmented scrollers, numerics as a
+  slider with a right-aligned value **and a bind button on the row's right edge**. Binding is a
+  property of the parameter, not a table beside it. Its export sheet compresses five settings into
+  one summary row plus a disclosure.
+- **Jitter** and **Rive** ([Jitter](https://mobbin.com/screens/46f65180-3df4-41aa-a62d-7a91632cc742),
+  [Rive](https://mobbin.com/screens/a21ef588-6033-4665-b4dc-c734fdac0220)) — a `Design | Animate`
+  segmented control at the very top of the rail, splitting static properties from time-based ones.
+  Export is a top-right button, never inside the rail. This is the answer to a rail that has to
+  hold a format picker, a finish, a sound block and five exits.
+- **Squarespace** ([effect panel](https://mobbin.com/screens/9cf06d0a-eef3-48df-a4e7-0fd8b98d67ee))
+  — an accordion of named treatments with only the selected one open, three sliders with
+  right-aligned values, and **Shuffle Settings as the last item inside that panel**. Randomise
+  belongs with the dials it randomises, not at the top of the rail. Ours is in the plate footer,
+  which is the same argument.
+- **Spotify's Create cover art** ([screen](https://mobbin.com/screens/5130c62a-ad89-44e8-8646-928b0dfb6d14))
+  — fixed-ratio canvas, a tray of effect chips, and **two sliders that appear only once an effect
+  is chosen**. "None" is a chip in the row, not a separate control.
+- **Artlist** ([LUT grid](https://mobbin.com/screens/5b68fb42-f7ce-451c-ab2b-63e8bbc66789)) — one
+  control re-renders every thumbnail at once. Applied here: changing the word or the layout should
+  repaint all four finish thumbnails, so the picker always previews the current sheet.
+- **Jitter's format dropdown** ([screen](https://mobbin.com/screens/1b82de67-4ac2-49d8-bf2b-50cd6c074cb4))
+  — grouped rows with pixel dimensions right-aligned, sitting beside Export in the rail header.
+  **Adobe Express** ([screen](https://mobbin.com/screens/adeda86c-a4cb-4741-8ff1-65bee742620a))
+  draws each ratio as a proportionally-shaped tile labelled twice, ratio inside and name plus
+  pixels underneath. **VEED** adds a `Fit & center | Fill & crop` control for content that does not
+  fit, and calls the button "Duplicate & Resize" — a second ratio becomes a sibling rather than
+  destroying the first composition.
+- **Photoroom** ([layers](https://mobbin.com/screens/17875c39-0946-4b6b-a760-bb3868918e01)) — the
+  document background is stated as a layer, with its opacity in the label.
+
+### Ditther, taken apart
+
+`app.ditther.com`, walked through in the browser on 7 September. It is the closest thing to what
+the share room could become, and its structure is worth stating exactly:
+
+- **Canvas centred on a dark ground**, sized to its content, nothing else competing.
+- **Left rail, 170 px:** `EFFECTS (75)` with category chips (All, Color, Analog, Distort, Glitch,
+  Print, Light, Artistic) over a five-column grid of thumbnails, then `ADJUSTMENTS` — twelve
+  named rows, each a **fused slider**: label left, value right, and the track *is* the row's
+  background fill. Twelve fit where five of ours would.
+- **Right rail, 170 px:** `LOOKS (69)` — bundles as named thumbnails, with All / Effects Looks /
+  Texture Looks / **Saved Looks** filters and a Save affordance — then `TEXTURE` and `DUOTONE`,
+  each **gated by a toggle**, their controls greyed until it is on.
+- **Floating Layers panel** over the canvas, left: `Background image · Image layer`, and adding
+  text pushes a `Hello` text layer above it, each row with lock and eye.
+- **Selecting a layer swaps the right rail** to that layer's properties — a text layer gives Edit
+  your text, Font Size, Line Height, Letter Spacing, Opacity, Rotation, Font Weight, Blend Mode,
+  Alignment, Color, then Stroke / Glow / Drop Shadow as toggle-gated sections.
+- **Bottom floating dock** for what you can add: layers, adjustments, frame, images, mask, text.
+- **Export is a top-right popover**: 720 / 1080 / 2K / 4K, PNG or JPG, Export. No ratio in it.
+
+Two mechanisms carry most of its density, and both are cheap for us: **the toggle-gated section**
+(a whole block dims rather than disappearing, so you can see what you are not using) and **the
+fused slider row**. Between them, a 300 px rail can hold a treatment's dials, a finish and a
+sound block without a disclosure anywhere.
+
+The thing it changes is the framing rather than the furniture. Ditther is not an export dialog
+that grew; it is a composer whose subject happens to be an image. The equivalent reading here is
+that the workbench makes a **font** and the second room makes a **post** — which is an argument
+about what the room is called as much as how it is laid out, and it is recorded as an open
+question on the Figma board rather than settled here.
