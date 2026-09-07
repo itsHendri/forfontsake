@@ -284,6 +284,23 @@ Terminology is still open — Static · Video (Hendri's words), Still · Clip (t
 since "clip" says short and postable), or Sheet · Motion (round two's, which named our
 furniture rather than the outcome).
 
+**V1 chosen, and drawn in all three states** (Share page, band 06). Only four things change
+between static and video, and the fourth is a constraint rather than a decision:
+
+1. A **Sound block** appears — source, mode, Depth. In static it is absent, not greyed.
+2. The word **moves**, drawn as the letters swelling and subsiding, which is what `modulate()`
+   actually does to the dials.
+3. **Export becomes MP4** with a length, and a PNG of the frame you stop on stays available.
+4. **The character set cannot move.** `Poster.tsx` already stops the sound when the layout is
+   not `word`, because re-treating 69 glyphs per rebuild is beyond what the engine can afford —
+   the heavy chains are near 7 fps on one word. So in video that layout is greyed *with the
+   reason on the page*, rather than being selectable and inert.
+
+A third state is drawn for recording, because it is the one that is easy to get wrong: the
+Static / Video switch is the **only** thing disabled — turning a dial mid-take is the point of
+recording a performance — the button becomes `Stop · Ns`, and the existing rule holds that
+nothing about leaving may cost a take, so the × finishes and saves.
+
 **The Figma file is three pages now**, split on Hendri's instruction because the work had become
 two environments: **Workbench**, **Share**, and **Presets, components & reference**. The band
 numbers restart per page. This supersedes the one-page consolidation of 4 September, which was
