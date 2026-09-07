@@ -511,3 +511,55 @@ that grew; it is a composer whose subject happens to be an image. The equivalent
 that the workbench makes a **font** and the second room makes a **post** — which is an argument
 about what the room is called as much as how it is laid out, and it is recorded as an open
 question on the Figma board rather than settled here.
+
+### The Tools shelf, walked
+
+Hendri's own bookmarks (`hendri.design/bookmarks`, Tools, 61 links) were the next source. Five
+were close enough to our problem to be worth opening; two of those repaid it.
+
+**Unicorn Studio** ([getting started](https://www.unicorn.studio/docs/getting-started)) is the
+most useful thing found in either research pass, because it is a shader tool that chose our
+model and wrote down why:
+
+> "Most shader-driven tools are node-based — build a graph, connect outputs to inputs,
+> construct a pipeline. Unicorn Studio takes a different approach. You work with layers, just
+> like Figma, Framer, or Photoshop."
+
+Three details in it settle questions that are open here:
+
+- **An effect's scope is where you put it.** "An effect can manipulate everything beneath it or
+  just a single layer. Add an effect as a child of a layer and it will only affect that layer."
+  That is a shipped answer to the global-versus-per-layer problem the rail keeps running into —
+  Detail, Keep counters, and Finish are all the same question. The answer is not to pick a side
+  per dial but to make the scope a position, and to let the position be visible.
+- **The background is a layer that can be hidden but not deleted.** Our own rule — the last
+  layer cannot be removed, so its control becomes Clear — is the same rule arrived at
+  independently, which is the best evidence it is right.
+- **Effects are grouped exactly as our treatments are** (Filters, Distortion, Blur, Lighting,
+  Stylize, Misc, Custom against our Wear, Ink, Screens, Press, Structure), and each carries its
+  own time-based animation with its own speed — a per-effect speed rather than one global one,
+  which is worth remembering when the sound block gets its Speed dial.
+
+Its Variables idea is the other thing worth stealing eventually: "almost any property can become
+a named control that publishes with your scene". A sheet that exposed three promoted dials and
+hid the rest is the same move.
+
+**Paper Shaders** ([shaders.paper.design](https://shaders.paper.design)) has grown an *image
+filters* group — paper texture, fluted glass, water — since the August note, and its parameter
+panel is the shape ours should be. Presets sit **inside** the effect panel as a 2×2 of named
+buttons (Default, Cardboard, Abstract, Details) directly above that effect's dials; then colour
+swatches with hex fields; then a dozen rows of label, slider and a boxed numeric value —
+including **`seed` exposed as an ordinary dial**, which is what we do. Under the canvas: "Click
+to change the sample image", the Artlist move again. Above it: `copy link` and `open Paper`, so
+the state is in the URL and there is a door into the full tool.
+
+Three dead ends, recorded so nobody repeats them: **Modyfi** now 404s at its own domain;
+**Unicorn Studio**, **Krea** and **Recraft** put the editor behind a signup wall, so their UI
+here comes from documentation rather than from use; and **Supershort** is a UX-writing studio,
+not a short-form content tool — that bookmark's description does not match the site.
+
+What none of them do is worth stating too. Not one composes a **fixed-ratio social artefact** as
+its main job: Unicorn ships components to the web, Paper Shaders is a library demo, Ditther
+exports an image at a size you pick. The format-first framing — this is a 1080 × 1350 post, and
+everything on screen serves that — is still unoccupied ground, and it is the same gap the
+August note found around fonts.
