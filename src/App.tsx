@@ -127,7 +127,12 @@ function initialState(library: Library): WorkbenchState {
     seed: 1337,
     alternates: 3,
     text: FALLBACK_TEXT,
-    chain: [landed(getTreatment('grit'))],
+    // The face the tool shows first, chosen because it is the better
+    // introduction to what this does — a letter rebuilt out of marks reads as
+    // a decision, where erosion reads as damage. It is also the cheapest
+    // opening the tool has: Halftone lands on Coarse dots at about two
+    // thousand points for a word, where Grit's Sandblast takes ten.
+    chain: [landed(getTreatment('halftone'))],
   }
 }
 
