@@ -1024,6 +1024,36 @@ four treatments came out driving exactly what they drove before — but only by 
 would have said otherwise. The four are written down in a test now. Changing them is fine;
 changing them by accident is what that stops.
 
+## The word says what it is
+
+The tool opened on "Grittier letters" long after Grit stopped being the treatment it opened
+on — a pun left behind by a default that moved. Rather than pick another fixed word, the word
+follows the style: choose Bubble and the page reads *Bubble letters*, choose Extrude and it
+reads *Extruded letters*. The first thing on the page now names what is being shown.
+
+**Most treatments do not need to be told what to say.** `specimenFor()` is the name and a
+noun, and only four treatments override it — Grit, Extrude, Hatch and Shatter, whose names are
+verbs, so the plain form reads as an instruction rather than a description. "Bleed letters"
+is a picture; "Extrude letters" is a command. A test rejects an override that merely restates
+the default form, because a line that changes nothing is a line that looks like it does.
+
+**Whether the word is still ours is asked, not tracked.** The obvious build is a flag — *the
+reader typed this one* — and it is wrong here, because the text lives in the URL and on the
+shelf, and a flag survives neither a reload nor a shared link. So App holds the set of words
+it would have written and asks whether this is one of them. The single cost is that typing
+"Bubble letters" by hand hands the word back to the tool, which is invisible until you switch
+style, and then reads as the feature working rather than as a bug.
+
+**An emptied field stays empty.** Refilling it as somebody deletes their way back to a blank
+would fight them; the specimen falls back to the style's word for the render alone, which is
+what it already did.
+
+**The rule lives in one place.** Adding a layer, removing one and swapping a treatment all
+change the stack, so all three would have needed the same three lines. `patchChain` is the
+single edit point instead, and it decides the word from the chain that is landing rather than
+the one before it — the two are different, and doing it in an effect afterwards means a
+cascading render and a hash written twice.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the

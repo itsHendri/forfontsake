@@ -149,6 +149,13 @@ export interface Treatment {
    */
   defaultPreset?: string
   /**
+   * The word the workbench types for itself when nobody has typed their own.
+   *
+   * Only set it where `<Name> letters` reads as an instruction rather than a
+   * description — "Extrude letters" is something you tell somebody to do.
+   */
+  specimen?: string
+  /**
    * True when the same input always gives the same output. Alternates only
    * make sense for treatments that consume randomness; computing several
    * "variants" of a deterministic one just does the same work repeatedly.
@@ -189,4 +196,16 @@ export function landingPreset(t: Treatment): Preset | undefined {
  */
 export function initialParams(t: Treatment): ParamValues {
   return { ...defaults(t), ...(landingPreset(t)?.values ?? {}) }
+}
+
+/**
+ * The specimen a treatment writes for itself.
+ *
+ * The workbench sets the word to match the style, so the first thing on the
+ * page says what it is showing rather than naming whichever treatment happened
+ * to be the default. Most read fine as the name and a noun; the ones that do
+ * not say so themselves.
+ */
+export function specimenFor(t: Treatment): string {
+  return t.specimen ?? `${t.name} letters`
 }

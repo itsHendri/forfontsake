@@ -45,6 +45,7 @@ function scaleSpread(base: number, spread: number, rng: () => number): number {
 export const grit: Treatment = {
   id: 'grit',
   name: 'Grit',
+  specimen: 'Grittier letters',
   family: 'erosion',
   blurb: 'Erosion — chunks bitten out of the edge, holes eaten through the strokes.',
   story:

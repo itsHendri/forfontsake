@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { TREATMENTS, treatmentsByFamily } from './registry'
-import { defaults, initialParams, landingPreset, presetMatches, FAMILY_LABEL, STACK_WIDE_KEYS } from './types'
+import {
+  defaults,
+  initialParams,
+  landingPreset,
+  presetMatches,
+  specimenFor,
+  FAMILY_LABEL,
+  STACK_WIDE_KEYS,
+} from './types'
 import { mulberry32 } from '../prng'
 import { pointCount, boundsOf, normalise } from '../paths'
 import type { Ring } from '../flatten'
@@ -263,5 +271,26 @@ describe('what the sound rides', () => {
       .slice(0, 4)
       .map((s) => s.key)
     expect(driven).toEqual(expected)
+  })
+})
+
+/**
+ * The word the workbench writes for itself when nobody has typed their own.
+ *
+ * It has to be told apart from a reader's own text without a flag — App asks
+ * "is this one of ours?" against the set of these — so two treatments sharing
+ * a word would mean switching between them leaves the page unchanged, and an
+ * override that merely restates the default form is a line nobody needs.
+ */
+describe('specimens', () => {
+  it('are distinct, so switching style visibly changes the word', () => {
+    const words = TREATMENTS.map(specimenFor)
+    expect(new Set(words).size).toBe(words.length)
+  })
+
+  it('are only overridden where the plain form would not do', () => {
+    for (const t of TREATMENTS) {
+      if (t.specimen) expect(t.specimen).not.toBe(`${t.name} letters`)
+    }
   })
 })

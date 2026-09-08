@@ -28,6 +28,7 @@ import type { Treatment, ParamValues, TreatmentContext } from './types'
 export const extrude: Treatment = {
   id: 'extrude',
   name: 'Extrude',
+  specimen: 'Extruded letters',
   family: 'press',
   // the screen consumes randomness only through its own dials; the sweep is
   // exact, so at screen 0 nothing here is rolled

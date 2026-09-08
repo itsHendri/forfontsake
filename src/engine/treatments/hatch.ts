@@ -60,6 +60,7 @@ function ribbon(
 export const hatch: Treatment = {
   id: 'hatch',
   name: 'Hatch',
+  specimen: 'Hatched letters',
   family: 'screen',
   deterministic: false,
   blurb: 'Engraved: ruled lines through the letter, crossed if you want the tone.',

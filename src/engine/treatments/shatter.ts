@@ -54,6 +54,7 @@ function centroid(paths: Paths64) {
 export const shatter: Treatment = {
   id: 'shatter',
   name: 'Shatter',
+  specimen: 'Shattered letters',
   family: 'structure',
   deterministic: false,
   blurb: 'Sliced apart and knocked out of true, each piece drifting on its own.',

@@ -5,6 +5,7 @@ import {
   defaults,
   hasRandomness,
   initialParams,
+  specimenFor,
   type Treatment,
   type ParamValues,
   type Preset,
@@ -32,7 +33,27 @@ import { Waterfall } from './components/Waterfall'
 import { Shelf, type Kept } from './components/Shelf'
 import { Poster } from './components/Poster'
 
-const FALLBACK_TEXT = 'Grittier letters'
+/**
+ * The word the tool writes for itself, named by the top of the stack — that is
+ * the treatment last chosen, and the one reading loudest over the others.
+ */
+function autoText(chain: Step[]): string {
+  return specimenFor(getTreatment(chain[chain.length - 1].id))
+}
+
+/**
+ * Whether the word on the page is still ours to change.
+ *
+ * A flag saying "the reader typed this" would be simpler, but the text lives in
+ * the URL and on the shelf, and a flag survives neither a reload nor a shared
+ * link. So the text is asked instead of tracked. The one cost is that typing
+ * "Bubble letters" by hand hands it back to the tool, which is invisible until
+ * you switch style — and then reads as the feature working.
+ */
+const WRITTEN_HERE = new Set(TREATMENTS.map(specimenFor))
+function ours(text: string): boolean {
+  return WRITTEN_HERE.has(text.trim())
+}
 
 /** a step sitting on its treatment's landing preset, and knowing that it is */
 function landed(t: Treatment): Step {
@@ -122,18 +143,13 @@ function initialState(library: Library): WorkbenchState {
   const valid = fromUrl && usable(fromUrl, library)
   if (valid) return valid
   const fontId = library.pirataone ? 'pirataone' : Object.keys(library)[0]
-  return {
-    fontId,
-    seed: 1337,
-    alternates: 3,
-    text: FALLBACK_TEXT,
-    // The face the tool shows first, chosen because it is the better
-    // introduction to what this does — a letter rebuilt out of marks reads as
-    // a decision, where erosion reads as damage. It is also the cheapest
-    // opening the tool has: Halftone lands on Coarse dots at about two
-    // thousand points for a word, where Grit's Sandblast takes ten.
-    chain: [landed(getTreatment('halftone'))],
-  }
+  // The face the tool shows first, chosen because it is the better
+  // introduction to what this does — a letter rebuilt out of marks reads as a
+  // decision, where erosion reads as damage. It is also the cheapest opening
+  // the tool has: Halftone lands on Coarse dots at about two thousand points
+  // for a word, where Grit's Sandblast takes ten.
+  const chain = [landed(getTreatment('halftone'))]
+  return { fontId, seed: 1337, alternates: 3, text: autoText(chain), chain }
 }
 
 export default function App() {
@@ -183,6 +199,23 @@ export default function App() {
 
   const patch = useCallback((next: Partial<WorkbenchState>) => {
     setState((s) => (s ? { ...s, ...next } : s))
+  }, [])
+
+  /**
+   * Edit the stack, and let the word follow it.
+   *
+   * The rule lives here rather than in each handler so adding a layer, removing
+   * one and swapping a treatment all keep the reading true, and so the word is
+   * decided from the chain that is landing rather than the one before it. An
+   * emptied field is left empty: refilling it as somebody deletes their way
+   * back to a blank would fight them.
+   */
+  const patchChain = useCallback((edit: (chain: Step[]) => Step[]) => {
+    setState((s) => {
+      if (!s) return s
+      const chain = edit(s.chain)
+      return { ...s, chain, text: ours(s.text) ? autoText(chain) : s.text }
+    })
   }, [])
 
   /** edit one step of the stack, leaving the others alone */
@@ -264,7 +297,7 @@ export default function App() {
               library,
               fontId: s.fontId,
               chain: s.chain,
-              text: s.text.trim() || FALLBACK_TEXT,
+              text: s.text.trim() || autoText(s.chain),
               seed: s.seed,
               alternates: s.alternates,
               overrides: s.overrides,
@@ -362,7 +395,7 @@ export default function App() {
     )
   }
 
-  const specimenText = state.text.trim() || FALLBACK_TEXT
+  const specimenText = state.text.trim() || autoText(state.chain)
   const specimen =
     state.text.trim().length > 0
       ? result
@@ -370,7 +403,7 @@ export default function App() {
           library,
           fontId: state.fontId,
           chain: state.chain,
-          text: FALLBACK_TEXT,
+          text: autoText(state.chain),
           seed: state.seed,
           alternates: state.alternates,
           overrides: state.overrides,
@@ -484,7 +517,7 @@ export default function App() {
     // parameters mean different things per treatment, so carrying values across
     // would land on settings nobody chose — the per-glyph deltas at this step
     // go for the same reason
-    patchStep(step, landed(getTreatment(id)))
+    patchChain((chain) => chain.map((c, j) => (j === step ? landed(getTreatment(id)) : c)))
     patchOverrides((overrides) => {
       for (const o of Object.values(overrides)) o.params[step] = {}
     })
@@ -513,13 +546,13 @@ export default function App() {
     if (state.chain.length >= MAX_STEPS) return
     const used = new Set(state.chain.map((c) => c.id))
     const next = TREATMENTS.find((t) => !used.has(t.id)) ?? TREATMENTS[0]
-    patch({ chain: [...state.chain, landed(next)] })
+    patchChain((chain) => [...chain, landed(next)])
     setActive(state.chain.length)
   }
 
   const removeStep = (i: number) => {
     if (state.chain.length <= 1) return
-    patch({ chain: state.chain.filter((_, j) => j !== i) })
+    patchChain((chain) => chain.filter((_, j) => j !== i))
     // per-glyph deltas are aligned with the chain by index, so they move too
     patchOverrides((overrides) => {
       for (const o of Object.values(overrides)) o.params.splice(i, 1)
