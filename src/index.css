@@ -89,6 +89,12 @@ body {
   margin: 0 auto;
   padding: 0 26px 90px;
 }
+/* The workbench ends on the footer mark, and the mark ends on the page: the
+   drawing is cut below the baseline, so any gap under it would read as the
+   letters stopping short rather than running off. */
+.wrap {
+  padding-bottom: 0;
+}
 .shell {
   max-width: 46rem;
   padding-top: 4rem;
@@ -1304,15 +1310,23 @@ select:focus-visible {
 .sitefoot {
   display: flex;
   flex-direction: column;
-  /* an SVG left to stretch would take the full column and centre its own
-     drawing inside it, which reads as a centred mark under left-aligned type */
-  align-items: flex-start;
-  gap: 18px;
+  gap: 26px;
   margin-top: 64px;
-  padding-top: 34px;
+  padding-top: 30px;
   border-top: 1px solid var(--rule);
   font-size: 12px;
   color: var(--muted);
+}
+/*
+ * The measure of the page, and no taller than the drawing makes it. The cut
+ * below the baseline is in the artwork, not in a box here: clipping it in CSS
+ * would mean choosing a height, and the right height changes with the width.
+ */
+.sitefoot-mark {
+  display: block;
+  width: 100%;
+  height: auto;
+  color: var(--ink);
 }
 .sitefoot p {
   margin: 0;
