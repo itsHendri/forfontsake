@@ -25,6 +25,7 @@ import { Panel } from './components/Panel'
 import { Plate } from './components/Plate'
 import { Presets } from './components/Presets'
 import { TopBar } from './components/TopBar'
+import { Brand, SignOff } from './components/Brand'
 import type { Thumb } from './components/Thumb'
 import { GlyphGrid } from './components/GlyphGrid'
 import { Waterfall } from './components/Waterfall'
@@ -583,6 +584,7 @@ export default function App() {
 
   return (
     <div className="wrap">
+      <Brand />
       <TopBar
         font={library[state.fontId]}
         fontId={state.fontId}
@@ -682,6 +684,7 @@ export default function App() {
         onForget={(id) => setSaved((list) => list.filter((_, i) => i !== id))}
       />
 
+      <SignOff />
     </div>
   )
 }

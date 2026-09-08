@@ -31,9 +31,10 @@ const kb = (n: number) => `${Math.round(n / 1024)} KB`
  * ways of leaving with it.
  *
  * The name field is the page title rather than a field buried next to the
- * download, because naming the thing is the first act of making it and the
- * workbench is not a marketing page — the brand line that used to sit here
- * belongs to an intro page that is not this one.
+ * download, because naming the thing is the first act of making it. The
+ * project's mark sits in its own row above this one rather than in it: two
+ * titles in the same row would argue about which of them the page is called,
+ * and the answer has to be the font you are making.
  *
  * The long description of what you are about to download hangs off the button
  * as a tooltip. It is the answer to "what exactly is in this file?", which is

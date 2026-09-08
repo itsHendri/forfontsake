@@ -1271,3 +1271,56 @@ select:focus-visible {
     transition: none !important;
   }
 }
+
+/* ---------- the project's own mark, and whose project it is ---------- */
+
+/*
+ * The mark gets a row of its own above the bar. In the bar it would sit level
+ * with the font's name and the two would compete to be the page's title, which
+ * the name has to win — it is the thing being made.
+ */
+.brand {
+  display: flex;
+  align-items: center;
+  padding: 24px 0 0;
+}
+.brand-mark {
+  display: block;
+  height: 20px;
+  width: auto;
+  /* the letters follow the reader's theme; the scribble keeps the mark's pink */
+  color: var(--ink);
+}
+.brand + .topbar {
+  padding-top: 14px;
+}
+
+.sitefoot {
+  margin-top: 44px;
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+  font-size: 12px;
+  color: var(--muted);
+}
+.sitefoot p {
+  margin: 0;
+}
+.sitefoot a {
+  color: var(--ink);
+  text-decoration-color: var(--rule);
+  text-underline-offset: 3px;
+}
+.sitefoot a:hover {
+  text-decoration-color: currentColor;
+}
+.sitefoot a:focus-visible {
+  outline: 2px solid var(--mark);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+@media (max-width: 720px) {
+  .brand-mark {
+    height: 17px;
+  }
+}
