@@ -1,4 +1,6 @@
 import { getTreatment, type ParamSpec } from '../engine/treatments/registry'
+import { EnvelopeFollower } from '../audio/EnvelopeFollower'
+import type { AudioFrame } from '../audio/frame'
 import type { Step } from './urlState'
 
 /** the four things the sound is split into, in the order the drive vector holds them */
@@ -12,8 +14,14 @@ export const BAND_LABEL: Record<Band, string> = {
   level: 'Level',
 }
 
-/** how far a driven dial swings by default, as a share of its span */
-export const DEFAULT_DEPTH = 0.35
+/**
+ * How far a driven dial swings, as a share of its span — now in *both*
+ * directions from where you left it, so a third of what it was is more motion
+ * than it sounds. The sheet is a way of looking at the font you made, not a
+ * second place to design one, so the letters should read as themselves
+ * breathing rather than as a different cut on every beat.
+ */
+export const DEFAULT_DEPTH = 0.15
 
 /** only the dials somebody has reassigned; the rest are derived */
 export type Bindings = Record<string, Band | null>
@@ -63,6 +71,11 @@ export function bandFor(
  * fixed, so the geometry is a continuous function of the values, and
  * un-snapped values are what let one frame morph into the next instead of
  * clicking through increments.
+ *
+ * The drive is **signed** — see `SoundDrive`. It used to be a level between 0
+ * and 1, which could only ever be added, so the value you set was the quietest
+ * the sheet ever got and everything you actually looked at was heavier than the
+ * font you had made. Centred, your setting is the average instead of the floor.
  *
  * The seed is never touched. This is pure parameter modulation, so any frame
  * the sheet draws is exactly reproducible from the values it was drawn with —
@@ -148,4 +161,39 @@ export function bindingsFor(mode: SoundMode, chain: Step[]): Bindings {
     })
   })
   return out
+}
+
+/**
+ * The four bands, as deviations from what the sound has lately been doing.
+ *
+ * Two followers per band. The fast one is the motion — slower than the
+ * analyser's own, which is tuned for light shows and made to twitch — and the
+ * slow one is a running sense of how loud this material is. Driving on the
+ * difference is what centres the movement on the dial's set point: a steady
+ * passage settles back to the font you made, a transient pushes above it and
+ * the dip after it pulls below.
+ *
+ * That also makes it self-levelling. A quiet recording and a loud one both
+ * move the letters about as much, where an absolute level would leave one
+ * inert and pin the other at the top of every dial.
+ */
+export class SoundDrive {
+  private readonly fast = [
+    new EnvelopeFollower(0.3, 0.9), // bass + beat
+    new EnvelopeFollower(0.45, 1.1), // mids
+    new EnvelopeFollower(0.25, 0.8), // highs
+    new EnvelopeFollower(0.55, 1.3), // level
+  ]
+  // rises to meet the sound in about a second so there is no lurch at the
+  // start, and lets go slowly so a loud bar does not become the new normal
+  private readonly slow = BANDS.map(() => new EnvelopeFollower(1.2, 4))
+
+  read(f: AudioFrame, dt: number): number[] {
+    const targets = [Math.min(1, f.bass + f.beat * 0.5), f.mid, f.high, f.level]
+    return targets.map((t, i) => {
+      const now = this.fast[i].update(t, dt)
+      const baseline = this.slow[i].update(t, dt)
+      return Math.max(-1, Math.min(1, now - baseline))
+    })
+  }
 }

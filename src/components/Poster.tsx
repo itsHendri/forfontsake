@@ -14,12 +14,12 @@ import {
   DEFAULT_DEPTH,
   DEFAULT_MODE,
   MODES,
+  SoundDrive,
   bindingsFor,
   getMode,
   modulate,
 } from '../lib/modulate'
 import { AudioEngine } from '../audio/AudioEngine'
-import { EnvelopeFollower } from '../audio/EnvelopeFollower'
 import { createLoopSource, createMicSource } from '../audio/sources'
 import { startSheetRecorder, type SheetRecorder } from '../lib/videoRecorder'
 import {
@@ -29,7 +29,6 @@ import {
   getFinish,
   type FinishView,
 } from '../lib/finish'
-import type { AudioFrame } from '../audio/frame'
 import type { FontData } from '../lib/glyphData'
 import type { Overrides, Step } from '../lib/urlState'
 
@@ -51,27 +50,6 @@ const IDENTITY: WordTransform = { dx: 0, dy: 0, scale: 1 }
 const TICK_MS = 33
 const TICK_MS_HEAVY = 140
 const HEAVY = new Set(['growth', 'mosaic'])
-
-/**
- * The engine's own envelopes are tuned for light shows — 12 ms attack, made
- * to twitch. Letterforms that twitch read as broken; letterforms that swell
- * and subside read as alive. So the modulation runs through a second, much
- * slower set of followers, each band on its own clock so the four drives
- * never move in lockstep — which is most of what "organic" means.
- */
-function makeGlides() {
-  return [
-    new EnvelopeFollower(0.3, 0.9), // bass + beat
-    new EnvelopeFollower(0.45, 1.1), // mids
-    new EnvelopeFollower(0.25, 0.8), // highs
-    new EnvelopeFollower(0.55, 1.3), // level
-  ]
-}
-
-function glide(glides: EnvelopeFollower[], f: AudioFrame, dt: number): number[] {
-  const targets = [Math.min(1, f.bass + f.beat * 0.5), f.mid, f.high, f.level]
-  return glides.map((g, i) => g.update(targets[i], dt))
-}
 
 // long enough for a loop of the bubble track, short enough to stay postable
 const MAX_RECORD_SECONDS = 15
@@ -202,7 +180,7 @@ export function Poster(p: Props) {
   const startTicking = useCallback(() => {
     if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
     const tier = p.chain.some((s) => HEAVY.has(s.id)) ? TICK_MS_HEAVY : TICK_MS
-    const glides = makeGlides()
+    const drive = new SoundDrive()
     let last = performance.now()
     let lastBuild = 0
     const loop = (now: number) => {
@@ -213,12 +191,12 @@ export function Poster(p: Props) {
       // Tick every frame so the envelopes and detectors stay accurate; only
       // the glides run on the scaled clock — the Speed dial is time dilation
       // on the motion, not on the analysis.
-      const drive = glide(glides, engine.tick(dt), dt * soundSpeedRef.current)
+      const bands = drive.read(engine.tick(dt), dt * soundSpeedRef.current)
       // ...but rebuild the geometry at a pace the chain can afford
       if (now - lastBuild >= Math.max(tier, buildCost.current * 1.5)) {
         lastBuild = now
         setModChain(
-          modulate(p.chain, drive, bindingsFor(getMode(soundModeRef.current), p.chain), depthRef.current),
+          modulate(p.chain, bands, bindingsFor(getMode(soundModeRef.current), p.chain), depthRef.current),
         )
       }
       rafRef.current = requestAnimationFrame(loop)
