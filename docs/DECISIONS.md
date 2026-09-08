@@ -800,7 +800,7 @@ because it depends on the spec and the landing value, not on the value in hand. 
 holds: the tip is nice-to-know, never an instruction the dial needs. The value stays visible
 while dragging, which is the help that matters then.
 
-**Simplify is one dial, and it is called Detail.** All seventeen treatments carry `simplify`
+**Simplify is one dial, and it is called Detail.** Every treatment carries `simplify`
 with the same meaning, so a stack of three offered it three times. The rail now shows it once,
 in an Output group, and the dial writes the same value into every layer. Nothing about the
 state moved: `simplify` stays a parameter of each step in the URL, on the shelf and in the CLI
@@ -810,6 +810,141 @@ the layer was sitting on while its picture still described the letters. Keep cou
 per layer: it appears on three treatments under different keys with different mechanics, and
 Soak's second one — `squeeze`, a press on the holes — was relabelled **Press** so that no two
 dials in a Bubble + Soak stack wear the same name.
+
+## Styles were growing where dials should have been
+
+Seventeen treatments, and a mood board of 112 pins said several of them were the same
+picture. Reading the code rather than the specimens settled it: **Pixel and a proposed
+noise-dissolve treatment are the same loop** — a grid of square cells, each kept when a
+measure of the letter under it beats a threshold, then unioned — differing only in what
+does the measuring. **Extrude and a proposed smear are the same loop** too: copies of the
+glyph shifted along an angle and unioned, one of them also shrinking each copy as it goes.
+
+The pattern under all of it is that the tool had been growing *styles* where it should have
+been growing *dials*, which is why the picker managed to feel cluttered and narrow at the
+same time. Four merges, chosen because each pair really is one operation:
+
+| Was | Is now | The dial that was the difference |
+| --- | --- | --- |
+| Soak | Bubble | Rounding, pushed past the point where corners go — two presets |
+| Outline | Onion | **Style**: outside, centred, inside |
+| Beads | Onion | **Beaded**: break each ring into discs |
+| Stipple | Halftone | **Scatter**: the rotated grid loosened until nothing lines up |
+
+Onion is now the one style that carries every ring a letter can hold — hollow, hairline,
+inline, beaded — because where the band sits relative to the edge was the only thing
+separating them. Halftone is the one style that carries every dot: a print screen and
+dotwork are the same marks from a different sampler, so Scatter is a dial and Overspray
+came across with it.
+
+Two things this cost, both worth paying. **Halftone is no longer deterministic**, because
+Scatter and Overspray draw on the seeded stream; at zero they take nothing and a reroll
+changes nothing, which is exactly where Grit already was at amount 0. And **complexity moved
+out of the picker and into the dial panel** — Halftone now carries ten dials, Onion eight.
+The panel shows every dial since the layout pass removed the accordion, which was right for
+a five-dial style and will not hold much past this. Halftone's dials group cleanly (Grid,
+Mark, Tone, Body) and that grouping is the next layout question.
+
+**Treatment ids are permanent, and merging one away is the one change that breaks them
+silently** — the link still parses, it just names something that is no longer there. So
+`soak`, `outline` and `stipple` are translated rather than dropped, in `retired.ts`, in one
+place that the URL reader and the shelf both go through. The dials are converted with the
+id, because the numbers meant different things in the treatment that has gone: Soak's Melt
+was a share of a third of the stem where Bubble's Rounding is the share itself, and
+Outline's Style counted outward where Onion's counts in, so its three modes swap ends. A
+per-glyph override at a migrated step is dropped rather than guessed at — it named dials
+that no longer exist — while the glyph keeps its reroll and every other step's deltas. An
+old link opens on what it described and then rewrites itself into the new form.
+
+The scale bug worth remembering: beads are walked along offset paths, which are
+working-scale, while every dial is in font units. Placing discs with a font-unit radius put
+them on the page a hundredth of their size, and the motion suite caught it — a frame with
+four thousandths of a percent of its ink left.
+
+## The tone field, and the two screens it unlocked
+
+Half the reference board is one idea the engine could not draw: marks that carry *past* the
+letter and thin away, so a word reads as blurred, sprayed or evaporating rather than printed.
+Every screen here reads tone as depth into the stroke, which makes the outline a wall — marks
+stop dead at it.
+
+The plan called for an outset band field to match the inset ones. Building it showed that was
+more machinery than the problem needed: `distanceToEdge` already returns a smooth, continuous
+value outside the glyph, and Stipple had been using it for overspray all along. What was
+actually missing was smaller and sharper.
+
+**Two functions in `tone.ts`, used by both screens.** `outsideTone` is the far side of the
+existing field — 1 against the outline, 0 at the end of the reach. `fadeRamp` is a ramp along
+a direction, measured once per glyph and asked for at every mark, so a word can thin toward
+one end instead of evenly. Almost every grain and haze on the board has a *way* about it,
+rising off the top or drifting to one side, and distance alone cannot say that.
+
+**Grain is the dial between two kinds of haze**, and it is the one that made a separate soft
+halftone unnecessary. Past the edge each mark either survives an exponential coin toss
+weighted by how far out it sits — spray paint, which is what Stipple always did — or it stays
+and simply shrinks, which is a letter out of focus. One dial runs between them, and it is a
+power on the same probability rather than a branch, so there is no seam in the middle.
+
+**Pixel needed no core dial, and that is the whole argument for the merge.** A noise-dissolve
+treatment had to be told where the letter's core was, because its measure was soft everywhere.
+Pixel measures coverage, and a cell the letter fills completely beats any threshold below 1 —
+so wobbling the threshold with noise takes the edge cells first and leaves the core standing,
+with nothing protecting it. The letter dissolves from the outside in because of what the
+measurement already was.
+
+**A latent bug the growth test caught.** Giving Pixel a `growth()` for the first time — it
+needed one for Spread — made the registry's growth check apply to it, and it failed
+immediately at defaults. A cell the edge runs through is drawn whole, so the grid has always
+reached half a cell past the letter and never said so. Every Pixel font shipped with advances
+that much too narrow. Now declared, which widens them slightly and is a fix, not a regression:
+"Advances widen everywhere, or the caret lies".
+
+**Melt is cut, and a cut cannot be translated.** It sagged the letter off its baseline and
+drew drips by hiding narrowed copies inside the body; nothing else in the registry sags, so
+mapping its links anywhere would open them on a picture their author never chose. A step
+naming a cut treatment is dropped and the rest of the stack opens without it; if that empties
+the stack there is no state left to restore and the workbench opens fresh. Per-glyph deltas
+follow their step to its new index, which is the part that is easy to get wrong once a step in
+the middle disappears.
+
+## One corridor, three pictures — and the one thing that was actually new
+
+Extrude swept the letter along a direction and unioned the copies. A proposed smear did the
+same and shrank each copy as it went. A proposed rebuild of Ghost offset the letter once and
+screened the gap. Three treatments, one loop, and the differences were a multiplier and an
+intersect — so they are two dials now.
+
+**Taper** thins each copy on an eased curve, so the corridor holds its weight and then lets
+go rather than narrowing evenly; when a copy collapses the trail simply ends, which is what a
+drag running out of ink does anyway. **Screen** takes the shadow down to a grey, with dots or
+with lines running along the throw — and lines along the throw is why a smear's streaks and a
+misprint's lined echo are the same dial rather than two.
+
+**The screened shadow needed a fourth layer, and it corrects an old assumption.** Extrude drew
+its face hollow because a solid face merged with a solid shadow "just reads as a slightly
+bolder letter, which is no shadow at all". True — while the shadow is solid. Screened down to
+a grey it stops being true, and a solid letter over a grey shade is exactly what a plate
+printing twice looks like. Layer 3 is that, and it is the one the ghost and smear presets use.
+
+**Ghost is retired into it, and the translation stays faithful rather than flattering.** Its
+drift becomes depth, its mode picks the layer, and its angle carries over except where it was
+0, which Ghost read as "let it wander" and Extrude reads as "throw it right". The screen is
+left *off*: a link asked for the hard fringe it was written against, and the grey rebuild is
+one dial away rather than something done to it on the way in.
+
+**Fur is the only candidate that survived as itself.** Every other one was an existing
+operation with a term changed. This emits geometry *from* the letter, along the outward normal
+of the outline, and nothing else here can be dialled into doing that. It is also the cheapest
+thing on the list to draw: a hair is a triangle, three points, so a letter can wear two
+hundred of them and still be a font.
+
+Which way is out is never computed and never asked for. After the outlines are unioned the
+outer contours wind one way and the counters the other, so taking the normal to the right of
+the tangent grows hair off the outside of a stem and *into* the hole of an `o` with no test
+for which is which — the same rule, and the counter stays open because the hairs line it
+rather than fill it. Winding was already load-bearing here (`ringsToContours` reverses every
+ring on the way into a font, because TrueType fills opposite to PostScript); this is the
+second place it does real work.
 
 ## Where to look next
 

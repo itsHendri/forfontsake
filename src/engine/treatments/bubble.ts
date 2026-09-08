@@ -12,6 +12,11 @@ import type { Treatment, ParamValues, TreatmentContext } from './types'
  * Counters close up fast as the weight rises, so there is a floor on how much
  * you can inflate before an `e` becomes a blob. The rounding pass reopens some
  * of that, which is why it runs after the growth rather than before.
+ *
+ * Pushed far enough this is also wet ink: rounding past the point where every
+ * corner is gone and the strokes swell into each other, with the counters held
+ * open so they close to slits and stop. Soak drew exactly that and nothing
+ * else, so it is two presets here rather than a treatment of its own.
  */
 export const bubble: Treatment = {
   id: 'bubble',
@@ -36,6 +41,12 @@ export const bubble: Treatment = {
     { name: 'Marker', values: { weight: 22, rounding: 28, squeeze: 60, simplify: 0.5 } },
     { name: 'Balloon', values: { weight: 57, rounding: 62, squeeze: 85, simplify: 0.5 } },
     { name: 'Softened', values: { weight: 7, rounding: 52, squeeze: 30, simplify: 0.5 } },
+    // Soak drew the same three steps in the same order and called them Swell,
+    // Melt and Keep counters. These are the two settings it reached that a
+    // marker does not: ink heavy enough to close on its own counters, held off
+    // sealing by the guard.
+    { name: 'Soaked through', values: { weight: 45, rounding: 39, squeeze: 45, simplify: 0.5 } },
+    { name: 'Blotted', values: { weight: 70, rounding: 53, squeeze: 60, simplify: 0.5 } },
   ],
 
   growth(p, ctx) {

@@ -21,12 +21,12 @@ describe('urlState', () => {
       chain: [
         { id: 'grit', params: { amount: 55, scale: 58 } },
         { id: 'bleed', params: { amount: 40, grain: 22 } },
-        { id: 'outline', params: { mode: 2, weight: 30 } },
+        { id: 'onion', params: { style: 0, weight: 30 } },
       ],
     }
     const back = decodeState('#' + encodeState(stacked))
     expect(back).toEqual(stacked)
-    expect(back!.chain.map((s) => s.id)).toEqual(['grit', 'bleed', 'outline'])
+    expect(back!.chain.map((s) => s.id)).toEqual(['grit', 'bleed', 'onion'])
   })
 
   it('still opens a link written before stacking existed', () => {
@@ -112,5 +112,22 @@ describe('urlState', () => {
     const back = decodeState('#' + good.replace('q=', 'q'))
     expect(back).not.toBeNull()
     expect(back!.overrides).toBeUndefined()
+  })
+
+  it('drops a step whose treatment was cut and keeps the rest of the stack', () => {
+    const back = decodeState('#pirataone|grit+melt+bleed|1337|3|amount:55+sag:60+amount:40|Wedge')
+    expect(back!.chain.map((s) => s.id)).toEqual(['grit', 'bleed'])
+    expect(back!.chain[1].params).toEqual({ amount: 40 })
+  })
+
+  it('opens fresh rather than empty when every step was cut', () => {
+    expect(decodeState('#pirataone|melt|1337|3|sag:60|Wedge')).toBeNull()
+  })
+
+  it('moves a surviving step’s per-glyph deltas to its new index', () => {
+    const back = decodeState('#pirataone|melt+grit|1337|3|sag:60+amount:55|Wedge|W=0&+amount:70')
+    expect(back!.chain.map((s) => s.id)).toEqual(['grit'])
+    // the delta was written against step 2 and has to arrive at step 1
+    expect(back!.overrides!.W.params).toEqual([{ amount: 70 }])
   })
 })

@@ -1,3 +1,4 @@
+import { migrateStep } from '../engine/treatments/registry'
 import type { GlyphOverride, Overrides, ParamValues, Step } from '../engine/treatments/registry'
 
 // One definition of a stack entry, in the engine, re-exported for the app —
@@ -99,6 +100,33 @@ function decodeOverrides(raw: string): Overrides | undefined {
   return Object.keys(out).length > 0 ? out : undefined
 }
 
+/**
+ * Per-glyph deltas name dials, and a step folded into another treatment no
+ * longer has the dials its deltas named. The exception is dropped rather than
+ * guessed at: the glyph keeps its reroll and every other step's deltas, and
+ * only the one that can no longer mean anything goes.
+ */
+function dropMigrated(
+  overrides: Overrides | undefined,
+  from: number[],
+  reworded: boolean[],
+): Overrides | undefined {
+  if (!overrides) return undefined
+  const moved = reworded.some(Boolean) || from.some((old, i) => old !== i)
+  if (!moved) return overrides
+  const out: Overrides = {}
+  for (const ch of Object.keys(overrides)) {
+    const o = overrides[ch]
+    const next: GlyphOverride = {
+      // deltas follow their step to its new index, and go when its dials do
+      params: from.map((old, i) => (reworded[i] ? {} : (o.params[old] ?? {}))),
+      ...(o.nudge ? { nudge: o.nudge } : {}),
+    }
+    if (!overrideEmpty(next)) out[ch] = next
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
 export function encodeState(s: WorkbenchState): string {
   const bits = [
     s.fontId,
@@ -124,14 +152,30 @@ export function decodeState(hash: string): WorkbenchState | null {
   // A params field with fewer entries than there are treatments is not fatal —
   // the missing ones come back as empty and get filled from defaults upstream.
   const groups = bits[4].split(STEP_SEP)
-  const chain: Step[] = ids.map((id, i) => ({ id, params: decodeParams(groups[i] ?? '') }))
+  const written = ids.map((id, i) => ({ id, params: decodeParams(groups[i] ?? '') }))
+  // A link is a promise, and treatments that have since been folded into
+  // another one still have to keep it. Translation happens here, once, so the
+  // shelf gets it for free — it stores these same strings. A step whose
+  // treatment was cut has nothing to open on and drops out; if that empties the
+  // stack there is no state left to restore, and the workbench opens fresh.
+  const chain: Step[] = []
+  const from: number[] = []
+  const reworded: boolean[] = []
+  for (let i = 0; i < written.length; i++) {
+    const next = migrateStep(written[i])
+    if (!next) continue
+    chain.push(next)
+    from.push(i)
+    reworded.push(next.id !== written[i].id)
+  }
+  if (chain.length === 0) return null
 
   const seed = Number(bits[2])
   const alternates = Number(bits[3])
   if (Number.isNaN(seed) || Number.isNaN(alternates)) return null
 
   try {
-    const overrides = decodeOverrides(bits[6] ?? '')
+    const overrides = dropMigrated(decodeOverrides(bits[6] ?? ''), from, reworded)
     return {
       fontId: bits[0],
       seed,

@@ -45,36 +45,42 @@ button.
 Each is a pure function, applied consistently across the character set, driven by a seeded
 PRNG so any result is reproducible from its parameters.
 
-Seventeen of them, grouped in the picker by what they do to a letter.
+Thirteen of them, grouped in the picker by what they do to a letter.
 
 | Treatment | What it does |
 | --- | --- |
 | *Wear* | |
 | **Grit** | Erosion — chunks bitten out of the edge, holes eaten through the strokes. |
 | *Ink* | |
-| **Bubble** | Fattened and rounded, the way a marker nib turns a corner. |
+| **Bubble** | Fattened and rounded, the way a marker nib turns a corner — or, pushed, wet ink gone soft. |
 | **Bleed** | Wet ink spreading unevenly, pooling where strokes meet. |
-| **Soak** | Corners melted away, counters squeezed to slits but never sealed. |
-| **Melt** | Sagging off the baseline, drips tapering out from where the ink pooled. |
 | **Organic** | Differential growth — wet ink at a few steps, brain coral at many. |
+| **Fur** | Hairs standing off the edge — fuzz, bristle, or a sawtooth of spikes. |
 | *Screens* | |
-| **Halftone** | A printer's screen: the letter rebuilt out of dots on a rotated grid. |
-| **Stipple** | Dotwork — evenly scattered, never aligned, hazing out past the edge. |
+| **Halftone** | A printer's screen, or dotwork — marks that scatter, haze past the edge and fade away. |
 | **Hatch** | Engraved: ruled lines through the letter, crossed if you want the tone. |
 | **Scanline** | Stripes across the letter, some slipping sideways as the scanner loses sync. |
-| **Pixel** | Dropped onto a coarse grid, with a dithered fringe where it half-covers. |
+| **Pixel** | Dropped onto a coarse grid — a dithered fringe, or the letter dissolving into static. |
 | *Press* | |
-| **Ghost** | Out of register — the fringe two impressions leave where only one landed. |
+| **Extrude** | The letter offset from itself — a block shadow, a drag, or a second impression out of register. |
 | *Structure* | |
-| **Outline** | Hollow, hairline, or an inline stripe within the strokes. |
-| **Onion** | Line inside line inside line, until the letter runs out of room. |
-| **Extrude** | An outlined face over a solid block shadow, swept behind the letter. |
+| **Onion** | Every ring a letter can carry — hollow, hairline, an inline stripe, or a string of beads. |
 | **Mosaic** | Each stroke cut across its width into tiles, with grout between. |
 | **Shatter** | Sliced apart and knocked out of true, each piece drifting on its own. |
 
 The screens are all built on one idea: a filled letter has no darkness for a screen to read,
 so the tone comes from the geometry instead — how deep into the stroke a mark sits, measured
 by successive insets. No raster anywhere.
+
+Some of these absorbed others. Where the band sits relative to the edge was the only thing
+separating an outline from an inline; a print screen and dotwork are the same marks from a
+different sampler; a letter dissolving into static is a bitmap with a noisy threshold; and a
+block shadow, a drag and a misprint are all the letter swept away from itself. So those are
+dials rather than entries of their own. Fur is the one that stayed: nothing else emits
+geometry outward from the edge, so nothing else could be dialled into it. Tone is the field underneath all of it, and
+it no longer stops at the outline — marks can carry past the edge, thin away, and fade along
+a direction. Links written before a merge still open on what they described: retired ids are
+translated, dials and all.
 
 Every dial a treatment has is on the page, and each ships named presets (Photocopy, Sandblast,
 Rust, Marker, Balloon, Wet ink…) shown as pictures of themselves. There is no unnamed state:
@@ -87,7 +93,7 @@ strobes reads as a fault.
 `npx tsx scripts/style-samples.ts` puts every treatment at every preset on one contact sheet,
 with the contour, point and millisecond cost of each. Add `--label` to set each sample in
 its own name — Sandblast set in Sandblast — which is the only way to see whether a preset
-is called the right thing; `--font=anton` and `--only=halftone,melt` narrow it.
+is called the right thing; `--font=anton` and `--only=halftone,pixel` narrow it.
 
 ## Running it
 

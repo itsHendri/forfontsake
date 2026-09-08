@@ -1,5 +1,5 @@
 import { inflatePaths, JoinType, EndType, type Paths64, type Path64 } from 'clipper2-ts'
-import { SCALE, isInside } from './paths'
+import { SCALE, isInside, distanceToEdge } from './paths'
 
 /**
  * Tone, out of geometry.
@@ -131,4 +131,60 @@ export function screenGrid(
     }
   }
   return pts
+}
+
+/**
+ * Tone beyond the edge: 1 against the outline, 0 at the far end of `reach`.
+ *
+ * The screens above read tone as depth *into* the stroke, which makes the
+ * outline a wall — marks stop dead at it. Half the reference for this tool is
+ * the opposite: dots that carry on past the letter and thin away, so the word
+ * reads as blurred, sprayed or evaporating rather than printed. This is the
+ * other side of the same field, and it is the piece both Halftone and Pixel
+ * were missing.
+ *
+ * Coordinates and `reach` are working-scale. Outside the reach it returns 0, so
+ * a caller can use that as its "no mark here" test.
+ */
+export function outsideTone(glyph: Paths64, x: number, y: number, reach: number): number {
+  if (reach <= 0) return 0
+  const d = distanceToEdge(glyph, x, y)
+  return d >= reach ? 0 : 1 - d / reach
+}
+
+/**
+ * A ramp across the letter along a direction: 1 where it starts, `1 - amount`
+ * where it ends.
+ *
+ * Tone that only measures distance is the same in every direction, and the
+ * board's grain and haze almost always have a *way* about them — rising off
+ * the top of the word, drifting to one side. One multiplier on the mark size
+ * gives that, and it costs nothing when the dial is at zero.
+ *
+ * Returns a function because the span is measured once for the whole glyph and
+ * then asked for at every mark. Angles are degrees, and font space is y-up, so
+ * 90 fades toward the top of the letter.
+ */
+export function fadeRamp(
+  bounds: { minX: number; minY: number; maxX: number; maxY: number },
+  angleDeg: number,
+  amount: number,
+): (x: number, y: number) => number {
+  if (amount <= 0) return () => 1
+  const a = (angleDeg * Math.PI) / 180
+  const fx = Math.cos(a)
+  const fy = Math.sin(a)
+  const corners = [
+    bounds.minX * fx + bounds.minY * fy,
+    bounds.maxX * fx + bounds.minY * fy,
+    bounds.minX * fx + bounds.maxY * fy,
+    bounds.maxX * fx + bounds.maxY * fy,
+  ]
+  const lo = Math.min(...corners)
+  const span = Math.max(...corners) - lo
+  if (span <= 0) return () => 1
+  return (x, y) => {
+    const t = (x * fx + y * fy - lo) / span
+    return 1 - amount * (t < 0 ? 0 : t > 1 ? 1 : t)
+  }
 }

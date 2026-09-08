@@ -10,7 +10,7 @@
  *
  *   npx tsx scripts/style-samples.ts
  *   npx tsx scripts/style-samples.ts --text=Bounce --font=anton
- *   npx tsx scripts/style-samples.ts --only=halftone,melt
+ *   npx tsx scripts/style-samples.ts --only=halftone,pixel
  *   npx tsx scripts/style-samples.ts --label
  *
  * `--label` sets every sample in its own name — Sandblast set in Sandblast —

@@ -17,7 +17,7 @@ installable font**, entirely in the browser.
 
 | Piece | State |
 | --- | --- |
-| Engine (17 treatments) | Done. Grouped in the picker as Wear, Ink, Screens, Press, Structure; the full list is in `README.md`. Organic keeps id `growth`. |
+| Engine (13 treatments) | Done. Grouped in the picker as Wear, Ink, Screens, Press, Structure; the full list is in `README.md`. Organic keeps id `growth`. **Consolidated from seventeen**: Soak into Bubble; Outline and Beads into Onion; Stipple and a soft halftone into Halftone; a noise dissolve into Pixel; a drag and the Ghost rebuild into Extrude. Melt cut, Ghost retired into Extrude, **Fur added** as the one new operation. `retired.ts` keeps old links opening on what they described, and drops steps naming a cut treatment. See DECISIONS. |
 | Stacking | Done. Up to three treatments in a row, in the UI, the URL and the export. |
 | Live preview | Done. Type into the specimen itself, at up to 144px. |
 | Workbench layout | Done. An action bar (name the font, Save font, Share, Download with the meta on a tooltip), presets above the plate as pictures of themselves, Randomise and Reset inside it, layers as cards with their own thumbnail and headline dial, every dial visible, and the size ladder labelled above each line. See DECISIONS. |

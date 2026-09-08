@@ -1,16 +1,12 @@
 import { grit } from './grit'
 import { bubble } from './bubble'
 import { bleed } from './bleed'
-import { soak } from './soak'
-import { melt } from './melt'
 import { growth } from './growth'
+import { fur } from './fur'
 import { halftone } from './halftone'
-import { stipple } from './stipple'
 import { hatch } from './hatch'
 import { scanline } from './scanline'
 import { pixel } from './pixel'
-import { ghost } from './ghost'
-import { outline } from './outline'
 import { onion } from './onion'
 import { extrude } from './extrude'
 import { mosaic } from './mosaic-treatment'
@@ -27,18 +23,14 @@ export const TREATMENTS: Treatment[] = [
   grit,
   bubble,
   bleed,
-  soak,
-  melt,
   growth,
+  fur,
   halftone,
-  stipple,
   hatch,
   scanline,
   pixel,
-  ghost,
-  outline,
-  onion,
   extrude,
+  onion,
   mosaic,
   shatter,
 ]
@@ -177,3 +169,4 @@ export function listTreatments() {
 }
 
 export * from './types'
+export { migrateStep, isRetired } from './retired'
