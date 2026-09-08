@@ -145,9 +145,11 @@ function initialState(library: Library): WorkbenchState {
   const fontId = library.pirataone ? 'pirataone' : Object.keys(library)[0]
   // The face the tool shows first, chosen because it is the better
   // introduction to what this does — a letter rebuilt out of marks reads as a
-  // decision, where erosion reads as damage. It is also the cheapest opening
-  // the tool has: Halftone lands on Coarse dots at about two thousand points
-  // for a word, where Grit's Sandblast takes ten.
+  // decision, where erosion reads as damage. It lands on the classic screen
+  // rather than the coarse one because that is the picture people have of a
+  // halftone; the finer grid costs more (about 3,100 points on "Wedge" in
+  // Archivo Black against 1,250) but still opens at half the weight of Grit's
+  // Sandblast, and well inside the preset budget.
   const chain = [landed(getTreatment('halftone'))]
   return { fontId, seed: 1337, alternates: 3, text: autoText(chain), chain }
 }

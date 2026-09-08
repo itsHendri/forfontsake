@@ -635,9 +635,20 @@ more, and eight of the ten lightest presets in the tool are screens. That much i
 halftone of a solid letter *is* partial coverage, and at 96px Classic 45° looks exactly like
 what it is. The defect was narrower. Classic 45° leaves 0.27 and Single pass 0.30, so the
 first thing anybody saw of either treatment was its weakest version, and both are flat grey by
-16px. They now open on **Coarse dots** (0.64) and **Cross-hatched** (1.22), which hold their
+16px. They moved to **Coarse dots** (0.64) and **Cross-hatched** (1.22), which hold their
 texture down the size ladder and are still unmistakably a dot screen and a crossed hatch. The
 ratios hold on all seven shipped faces, so this is not a Pirata-One-shaped choice.
+
+**Halftone went back to Classic 45° when it became the landing treatment, and that is a
+different question.** The measurement above is still true — 0.27 coverage, the faintest chip in
+its own row, flat grey by 16px — but it was answered when Halftone was one style among
+thirteen, where the job of the landing preset is to show what the treatment can do. As the
+first thing anybody sees of the whole tool, the job changes: Classic 45° is the picture people
+already have of a halftone, and a coarse dot screen is not. Hendri called it. The cost is
+paid in two visible places, and they are worth knowing rather than discovering — the preset
+chip is the palest in the row, and the finer grid costs about 3,100 points on "Wedge" against
+Coarse dots' 1,250, which is over the contact sheet's 2,200 flag though well inside the 4,000
+preset budget.
 
 Below about 32px every screen collapses to flat grey whatever the preset — a halftone dot at
 12px is smaller than a pixel. That is physics, not a bug, and the size ladder is right to show
