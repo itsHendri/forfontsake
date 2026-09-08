@@ -743,14 +743,23 @@ on the grounds that 69 glyphs a frame is beyond the engine. Measured rather than
 | Grit | 42 ms | 617 ms | 1.6 |
 | Grit + Bubble | 146 ms | 1725 ms | 0.6 |
 
-So the limit is the chain's cost, not the layout, and the two are barely related — Grit is
-fourteen times slower than Organic on the same sheet. A ban keyed on the layout was therefore
+A browser is slower than node, and the settled figures on the live site are what a person
+actually gets: **Grit on the character set reads about 0.7 rebuilds a second, Halftone is fast
+enough to draw no warning at all.** So the limit is the chain's cost, not the layout, and the
+two are barely related — Grit is fourteen times slower than Organic on the same sheet. A ban keyed on the layout was therefore
 forbidding Halftone at 19 fps while allowing a stack at 0.6. **The picker no longer refuses
 anything.** The rebuild rate was already adaptive (the tick backs off to the measured cost), so
 the rail simply says what that measurement is: under about six a second it warns that the
 letters will step between shapes rather than morph through them, and names the remedy — a
 lighter chain, or one layer fewer. That reading is honest for the word sheet too, which is why
 it is not a character-set message.
+
+**The measurement takes more than one sample.** The first build of a sheet is not
+representative — cold paths, nothing warm — and on the character set it came in around sixteen
+times the settled cost, which briefly shipped a reading of one frame every ten seconds for a
+chain that actually manages 0.7 a second. The rail now reads the median of the last few
+rebuilds and says nothing at all until it has three, because a single cold sample is not an
+opinion worth publishing.
 
 The unfixed part is worth naming: a rebuild is synchronous on the main thread, so a 1.7-second
 chain janks the page rather than merely running slowly. Moving poster geometry into a worker is

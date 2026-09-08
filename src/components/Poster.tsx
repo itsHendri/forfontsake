@@ -283,9 +283,18 @@ export function Poster(p: Props) {
     [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, layout.id, format.id, palette, number, wordT],
   )
 
-  // Mirrored out of the ref so the rail can say what you are going to get. Only
-  // on a material change, or the state write would chase its own tail.
+  /*
+   * How long a rebuild takes, from more than one rebuild.
+   *
+   * The first build of a sheet is not representative — cold paths, nothing
+   * warm — and on the character set it came in around sixteen times the
+   * settled cost, which reported a usable chain as one frame every ten
+   * seconds. So the rail waits for a few samples and reads the median of the
+   * recent ones, and says nothing until it has enough to be worth saying.
+   */
+  const costs = useRef<number[]>([])
   const [frameMs, setFrameMs] = useState(0)
+  const [samples, setSamples] = useState(0)
   const layers = useMemo(() => {
     const t0 = performance.now()
     const out = buildPosterLayers(sheetReq)
@@ -294,9 +303,18 @@ export function Poster(p: Props) {
   }, [sheetReq])
 
   useEffect(() => {
-    const ms = Math.round(buildCost.current)
+    costs.current = [...costs.current, buildCost.current].slice(-7)
+    const sorted = [...costs.current].sort((a, b) => a - b)
+    const ms = Math.round(sorted[Math.floor(sorted.length / 2)])
+    setSamples(costs.current.length)
     setFrameMs((prev) => (Math.abs(prev - ms) > Math.max(8, prev * 0.25) ? ms : prev))
   }, [layers])
+
+  // a different sheet is a different measurement — start the count again
+  useEffect(() => {
+    costs.current = []
+    setSamples(0)
+  }, [layout.id, format.id, p.chain])
 
   // The composed sheet is what the SVG download and the clipboard hand over,
   // and it is built only when one of them is pressed: composing it alongside
@@ -601,7 +619,8 @@ export function Poster(p: Props) {
    * it rather than after.
    */
   const framesPerSecond = frameMs > 0 ? 1000 / Math.max(TICK_MS, frameMs * 1.5) : null
-  const steppy = framesPerSecond !== null && framesPerSecond < 6
+  // three rebuilds before it is allowed an opinion; one is just the cold one
+  const steppy = samples >= 3 && framesPerSecond !== null && framesPerSecond < 6
 
   const download = () => (stillType === 'svg' ? void downloadSvg() : void downloadPng())
 
