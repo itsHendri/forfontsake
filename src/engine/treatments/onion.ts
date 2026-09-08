@@ -74,13 +74,19 @@ export const onion: Treatment = {
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.4 },
   ],
 
+  // Named rather than left to the order, because the ladder runs from one ring
+  // to many and Onion's own picture is in the middle of it. Hollow and Inline
+  // are the outline this treatment absorbed; three rings is what it is called
+  // after.
+  defaultPreset: 'Three rings',
+
   presets: [
-    { name: 'Three rings', values: { style: 0, lines: 3, weight: 13, beaded: 0, gap: 13, position: 0, rounding: 0, simplify: 0.4 } },
-    { name: 'Tight engraving', values: { style: 0, lines: 6, weight: 7, beaded: 0, gap: 7, position: 0, rounding: 0, simplify: 0.4 } },
-    { name: 'Halo', values: { style: 2, lines: 4, weight: 11, beaded: 0, gap: 11, position: 0, rounding: 0, simplify: 0.4 } },
-    { name: 'Wide chrome', values: { style: 0, lines: 3, weight: 20, beaded: 0, gap: 16, position: 0, rounding: 14, simplify: 0.4 } },
     { name: 'Hollow', values: { style: 2, lines: 1, weight: 22, beaded: 0, gap: 13, position: 0, rounding: 0, simplify: 0.4 } },
     { name: 'Inline', values: { style: 0, lines: 1, weight: 12, beaded: 0, gap: 13, position: -5, rounding: 0, simplify: 0.4 } },
+    { name: 'Three rings', values: { style: 0, lines: 3, weight: 13, beaded: 0, gap: 13, position: 0, rounding: 0, simplify: 0.4 } },
+    { name: 'Wide chrome', values: { style: 0, lines: 3, weight: 20, beaded: 0, gap: 16, position: 0, rounding: 14, simplify: 0.4 } },
+    { name: 'Halo', values: { style: 2, lines: 4, weight: 11, beaded: 0, gap: 11, position: 0, rounding: 0, simplify: 0.4 } },
+    { name: 'Tight engraving', values: { style: 0, lines: 6, weight: 7, beaded: 0, gap: 7, position: 0, rounding: 0, simplify: 0.4 } },
     { name: 'String of beads', values: { style: 1, lines: 1, weight: 40, beaded: 45, gap: 13, position: 0, rounding: 0, simplify: 0.5 } },
   ],
 

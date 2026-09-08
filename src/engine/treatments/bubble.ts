@@ -39,13 +39,15 @@ export const bubble: Treatment = {
 
   presets: [
     { name: 'Marker', values: { weight: 22, rounding: 28, squeeze: 60, simplify: 0.5 } },
-    { name: 'Balloon', values: { weight: 57, rounding: 62, squeeze: 85, simplify: 0.5 } },
-    { name: 'Softened', values: { weight: 7, rounding: 52, squeeze: 30, simplify: 0.5 } },
     // Soak drew the same three steps in the same order and called them Swell,
     // Melt and Keep counters. This is the setting it reached that a marker
     // does not: ink heavy enough to close on its own counters, held off
-    // sealing by the guard.
-    { name: 'Soaked through', values: { weight: 45, rounding: 39, squeeze: 45, simplify: 0.5 } },
+    // sealing by the guard. It arrived called "Soaked through", which is
+    // Bleed's vocabulary — this treatment is about a nib, not about wetness,
+    // and Bleed ships Damp, Wet ink and Blotted next door.
+    { name: 'Fattened', values: { weight: 45, rounding: 39, squeeze: 45, simplify: 0.5 } },
+    { name: 'Balloon', values: { weight: 57, rounding: 62, squeeze: 85, simplify: 0.5 } },
+    { name: 'Softened', values: { weight: 7, rounding: 52, squeeze: 30, simplify: 0.5 } },
   ],
 
   growth(p, ctx) {

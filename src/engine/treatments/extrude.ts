@@ -59,13 +59,13 @@ export const extrude: Treatment = {
     { name: 'Block', values: { depth: 150, angle: 315, taper: 0, screen: 0, pattern: 0, pitch: 30, layer: 0, line: 20, simplify: 0.5 } },
     { name: 'Long throw', values: { depth: 280, angle: 315, taper: 0, screen: 0, pattern: 0, pitch: 30, layer: 0, line: 20, simplify: 0.6 } },
     { name: 'Shade only', values: { depth: 150, angle: 315, taper: 0, screen: 0, pattern: 0, pitch: 30, layer: 1, line: 20, simplify: 0.5 } },
+    // the plate that printed twice and missed — grey, never a hard fringe
+    { name: 'Grey ghost', values: { depth: 60, angle: 315, taper: 0, screen: 55, pattern: 0, pitch: 40, layer: 3, line: 20, simplify: 0.4 } },
+    { name: 'Lined echo', values: { depth: 70, angle: 0, taper: 0, screen: 50, pattern: 1, pitch: 24, layer: 3, line: 20, simplify: 0.4 } },
     // dragged across the paper: the corridor thinned to a trail, and cut into
     // lines running the way it travelled
     { name: 'Dragged', values: { depth: 220, angle: 0, taper: 70, screen: 55, pattern: 1, pitch: 26, layer: 3, line: 20, simplify: 0.5 } },
     { name: 'Motion', values: { depth: 300, angle: 0, taper: 90, screen: 0, pattern: 1, pitch: 26, layer: 3, line: 20, simplify: 0.5 } },
-    // the plate that printed twice and missed — grey, never a hard fringe
-    { name: 'Grey ghost', values: { depth: 60, angle: 315, taper: 0, screen: 55, pattern: 0, pitch: 40, layer: 3, line: 20, simplify: 0.4 } },
-    { name: 'Lined echo', values: { depth: 70, angle: 0, taper: 0, screen: 50, pattern: 1, pitch: 24, layer: 3, line: 20, simplify: 0.4 } },
   ],
 
   growth(p, ctx) {

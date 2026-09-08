@@ -1123,6 +1123,51 @@ people who pick Grit. Coral and Thorn sit 0.059 apart and both stay, because the
 of Organic's ladder and cutting one leaves it with three. Scanline's Fine and tapered is the
 faintest survivor at 0.19, and it is the only preset showing what the taper does.
 
+## The preset lists were in merge order, not in any order
+
+Hendri's read, and it was right: after the consolidation the presets stopped making sense. Not
+because any of them looks wrong — the pictures are sound and every dial on every treatment is
+moved by at least one preset, which was the first thing measured and it came back clean. The
+staleness is in the *lists*. Five of them are assembled from up to three former styles, in the
+order the merges happened:
+
+| Treatment | Its own | Absorbed | Absorbed |
+| --- | --- | --- | --- |
+| Halftone | Classic 45°, Coarse dots, Fine square screen, Punched out | *Stipple:* Sprayed stencil, Heavy overspray, Coarse dotwork | *Haze:* Evaporating, Fused blobs |
+| Onion | Three rings, Tight engraving, Halo, Wide chrome | *Outline:* Hollow, Inline | *Beads:* String of beads |
+| Extrude | Block, Long throw, Shade only | *Smear:* Dragged, Motion | *Ghost:* Grey ghost, Lined echo |
+| Pixel | Bitmap, Heavy dither, Gridded tiles | *Static:* Photocopied twice, Dissolving, Rising smoke | |
+| Bubble | Marker, Balloon, Softened | *Soak:* Soaked through | |
+
+So Halftone went from a printer's screen to a spray can to a haze with no ladder between them,
+and a reader arriving at the row had to already know the merge history for the order to mean
+anything.
+
+**The fix is presentation, not pictures.** Every one of the sixty-six settings survives
+untouched; four lists are reordered so each runs as one progression. Halftone: regular grid at
+three densities, the grid inverted, then the grid broken into scatter, then sprayed, then the
+marks fusing, then fading out. Onion: one ring, then many, then beaded. Extrude: a solid throw,
+longer, the face removed, the shade screened, the shade lined, dragged sideways, smeared.
+Pixel already read as a ladder and was left alone.
+
+**Two names were speaking a neighbour's language.** Bubble's "Soaked through" arrived from Soak
+and is wetness vocabulary, which belongs to Bleed next door — Damp, Wet ink, Blotted. It is
+**Fattened** now, which is what Bubble's own blurb says it does. Halftone's "Blob halftone"
+named its own treatment inside its own list, the way a Grit preset called "Gritty grit" would;
+it is **Fused blobs**, after the dial that makes it.
+
+**Reordering a list moved a landing, and every test stayed green.** `landingPreset` falls
+through to `presets[0]` when `defaultPreset` is not set, which is a fine convention until the
+order is a design decision — putting Onion's ladder in order silently moved its landing onto
+Hollow, the outline it had absorbed, rather than the three rings it is named after. Onion names
+its landing explicitly now, and **all thirteen landings are pinned in a test table**. Ordering a
+list is a presentation decision; which preset a treatment opens on is not, and the two should
+not be able to change each other by accident.
+
+**The audit grew a fourth measure while checking this**: which dials no preset moves. It found
+nothing but Simplify and two fade directions, which is the answer being reported rather than a
+wasted check — the merged looks are all demonstrated, so the problem really was the ordering.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the

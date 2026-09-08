@@ -22,6 +22,11 @@
  *   a five-letter word and would call everything heavy on a ten-letter one;
  *   440 a glyph is the same threshold said in a way the word length cannot
  *   move.
+ * - **reach** — which of a treatment's dials no preset ever moves off its
+ *   default. A dial nobody demonstrates is a look the picker never offers,
+ *   and after the merges it is usually the absorbed treatment's look: Onion
+ *   gained Beaded from Beads, Halftone gained Scatter from Stipple, and a
+ *   preset list written before the merge cannot know about either.
  * - **distance** — how far this preset sits from its nearest sibling, as the
  *   mean per-dial gap with each dial normalised by its own range, so a Seed of
  *   1337 does not drown out a Shape of 1. Two presets under about 0.06 apart
@@ -113,6 +118,20 @@ function distance(t: Treatment, a: ParamValues, b: ParamValues): number {
   return sum / t.params.length
 }
 
+/**
+ * Dials no preset moves.
+ *
+ * `steady` dials are counted the same as the rest: a dial that switches
+ * between two constructions is exactly the kind that goes undemonstrated,
+ * because reaching it means knowing it is there.
+ */
+function unreached(t: Treatment, presets: Measured[]): string[] {
+  if (presets.length === 0) return []
+  return t.params
+    .filter((spec) => presets.every((p) => p.values[spec.key] === spec.default))
+    .map((spec) => spec.label)
+}
+
 const rows: { treatment: Treatment; presets: Measured[] }[] = []
 
 for (const t of TREATMENTS) {
@@ -145,6 +164,8 @@ for (const { treatment, presets } of rows) {
   console.log(
     `${treatment.name}  (${FAMILY_LABEL[treatment.family]}, ${presets.length} presets)`.toUpperCase(),
   )
+  const cold = unreached(treatment, presets)
+  if (cold.length) console.log(`  no preset moves: ${cold.join(', ')}`)
   for (const p of presets) {
     const flags = [
       p.name === landing ? 'LANDS' : '',

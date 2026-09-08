@@ -303,3 +303,38 @@ describe('preset names', () => {
   })
 })
 
+/**
+ * Which preset a treatment opens on, written down.
+ *
+ * `landingPreset` falls through to `presets[0]` when `defaultPreset` is not
+ * set, so the landing is positional for most treatments — and reordering a
+ * preset list into a ladder silently moved Onion's landing onto the outline it
+ * had absorbed, with every test still green. Ordering a list is a presentation
+ * decision; which preset a treatment opens on is not, and the two should not
+ * be able to change each other by accident.
+ */
+describe('landings', () => {
+  it.each([
+    ['grit', 'Sandblast'],
+    ['bubble', 'Marker'],
+    ['bleed', 'Damp'],
+    ['growth', 'Swell'],
+    ['fur', 'Fuzz'],
+    ['halftone', 'Classic 45°'],
+    ['hatch', 'Cross-hatched'],
+    ['scanline', 'Level lines'],
+    ['pixel', 'Bitmap'],
+    ['extrude', 'Block'],
+    ['onion', 'Three rings'],
+    ['mosaic', 'Calçada'],
+    ['shatter', 'Knocked askew'],
+  ])('%s opens on %s', (id, expected) => {
+    const t = TREATMENTS.find((x) => x.id === id)!
+    expect(landingPreset(t)?.name).toBe(expected)
+  })
+
+  it('covers every treatment, so a new one cannot slip in unpinned', () => {
+    expect(TREATMENTS.length).toBe(13)
+  })
+})
+
