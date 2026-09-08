@@ -17,6 +17,22 @@ export interface ParamSpec {
    */
   primary?: boolean
   /**
+   * Which run of dials this one belongs to, as a heading in the panel.
+   *
+   * Only for treatments with enough dials that a reader has to hunt, and only
+   * where the runs are *true* — the same test the families pass. A group of
+   * one is the tell that the grouping was invented to be tidy rather than
+   * found: leave those treatments flat, because a heading over a single
+   * slider costs a line and says nothing.
+   *
+   * A treatment groups all of its dials or none of them; half-grouped leaves
+   * orphans under whichever heading happens to precede them. The panel takes
+   * the order of the groups from where each first appears in this list, and
+   * keeps the dials inside a group in the order they are declared, so nothing
+   * here changes what the sound rides.
+   */
+  group?: string
+  /**
    * Front-of-house, but the sound may not ride it.
    *
    * The specimen sheet drives the primary dials from audio, which assumes a

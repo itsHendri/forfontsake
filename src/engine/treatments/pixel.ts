@@ -49,15 +49,15 @@ export const pixel: Treatment = {
     'beats any threshold — the letter dissolves from the outside in without needing to be '+
     'told where its edges are.',
   params: [
-    { key: 'cell', label: 'Cell size', min: 8, max: 90, step: 1, default: 26, note: 'as % of stroke width', primary: true },
+    { key: 'cell', label: 'Cell size', group: 'Grid', min: 8, max: 90, step: 1, default: 26, note: 'as % of stroke width', primary: true },
+    { key: 'gap', label: 'Gap', group: 'Grid', min: 0, max: 60, step: 1, default: 0, note: 'space between cells; 0 fuses them', steady: true },
     // calibration rather than expression, so it sits behind "more dials"
-    { key: 'threshold', label: 'Threshold', min: 10, max: 90, step: 1, default: 50, note: 'how much of a cell must be covered' },
-    { key: 'noise', label: 'Noise', min: 0, max: 100, step: 1, default: 0, note: 'wobbles the threshold, so edge cells drop at random', primary: true },
-    { key: 'spread', label: 'Spread', min: 0, max: 150, step: 1, default: 0, note: 'how far the cells carry past the edge', primary: true },
-    { key: 'fade', label: 'Fade', min: 0, max: 100, step: 1, default: 0, note: 'dissolve more toward one end', primary: true },
-    { key: 'fadeAngle', label: 'Fade direction', min: 0, max: 359, step: 1, default: 90, note: '90 fades toward the top' },
-    { key: 'dither', label: 'Dither', min: 0, max: 100, step: 1, default: 45, note: 'breaks the edge cells into a fringe', steady: true },
-    { key: 'gap', label: 'Gap', min: 0, max: 60, step: 1, default: 0, note: 'space between cells; 0 fuses them', steady: true },
+    { key: 'threshold', label: 'Threshold', group: 'Threshold', min: 10, max: 90, step: 1, default: 50, note: 'how much of a cell must be covered' },
+    { key: 'noise', label: 'Noise', group: 'Threshold', min: 0, max: 100, step: 1, default: 0, note: 'wobbles the threshold, so edge cells drop at random', primary: true },
+    { key: 'dither', label: 'Dither', group: 'Threshold', min: 0, max: 100, step: 1, default: 45, note: 'breaks the edge cells into a fringe', steady: true },
+    { key: 'spread', label: 'Spread', group: 'Past the edge', min: 0, max: 150, step: 1, default: 0, note: 'how far the cells carry past the edge', primary: true },
+    { key: 'fade', label: 'Fade', group: 'Past the edge', min: 0, max: 100, step: 1, default: 0, note: 'dissolve more toward one end', primary: true },
+    { key: 'fadeAngle', label: 'Fade direction', group: 'Past the edge', min: 0, max: 359, step: 1, default: 90, note: '90 fades toward the top' },
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.3 },
   ],
 

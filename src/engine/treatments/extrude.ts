@@ -43,14 +43,14 @@ export const extrude: Treatment = {
     'which is a plate that printed twice and missed. Face and shade can also be built '+
     'separately, so the two-colour version is two exports stacked.',
   params: [
-    { key: 'depth', label: 'Depth', min: 0, max: 400, step: 1, default: 150, note: '% of stroke width', primary: true },
-    { key: 'angle', label: 'Angle', min: 0, max: 359, step: 1, default: 315, note: 'degrees, 315 throws it down-right', primary: true },
-    { key: 'taper', label: 'Taper', min: 0, max: 100, step: 1, default: 0, note: 'thins the shadow as it goes, into a trail', primary: true },
-    { key: 'screen', label: 'Screen', min: 0, max: 100, step: 1, default: 0, note: 'take the shadow down to a grey; 0 leaves it solid', primary: true },
-    { key: 'pattern', label: 'Screen shape', min: 0, max: 1, step: 1, default: 0, note: '0 dots · 1 lines along the throw', steady: true },
-    { key: 'pitch', label: 'Screen pitch', min: 8, max: 80, step: 1, default: 30, note: '% of stroke width' },
-    { key: 'layer', label: 'Layer', min: 0, max: 3, step: 1, default: 0, note: '0 outline + shade · 1 shade only · 2 face only · 3 solid letter + shade', steady: true },
-    { key: 'line', label: 'Line weight', min: 4, max: 80, step: 1, default: 20, note: 'the face outline, % of stroke width' },
+    { key: 'depth', label: 'Depth', group: 'Throw', min: 0, max: 400, step: 1, default: 150, note: '% of stroke width', primary: true },
+    { key: 'angle', label: 'Angle', group: 'Throw', min: 0, max: 359, step: 1, default: 315, note: 'degrees, 315 throws it down-right', primary: true },
+    { key: 'taper', label: 'Taper', group: 'Throw', min: 0, max: 100, step: 1, default: 0, note: 'thins the shadow as it goes, into a trail', primary: true },
+    { key: 'screen', label: 'Screen', group: 'Screen', min: 0, max: 100, step: 1, default: 0, note: 'take the shadow down to a grey; 0 leaves it solid', primary: true },
+    { key: 'pattern', label: 'Shape', group: 'Screen', min: 0, max: 1, step: 1, default: 0, note: '0 dots · 1 lines along the throw', steady: true },
+    { key: 'pitch', label: 'Pitch', group: 'Screen', min: 8, max: 80, step: 1, default: 30, note: '% of stroke width' },
+    { key: 'layer', label: 'Layer', group: 'Face', min: 0, max: 3, step: 1, default: 0, note: '0 outline + shade · 1 shade only · 2 face only · 3 solid letter + shade', steady: true },
+    { key: 'line', label: 'Line weight', group: 'Face', min: 4, max: 80, step: 1, default: 20, note: 'the face outline, % of stroke width' },
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.5 },
   ],
 

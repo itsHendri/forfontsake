@@ -840,6 +840,31 @@ h1 {
 .group h2 {
   margin-bottom: 0;
 }
+
+/*
+ * A run of dials under its own heading. The hairline does the separating and
+ * the heading only labels, which is why it can sit a size below the block's
+ * own title without the two being confused — the rule above it has already
+ * said "new thing".
+ */
+.dialrun {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.dialrun + .dialrun {
+  padding-top: 16px;
+  border-top: 1px solid var(--rule);
+}
+.dialrun h3 {
+  margin: 0;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .randomness {
   border-top: 1px solid var(--rule);
   padding-top: 14px;

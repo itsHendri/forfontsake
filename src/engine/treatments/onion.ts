@@ -62,15 +62,15 @@ export const onion: Treatment = {
     'Neutraface run through their strokes. Beaded swaps the drawn band for discs of the same '+
     'width, which is the same ring with the ink taken out of the spaces.',
   params: [
-    { key: 'style', label: 'Style', min: 0, max: 2, step: 1, default: 0, note: '0 inside · 1 centred · 2 outside', primary: true, steady: true },
-    { key: 'lines', label: 'Lines', min: 1, max: 8, step: 1, default: 3, primary: true },
-    { key: 'weight', label: 'Line weight', min: 3, max: 150, step: 1, default: 13, note: '% of stroke width', primary: true },
+    { key: 'style', label: 'Style', group: 'Rings', min: 0, max: 2, step: 1, default: 0, note: '0 inside · 1 centred · 2 outside', primary: true, steady: true },
+    { key: 'lines', label: 'Lines', group: 'Rings', min: 1, max: 8, step: 1, default: 3, primary: true },
+    { key: 'gap', label: 'Gap', group: 'Rings', min: 3, max: 60, step: 1, default: 13, note: 'space between the lines' },
+    { key: 'position', label: 'Position', group: 'Rings', min: -100, max: 100, step: 1, default: 0, note: 'push the whole set out of or into the letter' },
+    { key: 'weight', label: 'Weight', group: 'Line', min: 3, max: 150, step: 1, default: 13, note: '% of stroke width', primary: true },
     // 0 draws the band and anything above it draws discs — two constructions,
     // not two ends of one, so the sound leaves it where it was put
-    { key: 'beaded', label: 'Beaded', min: 0, max: 100, step: 1, default: 0, note: 'break each ring into discs; 0 draws it whole', primary: true, steady: true },
-    { key: 'gap', label: 'Gap', min: 3, max: 60, step: 1, default: 13, note: 'space between the lines' },
-    { key: 'position', label: 'Position', min: -100, max: 100, step: 1, default: 0, note: 'push the whole set out of or into the letter' },
-    { key: 'rounding', label: 'Rounding', min: 0, max: 130, step: 1, default: 0 },
+    { key: 'beaded', label: 'Beaded', group: 'Line', min: 0, max: 100, step: 1, default: 0, note: 'break each ring into discs; 0 draws it whole', primary: true, steady: true },
+    { key: 'rounding', label: 'Rounding', group: 'Line', min: 0, max: 130, step: 1, default: 0 },
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.4 },
   ],
 

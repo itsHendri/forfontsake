@@ -946,6 +946,39 @@ rather than fill it. Winding was already load-bearing here (`ringsToContours` re
 ring on the way into a font, because TrueType fills opposite to PostScript); this is the
 second place it does real work.
 
+## Thirteen dials get headings, not a lid
+
+Consolidation moved the complexity out of the picker and into the dial panel, exactly as
+predicted. Halftone came out of it carrying thirteen dials, Pixel and Extrude eight, Onion
+seven — and the layout pass had already removed the more-dials accordion on the grounds that
+"eight sliders in a column is not a wall, and hiding half of them behind More only teaches
+people that the tool has parts it would rather they left alone".
+
+That reasoning still holds, so the wall gets headings rather than a lid. Every dial is still on
+the page; the long ones break into named runs with a hairline between them. Halftone reads
+**Grid** (screen, scatter, angle), **Mark** (dot size, fuse, shape), **Tone** (overspray, fade,
+fade direction, grain, falloff), **Body** (keep the letter, invert). Pixel: Grid, Threshold,
+Past the edge. Extrude: Throw, Screen, Face. Onion: Rings, Line.
+
+**Only four treatments are grouped**, and the test for which is the one the families already
+pass: true rather than tidy. Grit has seven dials and they are all damage in one way or
+another; splitting them would be arranging, not explaining. A run of one is the tell that a
+grouping was invented rather than found, so that is an invariant rather than a note — along
+with all-or-nothing, since a half-grouped treatment leaves orphans under whichever heading
+happens to precede them.
+
+**The headings pay for themselves in the labels.** Under a heading called Screen, "Screen
+shape" and "Screen pitch" stutter; they are Shape and Pitch now. Same for Onion's Line weight
+under Line. The group carries the noun, so the dial does not have to.
+
+**The reorder that nearly went wrong.** Grouping is rendered from the parameter list, so the
+groups have to be contiguous in it or the panel shows the same heading twice. Reordering that
+list is not cosmetic: `modulate` drives *the first four primary non-steady dials in declared
+order*, so rearranging it silently changes what the sheet's sound rides. It happens that all
+four treatments came out driving exactly what they drove before — but only by luck, and nothing
+would have said otherwise. The four are written down in a test now. Changing them is fine;
+changing them by accident is what that stops.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the

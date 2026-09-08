@@ -5,6 +5,7 @@ import {
   hasRandomness,
   initialParams,
   STACK_WIDE_KEYS,
+  type ParamSpec,
   type ParamValues,
   type Treatment,
 } from '../engine/treatments/registry'
@@ -52,9 +53,15 @@ interface Props {
  * dial sat first in the group directly beneath it and two sliders saying one
  * thing read as a fault.
  *
- * There are no disclosures. Every dial the treatment has is on the page: eight
- * sliders in a column is not a wall, and hiding half of them behind "More"
- * only teaches people that the tool has parts it would rather they left alone.
+ * There are no disclosures. Every dial the treatment has is on the page, and
+ * hiding half of them behind "More" would only teach people that the tool has
+ * parts it would rather they left alone. That held easily while the longest
+ * treatment ran to eight sliders; consolidating seventeen treatments into
+ * thirteen took the longest to thirteen dials, which is a wall whether or not
+ * it is honest. So the wall gets headings rather than a lid: the dials break
+ * into named runs, all still on the page, and a treatment small enough to read
+ * at a glance stays flat rather than being carved up to match.
+ *
  * The one exception is Simplify, which every treatment carries with the same
  * meaning — that is one dial over the stack (Detail), not one per layer.
  */
@@ -72,6 +79,30 @@ export function Panel(p: Props) {
   const stacked = p.chain.length > 1
 
   const scoped = p.scope.length > 0
+
+  const dial = (spec: ParamSpec) => (
+    <Dial
+      key={spec.key}
+      spec={spec}
+      value={p.params[spec.key]}
+      base={landing[spec.key]}
+      onChange={(v) => p.onParam(spec.key, v)}
+      accent={p.overriddenKeys.has(spec.key)}
+    />
+  )
+
+  // Runs in the order each first appears, dials inside them in the order they
+  // are declared — so the panel can be rearranged without touching the list
+  // the sound reads. A treatment that names no groups comes back as one run
+  // and renders flat.
+  const runs: { name: string; specs: ParamSpec[] }[] = []
+  for (const spec of specs) {
+    const name = spec.group ?? ''
+    const run = runs.find((r) => r.name === name)
+    if (run) run.specs.push(spec)
+    else runs.push({ name, specs: [spec] })
+  }
+
   const scopeLabel =
     p.scope.length <= 6 ? p.scope.join(' ') : `${p.scope.slice(0, 6).join(' ')} +${p.scope.length - 6}`
 
@@ -175,16 +206,14 @@ export function Panel(p: Props) {
 
       <div className="group settings">
         <h2>{p.treatment.name}</h2>
-        {specs.map((spec) => (
-          <Dial
-            key={spec.key}
-            spec={spec}
-            value={p.params[spec.key]}
-            base={landing[spec.key]}
-            onChange={(v) => p.onParam(spec.key, v)}
-            accent={p.overriddenKeys.has(spec.key)}
-          />
-        ))}
+        {runs.length > 1
+          ? runs.map((run) => (
+              <div className="dialrun" key={run.name}>
+                <h3>{run.name}</h3>
+                {run.specs.map(dial)}
+              </div>
+            ))
+          : specs.map(dial)}
       </div>
 
       {random && (

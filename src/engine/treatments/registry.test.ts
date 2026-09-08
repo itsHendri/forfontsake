@@ -152,6 +152,41 @@ describe.each(TREATMENTS.map((t) => [t.id, t] as const))('%s', (_id, t) => {
     }
   })
 
+  it('groups all of its dials, or none of them', () => {
+    // Half-grouped leaves orphans under whichever heading happens to precede
+    // them, which reads as a mis-filed dial rather than an ungrouped one
+    const dials = t.params.filter((s) => !STACK_WIDE_KEYS.has(s.key))
+    const named = dials.filter((s) => s.group)
+    if (named.length === 0) return
+    expect(named.length, `${t.id} groups only some of its dials`).toBe(dials.length)
+  })
+
+  it('keeps each run of dials together in the list', () => {
+    // The panel takes its order from this list, so a group split across it
+    // would render as two headings of the same name — or, worse, silently
+    // reorder the dials the sound reads
+    const seen = new Set<string>()
+    let last: string | undefined
+    for (const spec of t.params) {
+      if (!spec.group) continue
+      if (spec.group === last) continue
+      expect(seen.has(spec.group), `${t.id} · ${spec.group} is split`).toBe(false)
+      seen.add(spec.group)
+      last = spec.group
+    }
+  })
+
+  it('never puts a heading over a single dial', () => {
+    // A run of one is the tell that the grouping was invented to be tidy
+    // rather than found; that treatment should stay flat instead
+    const counts = new Map<string, number>()
+    for (const s of t.params) {
+      if (!s.group) continue
+      counts.set(s.group, (counts.get(s.group) ?? 0) + 1)
+    }
+    for (const [group, n] of counts) expect(n, `${t.id} · ${group}`).toBeGreaterThan(1)
+  })
+
   it('promises at least the growth it takes', () => {
     if (!t.growth) return
     const promised = t.growth(p, ctx())
@@ -205,5 +240,28 @@ describe('one Detail dial over the stack', () => {
         expect(t.params.map((s) => s.key), t.id).toContain(key)
       }
     }
+  })
+})
+
+describe('what the sound rides', () => {
+  /*
+   * `modulate` takes the first four primary, non-steady dials in the order
+   * they are declared. Grouping the panel meant rearranging those lists, and
+   * the sheet's motion would have changed without a word — so the four are
+   * written down here for the treatments whose lists moved. Changing this
+   * table is fine; changing it by accident is what this stops.
+   */
+  it.each([
+    ['halftone', ['spacing', 'scatter', 'spray', 'fade']],
+    ['pixel', ['cell', 'noise', 'spread', 'fade']],
+    ['extrude', ['depth', 'angle', 'taper', 'screen']],
+    ['onion', ['lines', 'weight']],
+  ])('%s', (id, expected) => {
+    const t = TREATMENTS.find((x) => x.id === id)!
+    const driven = t.params
+      .filter((s) => s.primary && !s.steady)
+      .slice(0, 4)
+      .map((s) => s.key)
+    expect(driven).toEqual(expected)
   })
 })
