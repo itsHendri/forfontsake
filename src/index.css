@@ -108,15 +108,22 @@ body {
 /* ---------- the action bar ---------- */
 
 /* Naming the font is the first act of making one, so the name is the page
-   title rather than a field beside the download. The brand line that used to
-   sit here belongs to an intro page, which this is not. */
+   title rather than a field beside the download. The project's mark has the
+   row above; this bar is what you need at any depth on the page, so it is the
+   half that sticks. */
 .topbar {
+  position: sticky;
+  top: 0;
+  /* over the dial panel, which sticks too; under the tooltips, which are
+     absolute and have to clear both */
+  z-index: 10;
   display: flex;
   align-items: flex-end;
   gap: 16px;
   flex-wrap: wrap;
-  padding: 26px 0 16px;
+  padding: 16px 0;
   border-bottom: 1px solid var(--rule);
+  background: var(--paper);
 }
 .topbar-name {
   min-width: 0;
@@ -180,7 +187,7 @@ body {
 .tip,
 .ctl-note {
   position: absolute;
-  z-index: 5;
+  z-index: 30;
   padding: 7px 9px;
   border-radius: 3px;
   background: var(--ink);
@@ -813,7 +820,8 @@ h1 {
 
 .panel {
   position: sticky;
-  top: 20px;
+  /* clear of the sticky bar, whose height the bar itself publishes */
+  top: calc(var(--topbar-h, 76px) + 20px);
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -1282,22 +1290,26 @@ select:focus-visible {
 .brand {
   display: flex;
   align-items: center;
-  padding: 24px 0 0;
+  padding: 34px 0 26px;
 }
 .brand-mark {
   display: block;
-  height: 20px;
+  height: clamp(32px, 5.5vw, 56px);
   width: auto;
+  max-width: 100%;
   /* the letters follow the reader's theme; the scribble keeps the mark's pink */
   color: var(--ink);
 }
-.brand + .topbar {
-  padding-top: 14px;
-}
 
 .sitefoot {
-  margin-top: 44px;
-  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  /* an SVG left to stretch would take the full column and centre its own
+     drawing inside it, which reads as a centred mark under left-aligned type */
+  align-items: flex-start;
+  gap: 18px;
+  margin-top: 64px;
+  padding-top: 34px;
   border-top: 1px solid var(--rule);
   font-size: 12px;
   color: var(--muted);
@@ -1319,8 +1331,15 @@ select:focus-visible {
   border-radius: 2px;
 }
 
-@media (max-width: 720px) {
-  .brand-mark {
-    height: 17px;
+/* The same width the layout collapses at, so the two agree: one column, and
+   nothing pinned. The bar wraps to two rows at this size and pinning it would
+   spend a sixth of a phone screen on something the page is short enough to
+   scroll back to. The panel is already static here. */
+@media (max-width: 860px) {
+  .topbar {
+    position: static;
+  }
+  .brand {
+    padding: 24px 0 18px;
   }
 }

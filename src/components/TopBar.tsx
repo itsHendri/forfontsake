@@ -45,6 +45,29 @@ export function TopBar(p: Props) {
   const [touched, setTouched] = useState(false)
   const [state, setState] = useState<State>({ phase: 'idle' })
   const live = useRef(true)
+  const bar = useRef<HTMLElement>(null)
+
+  /*
+   * The bar sticks to the top, and the dial panel sticks under it. How tall
+   * the bar is depends on what is in it — a long font name wraps the actions
+   * onto a second row, and an export problem adds a third — so its height is
+   * measured and published as a custom property rather than guessed at in the
+   * stylesheet. Writing a CSS variable rather than state keeps a resize from
+   * re-rendering the workbench.
+   */
+  useEffect(() => {
+    const el = bar.current
+    if (!el) return
+    const publish = () =>
+      document.documentElement.style.setProperty(
+        '--topbar-h',
+        `${Math.round(el.getBoundingClientRect().height)}px`,
+      )
+    publish()
+    const ro = new ResizeObserver(publish)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => {
     live.current = true
@@ -105,7 +128,7 @@ export function TopBar(p: Props) {
       : 'Assembling…'
 
   return (
-    <header className="topbar">
+    <header className="topbar" ref={bar}>
       <div className="topbar-name">
         <label className="visually-hidden" htmlFor="family">
           Font name
