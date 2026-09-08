@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { onion } from './onion'
 import { defaults } from './types'
 import { mulberry32 } from '../prng'
-import { isInside, normalise, SCALE } from '../paths'
+import { SCALE, inkArea, isInside, normalise } from '../paths'
 import type { Ring } from '../flatten'
 import type { TreatmentContext } from './types'
 
@@ -43,20 +43,6 @@ const hairline = (): Ring[] => [contrast()[1]]
 const covers = (rings: Ring[], x: number, y: number) =>
   isInside(normalise(rings), x * SCALE, y * SCALE)
 
-const areaOf = (rings: Ring[]) => {
-  let total = 0
-  for (const r of rings) {
-    let a = 0
-    for (let i = 0; i < r.length; i++) {
-      const p = r[i]
-      const q = r[(i + 1) % r.length]
-      a += p.x * q.y - q.x * p.y
-    }
-    total += a / 2
-  }
-  return Math.abs(total)
-}
-
 describe('onion', () => {
   const p = defaults(onion)
   const one = { ...p, lines: 1, weight: 22 }
@@ -70,7 +56,7 @@ describe('onion', () => {
   it.each([0, 1, 2])('produces a band in style %i', (style) => {
     const out = onion.apply(contrast(), { ...one, style }, ctx())
     expect(out.length).toBeGreaterThan(0)
-    expect(areaOf(out)).toBeGreaterThan(0)
+    expect(inkArea(out)).toBeGreaterThan(0)
   })
 
   it('keeps the hairline stroke on the page in the inside style', () => {
@@ -91,7 +77,7 @@ describe('onion', () => {
   it('survives a glyph made only of strokes too thin to band', () => {
     const out = onion.apply(hairline(), { ...one, style: 0, weight: 40 }, ctx())
     expect(out.length).toBeGreaterThan(0)
-    expect(areaOf(out)).toBeGreaterThan(0)
+    expect(inkArea(out)).toBeGreaterThan(0)
   })
 
   it('hollows the letter in the outside style', () => {
@@ -112,7 +98,7 @@ describe('onion', () => {
     // still returns the rings that did fit
     const out = onion.apply(contrast(), { ...p, style: 0, lines: 8, weight: 20, gap: 20 }, ctx())
     expect(out.length).toBeGreaterThan(0)
-    expect(areaOf(out)).toBeGreaterThan(0)
+    expect(inkArea(out)).toBeGreaterThan(0)
   })
 
   describe('beaded', () => {
@@ -121,7 +107,7 @@ describe('onion', () => {
       const beads = onion.apply(contrast(), { ...one, style: 1, weight: 40, beaded: 60 }, ctx())
       // a drawn ring is one contour per stroke; discs pulled apart are many
       expect(beads.length).toBeGreaterThan(band.length)
-      expect(areaOf(beads)).toBeGreaterThan(0)
+      expect(inkArea(beads)).toBeGreaterThan(0)
     })
 
     it('keeps the discs the width of the line they replace', () => {

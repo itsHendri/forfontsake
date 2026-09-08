@@ -1059,11 +1059,24 @@ style, and then reads as the feature working rather than as a bug.
 would fight them; the specimen falls back to the style's word for the render alone, which is
 what it already did.
 
-**The rule lives in one place.** Adding a layer, removing one and swapping a treatment all
-change the stack, so all three would have needed the same three lines. `patchChain` is the
-single edit point instead, and it decides the word from the chain that is landing rather than
-the one before it — the two are different, and doing it in an effect afterwards means a
-cascading render and a hash written twice.
+**The rule lives in one place, and the type says so.** Adding a layer, removing one, swapping
+a treatment and dragging Simplify all change the stack, so each would have needed the same
+line. `patchChain` is the single edit point instead, and it decides the word from the chain
+that is landing rather than the one before it — the two are different, and doing it in an
+effect afterwards means a cascading render and a hash written twice. `patch` takes
+`Partial<Omit<WorkbenchState, 'chain'>>` so the next stack-editing handler cannot quietly opt
+out of the rule; the first version of this was a convention, and `patchStep` and `setSimplify`
+were already ignoring it.
+
+**One consequence to know about: specimen strings have joined ids and preset names as
+vocabulary that lives in shared links.** Because the tool recognises its own word by comparing
+against the set it would write today, renaming Grit's specimen means every link already
+carrying "Grittier letters" is read as somebody's typed text from then on — the word freezes
+instead of following the style. Nothing breaks and no link stops opening, so this does not earn
+`retired.ts`-style machinery yet. The deeper fix, if it ever does, is not a flag but a
+`text: string | null` in the state with `null` meaning "ours", resolved at the same decode
+boundary where `migrateStep` already runs — then the distinction is carried by the type instead
+of inferred from the string, and the historical set has an obvious home next to `MERGED`.
 
 ## Six presets that were already on the page
 

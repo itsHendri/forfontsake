@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { grit } from './grit'
 import { defaults } from './types'
 import { mulberry32 } from '../prng'
-import { pointCount } from '../paths'
+import { inkArea, pointCount } from '../paths'
 import type { Ring } from '../flatten'
 import type { TreatmentContext } from './types'
 
@@ -41,20 +41,6 @@ const ring = (): Ring[] => [
   ],
 ]
 
-const areaOf = (rings: Ring[]) => {
-  let total = 0
-  for (const r of rings) {
-    let a = 0
-    for (let i = 0; i < r.length; i++) {
-      const p = r[i]
-      const q = r[(i + 1) % r.length]
-      a += p.x * q.y - q.x * p.y
-    }
-    total += a / 2
-  }
-  return Math.abs(total)
-}
-
 describe('grit', () => {
   const p = defaults(grit)
 
@@ -77,8 +63,8 @@ describe('grit', () => {
   })
 
   it('erodes the shape without destroying it', () => {
-    const before = areaOf(stem())
-    const after = areaOf(grit.apply(stem(), p, ctx()))
+    const before = inkArea(stem())
+    const after = inkArea(grit.apply(stem(), p, ctx()))
     // some ink is lost, but the letter must still be substantially there —
     // this is the guard against grit eating stroke cores
     expect(after).toBeLessThan(before)
@@ -86,8 +72,8 @@ describe('grit', () => {
   })
 
   it('keeps eroding as the amount rises', () => {
-    const light = areaOf(grit.apply(stem(), { ...p, amount: 20 }, ctx()))
-    const heavy = areaOf(grit.apply(stem(), { ...p, amount: 90 }, ctx()))
+    const light = inkArea(grit.apply(stem(), { ...p, amount: 20 }, ctx()))
+    const heavy = inkArea(grit.apply(stem(), { ...p, amount: 90 }, ctx()))
     expect(heavy).toBeLessThan(light)
   })
 
@@ -122,6 +108,6 @@ describe('grit', () => {
     ]
     const out = grit.apply(period, p, ctx())
     expect(out.length).toBeGreaterThan(0)
-    expect(areaOf(out)).toBeGreaterThan(0)
+    expect(inkArea(out)).toBeGreaterThan(0)
   })
 })

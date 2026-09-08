@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { TREATMENTS } from './registry'
 import { defaults } from './types'
 import { mulberry32 } from '../prng'
-import { pointCount } from '../paths'
+import { inkArea, pointCount } from '../paths'
 import type { Ring } from '../flatten'
 import { modulate } from '../../lib/modulate'
 import type { ParamValues, Treatment, TreatmentContext } from './types'
@@ -51,20 +51,6 @@ function driven(t: Treatment, base: ParamValues, drive: number): ParamValues {
   return modulate([{ id: t.id, params: base }], [drive, drive, drive, drive])[0].params
 }
 
-const areaOf = (rings: Ring[]) => {
-  let total = 0
-  for (const r of rings) {
-    let a = 0
-    for (let i = 0; i < r.length; i++) {
-      const p = r[i]
-      const q = r[(i + 1) % r.length]
-      a += p.x * q.y - q.x * p.y
-    }
-    total += a / 2
-  }
-  return Math.abs(total)
-}
-
 const STEPS = 12
 
 describe.each(TREATMENTS.map((t) => [t.id, t] as const))('%s under modulation', (_id, t) => {
@@ -76,7 +62,7 @@ describe.each(TREATMENTS.map((t) => [t.id, t] as const))('%s under modulation', 
   it('never blinks out', () => {
     frames.forEach((f, i) => {
       expect(f.length, `frame ${i} was empty`).toBeGreaterThan(0)
-      expect(areaOf(f), `frame ${i} had no ink`).toBeGreaterThan(0)
+      expect(inkArea(f), `frame ${i} had no ink`).toBeGreaterThan(0)
     })
   })
 
@@ -95,9 +81,9 @@ describe.each(TREATMENTS.map((t) => [t.id, t] as const))('%s under modulation', 
   it('keeps a letter on the page at every drive level', () => {
     // Erosion at full drive is meant to take a lot — that is the drama. What it
     // may not do is take everything, leaving the sheet blank on a bass peak.
-    const start = areaOf(word())
+    const start = inkArea(word())
     frames.forEach((f, i) => {
-      expect(areaOf(f) / start, `frame ${i} has almost no ink left`).toBeGreaterThan(0.12)
+      expect(inkArea(f) / start, `frame ${i} has almost no ink left`).toBeGreaterThan(0.12)
     })
   })
 
@@ -106,7 +92,7 @@ describe.each(TREATMENTS.map((t) => [t.id, t] as const))('%s under modulation', 
     // rather than in contours: a grid or a screen legitimately fuses and
     // unfuses as it rescales, so its contour count swings by tenfold while the
     // letter on the page never changes weight. Mass is what the eye tracks.
-    const mass = frames.map(areaOf)
+    const mass = frames.map((f) => inkArea(f))
     for (let i = 1; i < mass.length; i++) {
       const ratio = mass[i] / Math.max(mass[i - 1], 1)
       expect(ratio, `frame ${i} changed weight ${ratio.toFixed(2)}x`).toBeGreaterThan(0.25)

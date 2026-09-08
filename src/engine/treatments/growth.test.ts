@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { growth } from './growth'
 import { defaults } from './types'
 import { mulberry32 } from '../prng'
-import { pointCount } from '../paths'
+import { inkArea, pointCount } from '../paths'
 import type { Ring } from '../flatten'
 import type { TreatmentContext } from './types'
 
@@ -40,20 +40,6 @@ const ring = (): Ring[] => [
     { x: 500, y: 300 },
   ],
 ]
-
-const areaOf = (rings: Ring[]) => {
-  let total = 0
-  for (const r of rings) {
-    let a = 0
-    for (let i = 0; i < r.length; i++) {
-      const p = r[i]
-      const q = r[(i + 1) % r.length]
-      a += p.x * q.y - q.x * p.y
-    }
-    total += a / 2
-  }
-  return Math.abs(total)
-}
 
 const perimeterOf = (rings: Ring[]) => {
   let total = 0
@@ -107,8 +93,8 @@ describe('growth', () => {
   })
 
   it('moves the outline without dissolving the letter', () => {
-    const before = areaOf(stem())
-    const after = areaOf(growth.apply(stem(), p, ctx()))
+    const before = inkArea(stem())
+    const after = inkArea(growth.apply(stem(), p, ctx()))
     expect(after).toBeGreaterThan(before * 0.75)
     expect(after).toBeLessThan(before * 2)
   })
@@ -184,6 +170,6 @@ describe('growth', () => {
     ]
     const out = growth.apply(period, p, ctx())
     expect(out.length).toBeGreaterThan(0)
-    expect(areaOf(out)).toBeGreaterThan(0)
+    expect(inkArea(out)).toBeGreaterThan(0)
   })
 })

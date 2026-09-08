@@ -77,6 +77,30 @@ export function pointCount(rings: Ring[]): number {
 }
 
 /**
+ * How much ink a set of rings puts on the page, by the shoelace formula.
+ *
+ * Counters wind against their outer contour, so summing signed areas and
+ * taking the magnitude at the end subtracts the holes — which is what "ink"
+ * means. Note this is a different quantity from the filled area `measure.ts`
+ * uses for stroke width, which takes the magnitude per ring and so counts a
+ * counter as ink; that one wants the shape's extent, this one wants its
+ * weight. Working in ring units, not the clipper scale.
+ */
+export function inkArea(rings: Ring[]): number {
+  let total = 0
+  for (const ring of rings) {
+    let a = 0
+    for (let i = 0; i < ring.length; i++) {
+      const p = ring[i]
+      const q = ring[(i + 1) % ring.length]
+      a += p.x * q.y - q.x * p.y
+    }
+    total += a / 2
+  }
+  return Math.abs(total)
+}
+
+/**
  * Insert points along every edge so a displacement field has something to move.
  * A glyph outline has points only where the curve needs them; noise applied to
  * those alone barely registers.

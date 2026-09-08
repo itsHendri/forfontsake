@@ -18,7 +18,7 @@
  * Stroke width still comes from the reference word, so a treatment's sizing is
  * measured against one face rather than drifting with the length of the label.
  */
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs'
 import { parse } from '../src/engine/opentype'
 import { shapeText } from '../src/engine/text'
 import { medianStrokeWidth } from '../src/engine/measure'
@@ -46,7 +46,10 @@ const fontDir = args.font ?? 'archivoblack'
 const only = args.only ? new Set(args.only.split(',')) : null
 const outDir = args.out ?? 'out/samples'
 
-const bytes = readFileSync(`public/fonts/${fontDir}/font.ttf`)
+// the bundled faces do not agree on a file name, so take whatever ttf is there
+const fontFile = readdirSync(`public/fonts/${fontDir}`).find((f) => f.endsWith('.ttf'))
+if (!fontFile) throw new Error(`no ttf in public/fonts/${fontDir}`)
+const bytes = readFileSync(`public/fonts/${fontDir}/${fontFile}`)
 const font = parse(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength))
 const labelMode = args.label === 'true'
 type Shaped = ReturnType<typeof shapeText>

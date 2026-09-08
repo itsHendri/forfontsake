@@ -11,14 +11,14 @@
  *   npx tsx scripts/preset-audit.ts --only=halftone
  *   npx tsx scripts/preset-audit.ts --text=Wedge --font=archivoblack
  *
- * Four measures per preset:
+ * Three measures per preset:
  *
  * - **coverage** — treated ink area over untreated ink area on the reference
  *   word. 1.0 is the letter's own weight; below about 0.35 the preset is
  *   showing the treatment at its faintest, and every screen collapses to flat
  *   grey down the size ladder anyway.
- * - **points per glyph** and **contours** — what a font built from it would
- *   carry. Per glyph, because the contact sheet's 2,200-point flag is set for
+ * - **points per glyph** — what a font built from it would carry. Per glyph,
+ *   because the contact sheet's 2,200-point flag is set for
  *   a five-letter word and would call everything heavy on a ten-letter one;
  *   440 a glyph is the same threshold said in a way the word length cannot
  *   move.
@@ -29,9 +29,9 @@
  *
  * Distance is the cheap half of the duplicate question and it is not the whole
  * of it: two presets can be far apart in the dials and land on the same image,
- * or sit close and diverge because one crossed a threshold. So the rendered
- * ink is compared as well — the overlap of the two coverage figures — and a
- * pair is only called a duplicate when both agree.
+ * or sit close and diverge because one crossed a threshold. Nothing here
+ * decides a duplicate — it picks the pairs worth putting side by side, and
+ * `npx tsx scripts/style-samples.ts --only=<id>` renders them so the eye can.
  */
 import { readFileSync, readdirSync } from 'node:fs'
 import { parse } from '../src/engine/opentype'
@@ -39,7 +39,7 @@ import { shapeText } from '../src/engine/text'
 import { medianStrokeWidth } from '../src/engine/measure'
 import { defaults, landingPreset, FAMILY_LABEL } from '../src/engine/treatments/types'
 import { TREATMENTS } from '../src/engine/treatments/registry'
-import { pointCount } from '../src/engine/paths'
+import { inkArea, pointCount } from '../src/engine/paths'
 import { mulberry32 } from '../src/engine/prng'
 import type { ParamValues, Treatment, Preset } from '../src/engine/treatments/types'
 
@@ -66,30 +66,13 @@ const stroke = medianStrokeWidth(
   shaped.unitsPerEm * 0.1,
 )
 
-/** Signed area by the shoelace formula; counters wind the other way, so the sum is the ink. */
-function inkArea(rings: { x: number; y: number }[][]): number {
-  let total = 0
-  for (const ring of rings) {
-    let a = 0
-    for (let i = 0; i < ring.length; i++) {
-      const p = ring[i]
-      const q = ring[(i + 1) % ring.length]
-      a += p.x * q.y - q.x * p.y
-    }
-    total += a / 2
-  }
-  return Math.abs(total)
-}
-
 const plainInk = inkArea(shaped.glyphs.flatMap((g) => g.rings))
 
 interface Measured {
   name: string
   values: ParamValues
   coverage: number
-  points: number
   perGlyph: number
-  contours: number
   ms: number
   /** distance to the nearest sibling, and which one */
   gap: number
@@ -100,7 +83,6 @@ function measure(t: Treatment, values: ParamValues) {
   const started = performance.now()
   let ink = 0
   let points = 0
-  let contours = 0
   let penX = 0
   for (const g of shaped.glyphs) {
     const rings = t.apply(g.rings, values, {
@@ -112,14 +94,11 @@ function measure(t: Treatment, values: ParamValues) {
     })
     ink += inkArea(rings)
     points += pointCount(rings)
-    contours += rings.length
     penX = g.x
   }
   return {
     coverage: ink / plainInk,
-    points,
     perGlyph: Math.round(points / shaped.glyphs.length),
-    contours,
     ms: performance.now() - started,
   }
 }
@@ -134,7 +113,6 @@ function distance(t: Treatment, a: ParamValues, b: ParamValues): number {
   return sum / t.params.length
 }
 
-const NAMES = new Map<string, string[]>()
 const rows: { treatment: Treatment; presets: Measured[] }[] = []
 
 for (const t of TREATMENTS) {
@@ -153,8 +131,6 @@ for (const t of TREATMENTS) {
         m.nearest = other.name
       }
     }
-    const key = m.name.toLowerCase()
-    NAMES.set(key, [...(NAMES.get(key) ?? []), t.name])
   }
   rows.push({ treatment: t, presets: measured })
 }
@@ -185,10 +161,4 @@ for (const { treatment, presets } of rows) {
   console.log('')
 }
 
-const clashes = [...NAMES.entries()].filter(([, owners]) => owners.length > 1)
-if (clashes.length) {
-  console.log('NAMES USED TWICE')
-  for (const [name, owners] of clashes) console.log(`  ${pad(name, 22)} ${owners.join(', ')}`)
-  console.log('')
-}
 console.log(`${total} presets across ${rows.length} treatments\n`)

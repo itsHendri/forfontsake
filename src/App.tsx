@@ -41,6 +41,11 @@ function autoText(chain: Step[]): string {
   return specimenFor(getTreatment(chain[chain.length - 1].id))
 }
 
+/** What to draw for a state: the word in the field, or ours when it is empty. */
+function wordFor(s: WorkbenchState): string {
+  return s.text.trim() || autoText(s.chain)
+}
+
 /**
  * Whether the word on the page is still ours to change.
  *
@@ -199,17 +204,23 @@ export default function App() {
     }
   }, [state])
 
-  const patch = useCallback((next: Partial<WorkbenchState>) => {
+  // Everything except the stack. The stack goes through patchChain, which is
+  // where the word rule lives; typing that out here means a handler cannot
+  // quietly reach past it.
+  const patch = useCallback((next: Partial<Omit<WorkbenchState, 'chain'>>) => {
     setState((s) => (s ? { ...s, ...next } : s))
   }, [])
 
   /**
    * Edit the stack, and let the word follow it.
    *
-   * The rule lives here rather than in each handler so adding a layer, removing
-   * one and swapping a treatment all keep the reading true, and so the word is
-   * decided from the chain that is landing rather than the one before it. An
-   * emptied field is left empty: refilling it as somebody deletes their way
+   * Every stack edit comes through here — adding a layer, removing one,
+   * swapping a treatment, moving a dial — so the reading stays true without
+   * three handlers each remembering the same rule, and so the word is decided
+   * from the chain that is landing rather than the one before it. `patch`
+   * cannot write the chain, which is what keeps that "every" honest.
+   *
+   * An emptied field is left empty: refilling it as somebody deletes their way
    * back to a blank would fight them.
    */
   const patchChain = useCallback((edit: (chain: Step[]) => Step[]) => {
@@ -221,11 +232,12 @@ export default function App() {
   }, [])
 
   /** edit one step of the stack, leaving the others alone */
-  const patchStep = useCallback((i: number, next: Partial<Step>) => {
-    setState((s) =>
-      s ? { ...s, chain: s.chain.map((step, j) => (j === i ? { ...step, ...next } : step)) } : s,
-    )
-  }, [])
+  const patchStep = useCallback(
+    (i: number, next: Partial<Step>) => {
+      patchChain((chain) => chain.map((step, j) => (j === i ? { ...step, ...next } : step)))
+    },
+    [patchChain],
+  )
 
   /**
    * Edit the overrides map as one unit, pruning as it goes so an override that
@@ -299,7 +311,7 @@ export default function App() {
               library,
               fontId: s.fontId,
               chain: s.chain,
-              text: s.text.trim() || autoText(s.chain),
+              text: wordFor(s),
               seed: s.seed,
               alternates: s.alternates,
               overrides: s.overrides,
@@ -397,7 +409,7 @@ export default function App() {
     )
   }
 
-  const specimenText = state.text.trim() || autoText(state.chain)
+  const specimenText = wordFor(state)
   const specimen =
     state.text.trim().length > 0
       ? result
@@ -405,7 +417,7 @@ export default function App() {
           library,
           fontId: state.fontId,
           chain: state.chain,
-          text: autoText(state.chain),
+          text: specimenText,
           seed: state.seed,
           alternates: state.alternates,
           overrides: state.overrides,
@@ -491,9 +503,7 @@ export default function App() {
    */
   const setSimplify = (value: number) => {
     if (!scoped) {
-      patch({
-        chain: state.chain.map((s) => ({ ...s, params: { ...s.params, simplify: value } })),
-      })
+      patchChain((chain) => chain.map((s) => ({ ...s, params: { ...s.params, simplify: value } })))
       return
     }
     patchOverrides((overrides, chainLength) => {
@@ -519,7 +529,7 @@ export default function App() {
     // parameters mean different things per treatment, so carrying values across
     // would land on settings nobody chose — the per-glyph deltas at this step
     // go for the same reason
-    patchChain((chain) => chain.map((c, j) => (j === step ? landed(getTreatment(id)) : c)))
+    patchStep(step, landed(getTreatment(id)))
     patchOverrides((overrides) => {
       for (const o of Object.values(overrides)) o.params[step] = {}
     })

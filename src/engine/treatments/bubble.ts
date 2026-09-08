@@ -42,8 +42,8 @@ export const bubble: Treatment = {
     { name: 'Balloon', values: { weight: 57, rounding: 62, squeeze: 85, simplify: 0.5 } },
     { name: 'Softened', values: { weight: 7, rounding: 52, squeeze: 30, simplify: 0.5 } },
     // Soak drew the same three steps in the same order and called them Swell,
-    // Melt and Keep counters. These are the two settings it reached that a
-    // marker does not: ink heavy enough to close on its own counters, held off
+    // Melt and Keep counters. This is the setting it reached that a marker
+    // does not: ink heavy enough to close on its own counters, held off
     // sealing by the guard.
     { name: 'Soaked through', values: { weight: 45, rounding: 39, squeeze: 45, simplify: 0.5 } },
   ],

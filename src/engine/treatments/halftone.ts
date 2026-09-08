@@ -58,9 +58,13 @@ export const halftone: Treatment = {
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.4 },
   ],
 
-  // Classic 45° is the textbook screen but leaves 0.27 of the letter's ink, so
-  // it opens grey and is gone by 16px. Coarse dots is still unmistakably a dot
-  // screen at more than twice the coverage, and survives down the size ladder.
+  // Classic 45° leaves 0.27 of the letter's ink, so it opens grey and is gone
+  // by 16px, and Coarse dots holds its texture down the size ladder at more
+  // than twice the coverage. Coarse dots was the landing on that reasoning,
+  // and it is still true — but Halftone is what the whole tool opens on now,
+  // and the classic screen is the picture people already have of a halftone
+  // where a coarse one is not. See DECISIONS, "Open Halftone on the classic
+  // screen".
   defaultPreset: 'Classic 45°',
 
   presets: [

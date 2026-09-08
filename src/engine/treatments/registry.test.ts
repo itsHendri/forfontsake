@@ -10,7 +10,7 @@ import {
   STACK_WIDE_KEYS,
 } from './types'
 import { mulberry32 } from '../prng'
-import { pointCount, boundsOf, normalise } from '../paths'
+import { boundsOf, inkArea, normalise, pointCount } from '../paths'
 import type { Ring } from '../flatten'
 import type { TreatmentContext, ParamValues } from './types'
 
@@ -66,20 +66,6 @@ const period = (): Ring[] => [
     { x: 40, y: 70 },
   ],
 ]
-
-const areaOf = (rings: Ring[]) => {
-  let total = 0
-  for (const r of rings) {
-    let a = 0
-    for (let i = 0; i < r.length; i++) {
-      const p = r[i]
-      const q = r[(i + 1) % r.length]
-      a += p.x * q.y - q.x * p.y
-    }
-    total += a / 2
-  }
-  return Math.abs(total)
-}
 
 describe('the registry', () => {
   it('has no duplicate ids', () => {
@@ -144,7 +130,7 @@ describe.each(TREATMENTS.map((t) => [t.id, t] as const))('%s', (_id, t) => {
   ])('leaves ink on %s', (_label, fixture) => {
     const out = t.apply(fixture(), p, ctx())
     expect(out.length).toBeGreaterThan(0)
-    expect(areaOf(out)).toBeGreaterThan(0)
+    expect(inkArea(out)).toBeGreaterThan(0)
   })
 
   it('stays within a point budget a font can carry', () => {
@@ -314,13 +300,6 @@ describe('preset names', () => {
       .filter(([, who]) => who.length > 1)
       .map(([name, who]) => `${name}: ${who.join(', ')}`)
     expect(clashes).toEqual([])
-  })
-
-  it('are used once within a treatment', () => {
-    for (const t of TREATMENTS) {
-      const names = (t.presets ?? []).map((p) => p.name)
-      expect(new Set(names).size).toBe(names.length)
-    }
   })
 })
 
