@@ -46,7 +46,6 @@ export const bubble: Treatment = {
     // marker does not: ink heavy enough to close on its own counters, held off
     // sealing by the guard.
     { name: 'Soaked through', values: { weight: 45, rounding: 39, squeeze: 45, simplify: 0.5 } },
-    { name: 'Blotted', values: { weight: 70, rounding: 53, squeeze: 60, simplify: 0.5 } },
   ],
 
   growth(p, ctx) {

@@ -53,7 +53,7 @@ export const onion: Treatment = {
   name: 'Onion',
   family: 'structure',
   deterministic: true,
-  blurb: 'Rings following the letter — hollow, hairline, inline, or a string of beads.',
+  blurb: 'Rings following the letter — hollow, inline, tightly engraved, or a string of beads.',
   story:
     'Each ring is the difference of two offsets a step apart, and the run simply stops when '+
     'the next one collapses — which is why a stem carries three rings and a hairline carries '+
@@ -80,7 +80,6 @@ export const onion: Treatment = {
     { name: 'Halo', values: { style: 2, lines: 4, weight: 11, beaded: 0, gap: 11, position: 0, rounding: 0, simplify: 0.4 } },
     { name: 'Wide chrome', values: { style: 0, lines: 3, weight: 20, beaded: 0, gap: 16, position: 0, rounding: 14, simplify: 0.4 } },
     { name: 'Hollow', values: { style: 2, lines: 1, weight: 22, beaded: 0, gap: 13, position: 0, rounding: 0, simplify: 0.4 } },
-    { name: 'Hairline', values: { style: 1, lines: 1, weight: 5, beaded: 0, gap: 13, position: 0, rounding: 0, simplify: 0.3 } },
     { name: 'Inline', values: { style: 0, lines: 1, weight: 12, beaded: 0, gap: 13, position: -5, rounding: 0, simplify: 0.4 } },
     { name: 'String of beads', values: { style: 1, lines: 1, weight: 40, beaded: 45, gap: 13, position: 0, rounding: 0, simplify: 0.5 } },
   ],

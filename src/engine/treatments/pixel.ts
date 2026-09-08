@@ -63,7 +63,6 @@ export const pixel: Treatment = {
 
   presets: [
     { name: 'Bitmap', values: { cell: 26, threshold: 50, dither: 45, gap: 0, noise: 0, spread: 0, fade: 0, fadeAngle: 90, simplify: 0.3 } },
-    { name: 'Hard threshold', values: { cell: 20, threshold: 50, dither: 0, gap: 0, noise: 0, spread: 0, fade: 0, fadeAngle: 90, simplify: 0.3 } },
     { name: 'Heavy dither', values: { cell: 16, threshold: 45, dither: 100, gap: 0, noise: 0, spread: 0, fade: 0, fadeAngle: 90, simplify: 0.3 } },
     { name: 'Gridded tiles', values: { cell: 40, threshold: 50, dither: 20, gap: 22, noise: 0, spread: 0, fade: 0, fadeAngle: 90, simplify: 0.3 } },
     // the letter coming apart rather than being screened

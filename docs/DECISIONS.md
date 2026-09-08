@@ -1065,6 +1065,51 @@ single edit point instead, and it decides the word from the chain that is landin
 the one before it — the two are different, and doing it in an effect afterwards means a
 cascading render and a hash written twice.
 
+## Six presets that were already on the page
+
+Seventy-two presets across thirteen treatments, and the honest question about any one of them
+is not whether it looks good — they all do — but whether it says anything the one beside it
+did not. `scripts/preset-audit.ts` is the tool for asking it: coverage, cost per glyph, and
+the distance to the nearest sibling with every dial normalised by its own range.
+
+**The distance number is half an answer and pretending otherwise would have cut the wrong
+six.** Halftone's Classic 45° and Coarse dots sit 0.055 apart, which is nearer than most of
+the pairs that were cut — and they are plainly different pictures, a fine screen against a
+coarse one. Meanwhile Pixel's Bitmap and Hard threshold sit 0.058 apart and are the *same*
+picture, one of them at ten times the point cost. Dials near each other can straddle a
+threshold; dials far apart can land on the same image. So every flagged pair was looked at on
+the contact sheet before anything was cut, and the numbers only decided which pairs to look at.
+
+**What went, and why:**
+
+| Cut | Because |
+| --- | --- |
+| Halftone · Dots alone | Sprayed stencil is the same fine scatter, and this was the most expensive preset in the tool at 1,660 points a glyph |
+| Halftone · Soft focus | Evaporating is this preset with Fade turned up, and the fade is the more interesting picture |
+| Pixel · Hard threshold | Indistinguishable from Bitmap at 10× the points — 2,492 against 231 |
+| Extrude · Drop | Block already is a letter with a block shadow down and right |
+| Onion · Hairline | 0.13 coverage, the faintest thing in the tool; Inline says the same with enough presence to see |
+| Bubble · Blotted | The same swell as Balloon, and its name was Bleed's |
+
+**Two names were used twice, and both clashes were between treatments that do not look
+alike.** Bleed and Bubble both shipped "Blotted"; Bleed and Organic both shipped "Wet ink".
+Preset names are how a look gets talked about — in the shelf, in a note, in these docs — and
+none of those places carry the treatment beside the name. Bleed keeps both words, because a
+blot and wet ink are literally what Bleed does; Bubble's Blotted was cut as a duplicate anyway,
+and Organic's Wet ink is now **Tremor**, which is what this document had been calling it for
+months. A test keeps names unique from here.
+
+**Organic opens on Swell.** Its landing was Tremor, a wobble you have to be told is there —
+coverage 1.00, which is to say the letter is exactly as heavy as it started. A landing preset
+that shows nothing reads as a treatment that does nothing, and Organic is one of the good ones.
+Swell is unmistakably the edge buckling and still reads as the word.
+
+**Left alone deliberately.** Grit still opens on Sandblast at 1,044 points a glyph, the most
+expensive landing in the tool: that was a considered call above and the cost is paid only by
+people who pick Grit. Coral and Thorn sit 0.059 apart and both stay, because they are the top
+of Organic's ladder and cutting one leaves it with three. Scanline's Fine and tapered is the
+faintest survivor at 0.19, and it is the only preset showing what the taper does.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the

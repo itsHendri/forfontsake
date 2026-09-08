@@ -182,7 +182,7 @@ export const growth: Treatment = {
   id: 'growth',
   name: 'Organic',
   family: 'ink',
-  blurb: 'The edge buckles as it grows — wet ink at a few steps, coral at many.',
+  blurb: 'The edge buckles as it grows — a tremor at a few steps, coral at many.',
   story:
     'Differential growth, after Anders Hoff\u2019s differential line. Every point on the '+
     'outline pushes off its neighbours, is pulled back toward the midpoint of the two '+
@@ -200,12 +200,18 @@ export const growth: Treatment = {
     { key: 'simplify', label: 'Simplify', min: 0, max: 4, step: 0.1, default: 0.6 },
   ],
 
+  // Opens on Swell rather than Tremor: Tremor is a wobble you have to be told
+  // is there, and a landing preset that shows nothing reads as a treatment
+  // that does nothing. Swell is unmistakably the edge buckling and still reads
+  // as the word.
+  //
   // Every one of these was cut back until the word still read as the word.
   // The dials go far past all of them — a letter dissolved into brain coral is
   // a fine thing to arrive at, but it is not a thing to hand somebody as a
   // starting point.
+  defaultPreset: 'Swell',
   presets: [
-    { name: 'Wet ink', values: { spread: 14, steps: 5, reach: 42, calm: 62, detail: 16, simplify: 0.6 } },
+    { name: 'Tremor', values: { spread: 14, steps: 5, reach: 42, calm: 62, detail: 16, simplify: 0.6 } },
     { name: 'Swell', values: { spread: 46, steps: 10, reach: 78, calm: 70, detail: 18, simplify: 0.7 } },
     { name: 'Coral', values: { spread: 42, steps: 20, reach: 40, calm: 44, detail: 12, simplify: 0.5 } },
     { name: 'Thorn', values: { spread: 50, steps: 18, reach: 34, calm: 28, detail: 14, simplify: 0.5 } },

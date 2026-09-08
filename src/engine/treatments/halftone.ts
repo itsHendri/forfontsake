@@ -69,12 +69,10 @@ export const halftone: Treatment = {
     { name: 'Fine square screen', values: { spacing: 18, size: 105, scatter: 0, spray: 0, angle: 0, falloff: 80, solid: 0, shape: 1, invert: 0, simplify: 0.4, fade: 0, fadeAngle: 90, grain: 100, fuse: 0 } },
     { name: 'Punched out', values: { spacing: 38, size: 80, scatter: 0, spray: 0, angle: 45, falloff: 70, solid: 0, shape: 0, invert: 1, simplify: 0.4, fade: 0, fadeAngle: 90, grain: 100, fuse: 0 } },
     { name: 'Sprayed stencil', values: { spacing: 19, size: 78, scatter: 100, spray: 45, angle: 45, falloff: 40, solid: 55, shape: 0, invert: 0, simplify: 0.4, fade: 0, fadeAngle: 90, grain: 100, fuse: 0 } },
-    { name: 'Dots alone', values: { spacing: 16, size: 95, scatter: 100, spray: 0, angle: 45, falloff: 30, solid: 0, shape: 0, invert: 0, simplify: 0.4, fade: 0, fadeAngle: 90, grain: 100, fuse: 0 } },
     { name: 'Heavy overspray', values: { spacing: 15, size: 60, scatter: 100, spray: 110, angle: 45, falloff: 40, solid: 70, shape: 0, invert: 0, simplify: 0.4, fade: 0, fadeAngle: 90, grain: 100, fuse: 0 } },
     { name: 'Coarse dotwork', values: { spacing: 42, size: 100, scatter: 100, spray: 0, angle: 45, falloff: 25, solid: 0, shape: 0, invert: 0, simplify: 0.4, fade: 0, fadeAngle: 90, grain: 100, fuse: 0 } },
     // the smooth side of the haze: every mark present, shrinking away, over a
     // core that keeps the word readable
-    { name: 'Soft focus', values: { spacing: 36, size: 140, scatter: 0, spray: 90, angle: 45, falloff: 60, solid: 85, shape: 0, invert: 0, simplify: 0.4, fade: 0, fadeAngle: 90, grain: 0, fuse: 0 } },
     { name: 'Evaporating', values: { spacing: 34, size: 150, scatter: 0, spray: 80, angle: 45, falloff: 60, solid: 60, shape: 0, invert: 0, simplify: 0.4, fade: 80, fadeAngle: 90, grain: 0, fuse: 0 } },
     { name: 'Blob halftone', values: { spacing: 45, size: 170, scatter: 0, spray: 25, angle: 45, falloff: 60, solid: 75, shape: 0, invert: 0, simplify: 0.4, fade: 0, fadeAngle: 90, grain: 0, fuse: 50 } },
   ],

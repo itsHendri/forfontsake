@@ -294,3 +294,33 @@ describe('specimens', () => {
     }
   })
 })
+
+/**
+ * Preset names are how a look gets talked about — in the shelf, in a note to
+ * somebody, in the docs — and none of those places carry the treatment beside
+ * the name. Two treatments both shipping "Blotted" meant a sentence about
+ * Blotted was ambiguous, and the two did not even look alike.
+ */
+describe('preset names', () => {
+  it('are used once across the whole tool', () => {
+    const owners = new Map<string, string[]>()
+    for (const t of TREATMENTS) {
+      for (const p of t.presets ?? []) {
+        const key = p.name.toLowerCase()
+        owners.set(key, [...(owners.get(key) ?? []), t.name])
+      }
+    }
+    const clashes = [...owners.entries()]
+      .filter(([, who]) => who.length > 1)
+      .map(([name, who]) => `${name}: ${who.join(', ')}`)
+    expect(clashes).toEqual([])
+  })
+
+  it('are used once within a treatment', () => {
+    for (const t of TREATMENTS) {
+      const names = (t.presets ?? []).map((p) => p.name)
+      expect(new Set(names).size).toBe(names.length)
+    }
+  })
+})
+

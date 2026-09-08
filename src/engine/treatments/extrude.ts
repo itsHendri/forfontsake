@@ -58,7 +58,6 @@ export const extrude: Treatment = {
   presets: [
     { name: 'Block', values: { depth: 150, angle: 315, taper: 0, screen: 0, pattern: 0, pitch: 30, layer: 0, line: 20, simplify: 0.5 } },
     { name: 'Long throw', values: { depth: 280, angle: 315, taper: 0, screen: 0, pattern: 0, pitch: 30, layer: 0, line: 20, simplify: 0.6 } },
-    { name: 'Drop', values: { depth: 110, angle: 270, taper: 0, screen: 0, pattern: 0, pitch: 30, layer: 0, line: 24, simplify: 0.5 } },
     { name: 'Shade only', values: { depth: 150, angle: 315, taper: 0, screen: 0, pattern: 0, pitch: 30, layer: 1, line: 20, simplify: 0.5 } },
     // dragged across the paper: the corridor thinned to a trail, and cut into
     // lines running the way it travelled

@@ -54,7 +54,7 @@ Thirteen of them, grouped in the picker by what they do to a letter.
 | *Ink* | |
 | **Bubble** | Fattened and rounded, the way a marker nib turns a corner — or, pushed, wet ink gone soft. |
 | **Bleed** | Wet ink spreading unevenly, pooling where strokes meet. |
-| **Organic** | Differential growth — wet ink at a few steps, brain coral at many. |
+| **Organic** | Differential growth — a tremor at a few steps, brain coral at many. |
 | **Fur** | Hairs standing off the edge — fuzz, bristle, or a sawtooth of spikes. |
 | *Screens* | |
 | **Halftone** | A printer's screen, or dotwork — marks that scatter, haze past the edge and fade away. |
@@ -83,7 +83,7 @@ a direction. Links written before a merge still open on what they described: ret
 translated, dials and all.
 
 Every dial a treatment has is on the page, and each ships named presets (Photocopy, Sandblast,
-Rust, Marker, Balloon, Wet ink…) shown as pictures of themselves. There is no unnamed state:
+Rust, Marker, Balloon, Newsprint…) shown as pictures of themselves. There is no unnamed state:
 picking a treatment lands you on one of its presets — `defaultPreset` names which, otherwise
 the first — so one is always selected and Reset has somewhere to go back to. A dial marked
 `primary` is what the specimen sheet's sound rides; one marked `steady` is front-of-house but
