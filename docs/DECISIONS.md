@@ -413,6 +413,22 @@ the incoming one — because the rebuild rate is honest about cost (adaptive, ~3
 light chain, ~7 for Organic) and the fade is what turns the gap between frames into a
 morph.
 
+**The movement is centred on what you set, not stacked on top of it.** The drive was a level
+between 0 and 1 and it could only ever be added, so the dial values you chose were the quietest
+the sheet ever got: everything you actually looked at was heavier than the font you had made,
+and the louder the track the further it drifted. Two followers per band fix it — a fast one for
+the motion and a slow one for how loud this material has lately been — with the dials driven on
+the difference. A steady passage settles back to your font, a transient pushes above it and the
+dip after pulls below. It is also self-levelling, so a quiet recording and a loud one move the
+letters about the same, where an absolute level left one inert and pinned the other at the top
+of every dial. Depth came down from 35% of a dial's span to 15%, which is more motion than it
+sounds now that it runs both ways.
+
+The reason this matters is what the sheet is for. It is a way of looking at the font you made —
+a preview with something to say — not a second surface to design on. Letters that reshape
+themselves on every beat are a different typeface every second, which is a worse advertisement
+for yours than letters that breathe.
+
 The bubble loop is synthesised in the page from a seeded PRNG — a low pulse for the beat
 detector to latch onto, sine pops gliding down an octave, band-passed fizz — so no audio
 asset ships and every visitor hears the same thirty seconds. The mic path disables the
