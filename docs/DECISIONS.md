@@ -1024,8 +1024,12 @@ what is left is below.
    `scripts/style-samples.ts` does on the CLI. Small.
 4. **WebCodecs recorder** with `MediaRecorder` as the Safari fallback, the 15 s cap lifted,
    MP4 with the audio muxed. Medium; `src/lib/videoRecorder.ts`.
-5. **Story-size sheet** (1080×1920) as a second format; `SHEET_W/H` become a property of
-   the layout in `poster.ts`. Small.
+5. **Poster geometry in a worker.** A rebuild runs on the main thread, so a heavy chain on the
+   character set freezes the page for about a second at a time — dials stop answering and a
+   recorded clip gets frozen stretches. `buildFont.worker.ts` is the pattern and the engine is
+   already DOM-free, so the move is mechanical; the cost is that a synchronous call becomes a
+   request and a reply, which needs ordering guards. Medium. **Only worth it if character-set
+   clips on heavy chains turn out to matter** — the word sheet is already fast enough.
 6. **Whole-window drop target** for a font, and a visible **Copy link** for the URL state.
    Small.
 7. **Slant and Tracking** as export-safe global dials — a shear on the outlines, a uniform
@@ -1034,11 +1038,17 @@ what is left is below.
 8. **Slider craft, what is left**: drag on the label to scrub, `Shift` for fine, and tint the
     label when a value is off its default (Webflow's trick, better than our tick on the track).
     The typeable value, the steppers and the dark caption shipped with the layout pass.
-9. **Tune the seventeen against each other** on the contact sheet.
+9. **Tune the thirteen against each other** on the contact sheet.
+10. **Nothing about the sheet is in the URL.** Format, layout, palette, seed, word placement,
+    finish and the sound mode are all local to `Poster`, so a sheet you like cannot be
+    reopened or sent to anybody. That was an open question when the sheet was a modal; now
+    that it is a room with real settings in it, it is a hole. Small to medium.
 
 Shipped: the licence panel at font upload; the action bar, layers as cards, every dial visible
 and the size ladder's gutter with the layout pass; presets as pictures with one always
-selected; per-dial sound binding; Present mode; and the finish layer.
+selected; the finish layer; the sheet as a room with three formats, a Static/Video switch and
+one-type export. Removed again since: Present mode (it named a mode nobody could picture) and
+the per-dial sound binding table (three named modes replaced it).
 
 A later look at typograph.studio (AI parametric typeface generator, adjacent not
 competing) confirmed the positioning: nothing in the niche outputs specimen sheets or

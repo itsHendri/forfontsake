@@ -166,7 +166,12 @@ so every older invocation still means what it did.
    disagree with the screen — but headless cannot drive `MediaRecorder` meaningfully, so a
    real take is unverified. Play the loop, record a few seconds, confirm the file plays with
    the finish in it.
-7. **Accented characters draw nothing in the preview.** The baked glyph data carries exactly
+7. **The sheet room was untested on a phone until 8 September**, which is where it gets posted
+   from. Its bar is a single flex row of fixed-width controls, so at 375 px it ran 572 px wide:
+   the size picker was cut off and **the close went off-screen entirely**, leaving no way out
+   of the room. It wraps now under 620 px. The lesson is the general one — the workbench had
+   been checked narrow and the sheet had not, because it was a modal when that check was made.
+8. **Accented characters draw nothing in the preview.** The baked glyph data carries exactly
    70 glyphs — space, digits, basic punctuation, A–Z a–z — so typing "Café" shows a gap while
    the character still takes its advance. Exports are unaffected: they read the real font
    bytes and keep the full character set. Widening `PREVIEW_CHARSET` roughly doubles the

@@ -686,6 +686,39 @@ h1 {
   }
 }
 
+/* A phone is where this sheet gets posted from, so the bar has to survive one.
+   Every child is `flex: none` so the size picker keeps its own width, which
+   means a single row simply runs off the edge — taking the close with it, and
+   leaving no way out of the room. It wraps instead, and the close stays on the
+   first line where a close belongs. */
+@media (max-width: 620px) {
+  .sheet-bar {
+    flex-wrap: wrap;
+    row-gap: 10px;
+    padding: 10px 16px;
+  }
+  .mode-switch {
+    order: 3;
+    margin: 0;
+  }
+  .sheet-bar select {
+    order: 4;
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .sheet-close {
+    order: 2;
+    margin-left: auto;
+  }
+  .sheet-no {
+    font-size: 11px;
+  }
+  .sheet-body {
+    padding: 14px 16px 18px;
+    gap: 20px;
+  }
+}
+
 /* ---------- glyphs ---------- */
 
 .glyphs,
