@@ -150,7 +150,7 @@ describe('sound modes', () => {
 
 describe('the drive is centred on what you set', () => {
   const frame = (level: number): AudioFrame => ({
-    bass: level, mid: level, high: level, level, beat: 0, onset: false,
+    bass: level, mid: level, high: level, level, beat: 0, onset: 0,
   })
   /** run a steady signal through until the followers settle */
   const settle = (d: SoundDrive, level: number, seconds = 20) => {
