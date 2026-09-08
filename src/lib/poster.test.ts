@@ -12,6 +12,7 @@ import {
   POSTER_PALETTES,
 } from './poster'
 import { defaults, getTreatment } from '../engine/treatments/registry'
+import { bindingsFor, getMode, modulate } from './modulate'
 import type { FontData } from './glyphData'
 
 /** a two-glyph face, enough to exercise every path without a real font */
@@ -261,5 +262,33 @@ describe('formats', () => {
     const post = buildPoster({ ...req('chars'), format: 'post' })
     const story = buildPoster({ ...req('chars'), format: 'story' })
     expect(story).not.toBe(post)
+  })
+})
+
+describe('a sheet the sound can move', () => {
+  // The character set used to be barred from video on the grounds that it
+  // could not move. It moves; it is only slower. This pins the part that
+  // matters — that a modulated chain actually reaches the geometry of *both*
+  // layouts — so the ban cannot come back by accident.
+  const chain = [{ id: 'grit', params: defaults(getTreatment('grit')) }]
+  const bindings = bindingsFor(getMode('breathe'), chain)
+
+  for (const layout of ['word', 'chars']) {
+    it(`redraws the ${layout} sheet when the dials are driven`, () => {
+      const still = buildPosterLayers({ ...req(layout), chain })
+      const driven = buildPosterLayers({
+        ...req(layout),
+        chain: modulate(chain, [0, 1, 0, 0], bindings, 0.5),
+      })
+      const ink = (l: ReturnType<typeof buildPosterLayers>) => (l.word ?? l.ground)
+      expect(ink(driven)).not.toBe(ink(still))
+    })
+  }
+
+  it('leaves the sheet alone when nothing is driving it', () => {
+    const quiet = modulate(chain, [0, 0, 0, 0], bindings, 0.5)
+    expect(buildPosterLayers({ ...req('chars'), chain: quiet }).ground).toBe(
+      buildPosterLayers({ ...req('chars'), chain }).ground,
+    )
   })
 })

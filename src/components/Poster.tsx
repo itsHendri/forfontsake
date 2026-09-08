@@ -251,18 +251,20 @@ export function Poster(p: Props) {
 
 
   /*
-   * The sound rides the word sheet only, and only in video.
+   * Either sheet can move; what varies is how fast.
    *
-   * 69 glyphs re-treated at 10 Hz is far past what the engine can afford — the
-   * heavy chains sit near 7 fps on a single word — so the character set cannot
-   * move. That is an engine limit rather than a decision, which is why the
-   * control says so rather than simply refusing.
+   * The character set was barred outright on the grounds that 69 glyphs per
+   * frame is beyond the engine. Measured, that is 13–15× a word — which is a
+   * lot, and still leaves Halftone at 19 rebuilds a second and Organic at 25.
+   * It is Grit (1.6) and stacked chains (0.6) that step rather than flow, and
+   * those are slow on a word too. So the limit is the chain's cost, not the
+   * layout, and the rail reports it instead of the picker forbidding it.
    */
   useEffect(() => {
-    if (layout.id !== 'word' || mode !== 'video') stopSound()
-  }, [layout.id, mode, stopSound])
+    if (mode !== 'video') stopSound()
+  }, [mode, stopSound])
 
-  const sheetChain = layout.id === 'word' && mode === 'video' && modChain ? modChain : p.chain
+  const sheetChain = mode === 'video' && modChain ? modChain : p.chain
 
   const sheetReq = useMemo(
     () => ({
@@ -281,12 +283,20 @@ export function Poster(p: Props) {
     [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, layout.id, format.id, palette, number, wordT],
   )
 
+  // Mirrored out of the ref so the rail can say what you are going to get. Only
+  // on a material change, or the state write would chase its own tail.
+  const [frameMs, setFrameMs] = useState(0)
   const layers = useMemo(() => {
     const t0 = performance.now()
     const out = buildPosterLayers(sheetReq)
     buildCost.current = performance.now() - t0
     return out
   }, [sheetReq])
+
+  useEffect(() => {
+    const ms = Math.round(buildCost.current)
+    setFrameMs((prev) => (Math.abs(prev - ms) > Math.max(8, prev * 0.25) ? ms : prev))
+  }, [layers])
 
   // The composed sheet is what the SVG download and the clipboard hand over,
   // and it is built only when one of them is pressed: composing it alongside
@@ -579,11 +589,19 @@ export function Poster(p: Props) {
     stopSound()
     setMode('static')
   }
-  const setVideo = () => {
-    // the character set cannot move, so entering video puts you on the word
-    if (layout.id !== 'word') setLayoutIndex(LAYOUTS.findIndex((l) => l.id === 'word'))
-    setMode('video')
-  }
+  const setVideo = () => setMode('video')
+
+  /*
+   * What the sound will actually get out of this chain.
+   *
+   * The rebuild rate is adaptive already — the tick backs off to the measured
+   * cost — so this is that number said out loud rather than a new limit. Under
+   * about six a second the letters step between shapes instead of morphing
+   * through them, which is worth knowing before you record fifteen seconds of
+   * it rather than after.
+   */
+  const framesPerSecond = frameMs > 0 ? 1000 / Math.max(TICK_MS, frameMs * 1.5) : null
+  const steppy = framesPerSecond !== null && framesPerSecond < 6
 
   const download = () => (stillType === 'svg' ? void downloadSvg() : void downloadPng())
 
@@ -667,15 +685,13 @@ export function Poster(p: Props) {
             <div className="layout-pick">
               {LAYOUTS.map((l, i) => {
                 const on = l.id === layout.id
-                const barred = inVideo && l.id !== 'word'
                 return (
                   <button
                     type="button"
                     key={l.id}
-                    className={`layout-cell${on ? ' is-on' : ''}${barred ? ' is-barred' : ''}`}
+                    className={`layout-cell${on ? ' is-on' : ''}`}
                     aria-pressed={on}
-                    disabled={barred}
-                    title={barred ? 'The character set cannot move' : l.note}
+                    title={l.note}
                     onClick={() => setLayoutIndex(i)}
                   >
                     {layoutThumbs[i] ? (
@@ -688,10 +704,12 @@ export function Poster(p: Props) {
                 )
               })}
             </div>
-            {inVideo && (
+            {inVideo && steppy && (
               <p className="note">
-                The character set cannot move — 69 glyphs re-treated per frame is more than the
-                engine can afford.
+                This chain redraws {layout.id === 'chars' ? 'the character set' : 'the word'} about{' '}
+                {framesPerSecond!.toFixed(1)} times a second, so the letters will step between
+                shapes rather than morph through them. A lighter chain, or one layer fewer, moves
+                smoothly.
               </p>
             )}
             {layout.id === 'word' && (

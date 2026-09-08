@@ -731,10 +731,30 @@ sound in the room at all — absent, not greyed — so the question cannot arise
 rather than a consequence of the sound being on because the clip is the capability nobody else
 in this niche has, and a mode nobody can see is a mode nobody uses.
 
-**The character set cannot be a video, and the control says so.** 69 glyphs re-treated per
-frame is far past what the engine affords when the heavy chains sit near 7 fps on a single
-word — the sheet already stopped the sound whenever the layout was not `word`. In video that
-layout is disabled *with the reason on the page*, rather than being selectable and inert.
+**Either sheet can be a video; what varies is how fast.** The character set was barred outright
+on the grounds that 69 glyphs a frame is beyond the engine. Measured rather than assumed, it is
+13–15× a word — a lot, and still not a wall. Median rebuild on Pirata One, in node:
+
+| chain | word | character set | character sets per second |
+| --- | --- | --- | --- |
+| Halftone | 4 ms | 52 ms | 19 |
+| Organic | 3 ms | 40 ms | 25 |
+| Bubble | 10 ms | 140 ms | 7 |
+| Grit | 42 ms | 617 ms | 1.6 |
+| Grit + Bubble | 146 ms | 1725 ms | 0.6 |
+
+So the limit is the chain's cost, not the layout, and the two are barely related — Grit is
+fourteen times slower than Organic on the same sheet. A ban keyed on the layout was therefore
+forbidding Halftone at 19 fps while allowing a stack at 0.6. **The picker no longer refuses
+anything.** The rebuild rate was already adaptive (the tick backs off to the measured cost), so
+the rail simply says what that measurement is: under about six a second it warns that the
+letters will step between shapes rather than morph through them, and names the remedy — a
+lighter chain, or one layer fewer. That reading is honest for the word sheet too, which is why
+it is not a character-set message.
+
+The unfixed part is worth naming: a rebuild is synchronous on the main thread, so a 1.7-second
+chain janks the page rather than merely running slowly. Moving poster geometry into a worker is
+the real fix and has not been done.
 
 **The layout is chosen as two pictures**, drawn by the engine at the current format, because it
 is the one choice here whose difference is entirely visual — the same argument the workbench

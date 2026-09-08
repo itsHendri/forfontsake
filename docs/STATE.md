@@ -27,7 +27,7 @@ installable font**, entirely in the browser.
 | **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker; overrides included. |
 | Specimen sheet | **A room of its own, not a modal.** Replaces the workbench, keeps the URL, closes with a ×. Three formats (Post 4:5, Square, Story 9:16) chosen in the header; layout picked as two engine-drawn pictures; word draggable/resizable; randomise and recolour. At 1440×1000 the sheet draws at 852 px, against 702 in the modal. |
 | **Finishes** | **Done.** The sheet renders through WebGL2: grain, riso misregistration and a scanner losing sync, over the rendered page. Pixels, never geometry — a structural test keeps finishes off the path from a chain to a font file, and the SVG download stays letterforms only. |
-| **Sound + clip** | **Done, behind a Static / Video switch.** Sound exists only in video, so choosing MP4 can never start it. Three named modes — Pulse, Breathe, Shimmer — plus Depth and Speed. The export *is* the take: no separate Record button. The character set cannot move and says why. |
+| **Sound + clip** | **Done, behind a Static / Video switch.** Sound exists only in video, so choosing MP4 can never start it. Three named modes — Pulse, Breathe, Shimmer — plus Depth and Speed. The export *is* the take: no separate Record button. **Both layouts can move**; the rail reports the measured rebuild rate when a chain is slow enough to step. |
 | Saved styles | Done, and kept across reloads in `localStorage`. |
 | Bring your own font | Done, from the font menu. Read in the worker, licence reported, held in memory. |
 | CLI export + verification | Done. `build:font` + `verify:font` (7 checks). |
@@ -156,7 +156,12 @@ so every older invocation still means what it did.
    exports. At 1000 px the rail is 893 px and exactly fills its container; on a shorter screen
    the bottom clips, and the download buttons are what gets cut. This is the next piece of
    work: see "The sheet wants to stop being a modal" below.
-6. **Recording has not been exercised since the sheet became a canvas.** The recorder now
+6. ~~**Recording has not been exercised since the sheet became a canvas.**~~ **Confirmed by
+   Hendri on 8 September: a downloaded clip plays, and a downloaded font installs.** What is
+   still unverified from a headless session is the *motion* — the browser pane pauses
+   `requestAnimationFrame` whenever it is hidden, so the sheet sits still there however the
+   sound is driven. `poster.test.ts` pins the geometry half (a driven chain redraws both
+   layouts); the live animation needs a real pair of eyes. The old note: The recorder now
    captures the WebGL canvas rather than decoding SVG per frame, which is simpler and cannot
    disagree with the screen — but headless cannot drive `MediaRecorder` meaningfully, so a
    real take is unverified. Play the loop, record a few seconds, confirm the file plays with

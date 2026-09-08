@@ -657,10 +657,6 @@ h1 {
   color: var(--ink);
   font-weight: 500;
 }
-.layout-cell.is-barred {
-  opacity: 0.38;
-  cursor: not-allowed;
-}
 
 .word-place {
   margin-top: 2px;
