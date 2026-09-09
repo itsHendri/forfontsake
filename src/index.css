@@ -623,6 +623,120 @@ h1 {
   color: var(--muted);
   font-weight: 500;
 }
+/* The sheet, said as its layers. Same shape as the workbench's own list, on
+   purpose: two rooms that are read the same way. */
+.layer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.layer-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 3px;
+  background: var(--plate);
+  text-align: left;
+}
+.layer-row.is-on {
+  border-color: var(--ink);
+  border-width: 2px;
+  padding: 6px 8px;
+}
+.layer-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.layer-row-name {
+  font-size: 13px;
+}
+.layer-row.is-on .layer-row-name {
+  font-weight: 500;
+}
+.layer-row-sub {
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 9.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.layer-row-swatch {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+
+/* One colour, on the layer it belongs to. The platform's own picker, because a
+   sheet is a thing somebody wants an exact colour on. */
+.swatch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.swatch-row label {
+  font-size: 14px;
+  font-weight: 500;
+}
+.swatch-value {
+  margin-left: auto;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+.swatch {
+  flex: none;
+  width: 30px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  background: none;
+  cursor: pointer;
+}
+.swatch::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+.swatch::-webkit-color-swatch {
+  border: 0;
+  border-radius: 1px;
+}
+.swatch:focus-visible {
+  outline: 2px solid var(--mark);
+  outline-offset: 2px;
+}
+
+/* A finish that is off dims rather than vanishing, so the rail shows what you
+   are not using and roughly what turning it on would cost. */
+.finish {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
+.finish-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.finish-name {
+  font-size: 14px;
+  font-weight: 500;
+}
+.finish.is-off .finish-name,
+.finish.is-off .note,
+.finish.is-off .ctl {
+  opacity: 0.45;
+}
+
 /* a message about the thing you just pressed, in the colour of a problem */
 .sheet-rail .note.is-bad {
   color: var(--mark);

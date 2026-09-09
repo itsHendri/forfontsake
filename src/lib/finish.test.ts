@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { FINISHES, finishDefaults, getFinish } from './finish'
+import { FINISHES, finishDefaults, finishState, getFinish } from './finish'
 
 /**
  * A finish is pixels over the rendered sheet. The rule it carries is that it
@@ -35,9 +35,27 @@ describe('a finish never changes what the font is', () => {
 })
 
 describe('finishes', () => {
-  it('leads with none, so the sheet opens as the letters left it', () => {
-    expect(FINISHES[0].id).toBe('none')
-    expect(FINISHES[0].params).toHaveLength(0)
+  /*
+   * The order is a fact about what the finishes do, not a preference, and the
+   * shader's uniforms are positional — `uScan`, `uRiso`, `uGrain` are filled
+   * from FINISHES[0..2] by index. Reordering this list therefore silently
+   * feeds each finish another's dials, so the order is written down.
+   */
+  it('runs the two that resample the sheet before the one that speckles it', () => {
+    expect(FINISHES.map((f) => f.id)).toEqual(['scanline', 'riso', 'grain'])
+  })
+
+  it('has no none, because they no longer exclude each other', () => {
+    expect(FINISHES.some((f) => f.id === 'none')).toBe(false)
+  })
+
+  it('opens with every finish off and at its own defaults', () => {
+    const state = finishState()
+    expect(Object.keys(state).sort()).toEqual(FINISHES.map((f) => f.id).sort())
+    for (const f of FINISHES) {
+      expect(state[f.id].on, f.id).toBe(false)
+      expect(state[f.id].params, f.id).toEqual(finishDefaults(f))
+    }
   })
 
   it('gives every finish a name, a blurb and at most three dials', () => {
@@ -59,9 +77,8 @@ describe('finishes', () => {
     }
   })
 
-  it('falls back to none rather than throwing on an unknown id', () => {
-    expect(getFinish('nope').id).toBe('none')
-    expect(finishDefaults(getFinish('nope'))).toEqual({})
+  it('falls back to the first rather than throwing on an unknown id', () => {
+    expect(getFinish('nope')).toBe(FINISHES[0])
   })
 
   it(`hands back every dial when asked for a finish's defaults`, () => {

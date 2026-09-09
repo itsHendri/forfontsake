@@ -7,6 +7,8 @@ import {
   getFormat,
   LAYOUTS,
   POSTER_PALETTES,
+  type PosterLayout,
+  type PosterPalette,
   type WordTransform,
 } from '../lib/poster'
 import { saveFile } from '../lib/exportFont'
@@ -26,8 +28,8 @@ import { startSheetRecorder, type SheetRecorder } from '../lib/videoRecorder'
 import {
   FINISHES,
   createFinishView,
-  finishDefaults,
-  getFinish,
+  finishState,
+  type FinishState,
   type FinishView,
 } from '../lib/finish'
 import type { FontData } from '../lib/glyphData'
@@ -44,6 +46,68 @@ interface Props {
 }
 
 const IDENTITY: WordTransform = { dx: 0, dy: 0, scale: 1 }
+
+/**
+ * The sheet, stated as its layers — topmost first, the way every layer list
+ * in the world reads.
+ *
+ * `sub` is what the row says about itself without being opened, which is the
+ * whole reason the list is worth having: you can see the sheet is on two
+ * finishes and a story format without selecting anything.
+ */
+const LAYERS: {
+  id: 'background' | 'type' | 'caption' | 'finishes'
+  name: (layout: PosterLayout) => string
+  sub: (s: {
+    palette: PosterPalette
+    finishes: FinishState
+    layout: PosterLayout
+    wordT: WordTransform
+  }) => string
+  /** which colour the row shows a chip of, if any */
+  swatch?: 'paper' | 'ink' | 'mark'
+}[] = [
+  {
+    id: 'finishes',
+    name: () => 'Finishes',
+    sub: ({ finishes }) => {
+      const on = FINISHES.filter((f) => finishes[f.id]?.on).map((f) => f.name.toLowerCase())
+      return on.length > 0 ? on.join(' · ') : 'none'
+    },
+  },
+  { id: 'caption', name: () => 'Caption', sub: () => 'name · number · chain', swatch: 'mark' },
+  {
+    id: 'type',
+    name: (layout) => layout.name,
+    sub: ({ layout, wordT }) =>
+      layout.id !== 'word'
+        ? 'set to the sheet'
+        : wordT.dx === 0 && wordT.dy === 0 && wordT.scale === 1
+          ? 'centred'
+          : `placed · ${wordT.scale.toFixed(2)}×`,
+    swatch: 'ink',
+  },
+  { id: 'background', name: () => 'Background', sub: () => 'flat', swatch: 'paper' },
+]
+
+/**
+ * One colour, on the layer it belongs to.
+ *
+ * The platform's own picker rather than a grid of swatches: it is the control
+ * people already know, it is reachable from the keyboard, and a sheet is a
+ * thing somebody wants an exact colour on. The hex is shown because it is what
+ * gets typed into the thing this ends up next to.
+ */
+function Swatch({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const id = `swatch-${label.replace(/\W+/g, '-').toLowerCase()}`
+  return (
+    <div className="swatch-row">
+      <label htmlFor={id}>{label}</label>
+      <span className="swatch-value">{value.toUpperCase()}</span>
+      <input id={id} type="color" className="swatch" value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  )
+}
 
 // The geometry rebuilds as fast as the chain can afford — a light chain on a
 // short word reaches ~30fps and genuinely morphs; the heavy treatments sit
@@ -134,8 +198,22 @@ export function Poster(p: Props) {
   // The finish belongs to the sheet, not to the font: it is pixels over the
   // rendered page and never reaches the outlines, so it lives here with the
   // palette and the layout rather than in the workbench state or the URL.
-  const [finishId, setFinishId] = useState('none')
-  const [finishParams, setFinishParams] = useState<Record<string, number>>({})
+  // Any combination can be on: they are passes over a page, and a page can be
+  // scanned badly, printed in two inks and still be on toothy paper.
+  const [finishes, setFinishes] = useState<FinishState>(finishState)
+
+  /*
+   * Which layer the rail is editing, or null for the sheet's own settings.
+   *
+   * The room had one rail showing everything at once, so colour was a button
+   * that cycled six palettes — the only shape a control can take when it has
+   * nothing to belong to. With the sheet stated as its layers, colour is a
+   * property of the one you picked, which is what "recolour" was always
+   * reaching for.
+   */
+  const [selected, setSelected] = useState<'background' | 'type' | 'caption' | 'finishes' | null>(null)
+  /** colours set by hand, over whatever the palette roll last landed on */
+  const [colours, setColours] = useState<Partial<PosterPalette>>({})
 
   // Closing must never discard work: a take in flight is finished and saved
   // on the way out, and the backdrop stops being a close target while sound
@@ -228,7 +306,11 @@ export function Poster(p: Props) {
     }
   }
 
-  const palette = POSTER_PALETTES[paletteIndex % POSTER_PALETTES.length]
+  // The roll underneath, and whatever has been set by hand over it. Recolour
+  // still moves all four at once, which is the fast way to a different sheet;
+  // a swatch moves one, which is the way to the sheet you meant.
+  const rolled = POSTER_PALETTES[paletteIndex % POSTER_PALETTES.length]
+  const palette: PosterPalette = { ...rolled, caption: rolled.caption ?? rolled.ink, ...colours }
   const layout = LAYOUTS[layoutIndex % LAYOUTS.length]
   const format = getFormat(formatId)
   // the number is the seed's, so the same sheet always carries the same one
@@ -375,10 +457,10 @@ export function Poster(p: Props) {
     })
   }, [layers, viewAge, layout.id, format.id])
 
-  const finishSpec = getFinish(finishId)
+  const anyFinish = FINISHES.some((f) => finishes[f.id]?.on)
   useEffect(() => {
-    viewRef.current?.setFinish(finishId, finishParams)
-  }, [finishId, finishParams])
+    viewRef.current?.setFinishes(finishes)
+  }, [finishes])
 
   // One loop while the sheet is open. It is a full-screen quad over 1080×1350 —
   // a rounding error next to the geometry that produced the sheet — and having
@@ -462,7 +544,7 @@ export function Poster(p: Props) {
    */
   const downloadSvg = async () => {
     await saveFile(new Blob([composed()], { type: 'image/svg+xml;charset=utf-8' }), `${stem}.svg`)
-    if (finishId !== 'none')
+    if (anyFinish)
       setExportNote('The SVG carries the letters, not the finish — a finish is pixels.')
   }
 
@@ -475,7 +557,7 @@ export function Poster(p: Props) {
     try {
       const shot = createFinishView(2, format.w, format.h)
       try {
-        shot.setFinish(finishId, finishParams)
+        shot.setFinishes(finishes)
         shot.setOffset(wordT.dx, wordT.dy)
         await shot.setSheet(layers.ground, layers.word)
         shot.draw()
@@ -738,119 +820,226 @@ export function Poster(p: Props) {
         </div>
 
         <aside className="sheet-rail">
+          {/*
+            The sheet, said as its layers.
+
+            Everything used to be on the rail at once, which is why colour was
+            a button that cycled six palettes: with nothing to belong to, that
+            is the only shape the control could take. Naming the layers gives
+            every property an owner — and it is the same list the workbench
+            keeps, on purpose, so the two rooms are read the same way.
+          */}
           <div className="group">
-            <h2>Layout</h2>
-            <div className="layout-pick">
-              {LAYOUTS.map((l, i) => {
-                const on = l.id === layout.id
+            <h2>Layers</h2>
+            <div className="layer-list">
+              {LAYERS.map((l) => {
+                const on = selected === l.id
                 return (
                   <button
                     type="button"
                     key={l.id}
-                    className={`layout-cell${on ? ' is-on' : ''}`}
+                    className={on ? 'layer-row is-on' : 'layer-row'}
                     aria-pressed={on}
-                    title={l.note}
-                    onClick={() => setLayoutIndex(i)}
+                    onClick={() => setSelected(on ? null : l.id)}
                   >
-                    {layoutThumbs[i] ? (
-                      <img src={layoutThumbs[i]!} alt="" />
-                    ) : (
-                      <span className="layout-blank" />
+                    <span className="layer-row-text">
+                      <span className="layer-row-name">{l.name(layout)}</span>
+                      <span className="layer-row-sub">{l.sub({ palette, finishes, layout, wordT })}</span>
+                    </span>
+                    {l.swatch && (
+                      <span className="layer-row-swatch" style={{ background: palette[l.swatch] }} aria-hidden="true" />
                     )}
-                    <span>{l.name}</span>
                   </button>
                 )
               })}
             </div>
-            {inVideo && steppy && (
-              <p className="note">
-                This chain redraws {layout.id === 'chars' ? 'the character set' : 'the word'} about{' '}
-                {framesPerSecond!.toFixed(1)} times a second, so the letters will step between
-                shapes rather than morph through them. A lighter chain, or one layer fewer, moves
-                smoothly.
-              </p>
-            )}
-            {layout.id === 'word' && (
-              <div className="ctl word-place">
-                <div className="ctl-head">
-                  <label htmlFor="word-size">Word size</label>
-                  <output htmlFor="word-size" className={wordT.scale === 1 ? 'is-default' : undefined}>
-                    {wordT.scale.toFixed(2)}
-                  </output>
-                </div>
-                <input
-                  id="word-size"
-                  type="range"
-                  min={0.25}
-                  max={2}
-                  step={0.05}
-                  value={wordT.scale}
-                  onChange={(e) => setWordT((t) => ({ ...t, scale: Number(e.target.value) }))}
-                  onDoubleClick={() => setWordT((t) => ({ ...t, scale: 1 }))}
-                />
-                <p className="note">
-                  Drag the word to place it{moved ? ' · ' : '.'}
-                  {moved && (
-                    <button type="button" className="linkish" onClick={() => setWordT(IDENTITY)}>
-                      Reset position
-                    </button>
-                  )}
-                </p>
-              </div>
-            )}
           </div>
 
-          <div className="group ruled">
-            <h2>Finish</h2>
-            <div className="chips">
-              {FINISHES.map((f) => (
+          {/* Nothing selected shows what the sheet itself is: how it is laid
+              out, and the two rolls that move everything at once. */}
+          {selected === null && (
+            <div className="group ruled">
+              <h2>Sheet</h2>
+              <div className="layout-pick">
+                {LAYOUTS.map((l, i) => {
+                  const on = l.id === layout.id
+                  return (
+                    <button
+                      type="button"
+                      key={l.id}
+                      className={`layout-cell${on ? ' is-on' : ''}`}
+                      aria-pressed={on}
+                      title={l.note}
+                      onClick={() => setLayoutIndex(i)}
+                    >
+                      {layoutThumbs[i] ? (
+                        <img src={layoutThumbs[i]!} alt="" />
+                      ) : (
+                        <span className="layout-blank" />
+                      )}
+                      <span>{l.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              {inVideo && steppy && (
+                <p className="note">
+                  This chain redraws {layout.id === 'chars' ? 'the character set' : 'the word'} about{' '}
+                  {framesPerSecond!.toFixed(1)} times a second, so the letters will step between
+                  shapes rather than morph through them. A lighter chain, or one layer fewer, moves
+                  smoothly.
+                </p>
+              )}
+              <div className="row">
+                <button type="button" onClick={() => setSheetSeed(Math.floor(Math.random() * 9999) + 1)}>
+                  Randomise
+                </button>
                 <button
                   type="button"
-                  key={f.id}
-                  className={f.id === finishId ? 'chip is-on' : 'chip'}
-                  aria-pressed={f.id === finishId}
                   onClick={() => {
-                    setFinishId(f.id)
-                    setFinishParams(finishDefaults(f))
+                    setPaletteIndex((i) => i + 1)
+                    // a roll is a whole sheet, so it clears what was set by hand
+                    setColours({})
                   }}
-                  title={f.blurb}
                 >
-                  {f.name}
+                  Recolour
                 </button>
-              ))}
-            </div>
-            {finishSpec.params.map((spec) => (
-              <div className="ctl" key={spec.key}>
-                <div className="ctl-head">
-                  <label htmlFor={`finish-${spec.key}`}>{spec.label}</label>
-                  <output
-                    htmlFor={`finish-${spec.key}`}
-                    className={(finishParams[spec.key] ?? spec.default) === spec.default ? 'is-default' : undefined}
-                  >
-                    {finishParams[spec.key] ?? spec.default}
-                  </output>
-                </div>
-                <input
-                  id={`finish-${spec.key}`}
-                  type="range"
-                  min={spec.min}
-                  max={spec.max}
-                  step={spec.step}
-                  value={finishParams[spec.key] ?? spec.default}
-                  onChange={(e) => setFinishParams((v) => ({ ...v, [spec.key]: Number(e.target.value) }))}
-                  onDoubleClick={() => setFinishParams((v) => ({ ...v, [spec.key]: spec.default }))}
-                />
               </div>
-            ))}
-            <div className="row">
-              <button type="button" onClick={() => setSheetSeed(Math.floor(Math.random() * 9999) + 1)}>
-                Randomise
-              </button>
-              <button type="button" onClick={() => setPaletteIndex((i) => i + 1)}>
-                Recolour
-              </button>
             </div>
-          </div>
+          )}
+
+          {selected === 'background' && (
+            <div className="group ruled">
+              <h2>Background</h2>
+              <Swatch label="Ground" value={palette.paper} onChange={(v) => setColours((c) => ({ ...c, paper: v }))} />
+            </div>
+          )}
+
+          {selected === 'type' && (
+            <div className="group ruled">
+              <h2>{layout.name}</h2>
+              <Swatch label="Ink" value={palette.ink} onChange={(v) => setColours((c) => ({ ...c, ink: v }))} />
+              {layout.id === 'word' ? (
+                <div className="ctl word-place">
+                  <div className="ctl-head">
+                    <label htmlFor="word-size">Size</label>
+                    <output htmlFor="word-size" className={wordT.scale === 1 ? 'is-default' : undefined}>
+                      {wordT.scale.toFixed(2)}
+                    </output>
+                  </div>
+                  <input
+                    id="word-size"
+                    type="range"
+                    min={0.25}
+                    max={2}
+                    step={0.05}
+                    value={wordT.scale}
+                    onChange={(e) => setWordT((t) => ({ ...t, scale: Number(e.target.value) }))}
+                    onDoubleClick={() => setWordT((t) => ({ ...t, scale: 1 }))}
+                  />
+                  <p className="note">
+                    Drag the word to place it{moved ? ' · ' : '.'}
+                    {moved && (
+                      <button type="button" className="linkish" onClick={() => setWordT(IDENTITY)}>
+                        Reset position
+                      </button>
+                    )}
+                  </p>
+                </div>
+              ) : (
+                <p className="note">
+                  The character set is set to the sheet, so there is nothing to place. Switch to the
+                  word to move and resize it.
+                </p>
+              )}
+            </div>
+          )}
+
+          {selected === 'caption' && (
+            <div className="group ruled">
+              <h2>Caption</h2>
+              <Swatch
+                label="Rules and labels"
+                value={palette.caption ?? palette.ink}
+                onChange={(v) => setColours((c) => ({ ...c, caption: v }))}
+              />
+              <Swatch label="Accent" value={palette.mark} onChange={(v) => setColours((c) => ({ ...c, mark: v }))} />
+              <p className="note">
+                What the sheet says about itself: the two rules, the name, the number, the chain and
+                the address. It travels with the sheet — it is not in the font.
+              </p>
+            </div>
+          )}
+
+          {/*
+            Every finish on the page, dimmed rather than absent when it is off,
+            so you can see what you are not using and what turning it on would
+            cost. Order is fixed and stated, because it is a fact about what
+            they do: the two that resample the sheet run while there is still a
+            sheet to read, and grain goes over whatever came out.
+          */}
+          {selected === 'finishes' && (
+            <div className="group ruled">
+              <h2>Finishes</h2>
+              <p className="note">Applied top to bottom.</p>
+              {FINISHES.map((f) => {
+                const held = finishes[f.id]
+                const on = !!held?.on
+                return (
+                  <div className={on ? 'finish' : 'finish is-off'} key={f.id}>
+                    <div className="finish-head">
+                      <span className="finish-name">{f.name}</span>
+                      <input
+                        type="checkbox"
+                        role="switch"
+                        className="ctl-switch"
+                        checked={on}
+                        aria-label={f.name}
+                        onChange={(e) =>
+                          setFinishes((v) => ({ ...v, [f.id]: { ...v[f.id], on: e.target.checked } }))
+                        }
+                      />
+                    </div>
+                    <p className="note">{f.blurb}</p>
+                    {f.params.map((spec) => (
+                      <div className="ctl" key={spec.key}>
+                        <div className="ctl-head">
+                          <label htmlFor={`finish-${f.id}-${spec.key}`}>{spec.label}</label>
+                          <output
+                            htmlFor={`finish-${f.id}-${spec.key}`}
+                            className={(held?.params[spec.key] ?? spec.default) === spec.default ? 'is-default' : undefined}
+                          >
+                            {held?.params[spec.key] ?? spec.default}
+                          </output>
+                        </div>
+                        <input
+                          id={`finish-${f.id}-${spec.key}`}
+                          type="range"
+                          min={spec.min}
+                          max={spec.max}
+                          step={spec.step}
+                          disabled={!on}
+                          value={held?.params[spec.key] ?? spec.default}
+                          onChange={(e) =>
+                            setFinishes((v) => ({
+                              ...v,
+                              [f.id]: { ...v[f.id], params: { ...v[f.id].params, [spec.key]: Number(e.target.value) } },
+                            }))
+                          }
+                          onDoubleClick={() =>
+                            setFinishes((v) => ({
+                              ...v,
+                              [f.id]: { ...v[f.id], params: { ...v[f.id].params, [spec.key]: spec.default } },
+                            }))
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
           {/*
             Sound exists only in video. Not greyed, not collapsed — absent — so

@@ -34,15 +34,28 @@ export interface Finish {
   params: FinishSpec[]
 }
 
+/**
+ * The finishes, in the order they are applied — and that order is a fact about
+ * what they do, not a preference.
+ *
+ * Scanner and riso both *resample* the sheet: they read it at a displaced
+ * point, so they have to run while there is still a sheet to read. Grain is
+ * speckle added to whatever came out, so it goes last however many are on. A
+ * user-orderable stack would be offering a choice where there is only one
+ * right answer.
+ *
+ * There is no `none` any more. It was a fourth radio button standing for "not
+ * the other three", which only made sense while they excluded each other.
+ */
 export const FINISHES: Finish[] = [
-  { id: 'none', name: 'None', blurb: 'The sheet as the letters left it.', params: [] },
   {
-    id: 'grain',
-    name: 'Grain',
-    blurb: 'Paper tooth — the sheet lit from the side.',
+    id: 'scanline',
+    name: 'Scanner',
+    blurb: 'Bands of the sheet slipping sideways, as a scanner loses sync.',
     params: [
-      { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, default: 34, note: 'how much tooth' },
-      { key: 'size', label: 'Grain size', min: 1, max: 8, step: 0.5, default: 1.5, note: 'coarse paper or fine' },
+      { key: 'spacing', label: 'Band height', min: 2, max: 80, step: 1, default: 22, note: 'thickness of a band' },
+      { key: 'slip', label: 'Slip', min: 0, max: 60, step: 1, default: 14, note: 'how far a band slides' },
+      { key: 'darken', label: 'Bloom', min: 0, max: 100, step: 1, default: 26, note: 'the glow a scanner adds' },
     ],
   },
   {
@@ -56,18 +69,27 @@ export const FINISHES: Finish[] = [
     ],
   },
   {
-    id: 'scanline',
-    name: 'Scanner',
-    blurb: 'Bands of the sheet slipping sideways, as a scanner loses sync.',
+    id: 'grain',
+    name: 'Grain',
+    blurb: 'Paper tooth — the sheet lit from the side.',
     params: [
-      { key: 'spacing', label: 'Band height', min: 2, max: 80, step: 1, default: 22, note: 'thickness of a band' },
-      { key: 'slip', label: 'Slip', min: 0, max: 60, step: 1, default: 14, note: 'how far a band slides' },
-      { key: 'darken', label: 'Bloom', min: 0, max: 100, step: 1, default: 26, note: 'the glow a scanner adds' },
+      { key: 'amount', label: 'Amount', min: 0, max: 100, step: 1, default: 34, note: 'how much tooth' },
+      { key: 'size', label: 'Grain size', min: 1, max: 8, step: 0.5, default: 1.5, note: 'coarse paper or fine' },
     ],
   },
 ]
 
 export const getFinish = (id: string): Finish => FINISHES.find((f) => f.id === id) ?? FINISHES[0]
+
+/** what a finish is switched on with, per finish id */
+export type FinishState = Record<string, { on: boolean; params: Record<string, number> }>
+
+/** every finish off, at its own defaults — what the room opens on */
+export function finishState(): FinishState {
+  const out: FinishState = {}
+  for (const f of FINISHES) out[f.id] = { on: false, params: finishDefaults(f) }
+  return out
+}
 
 export function finishDefaults(f: Finish): Record<string, number> {
   const out: Record<string, number> = {}
@@ -102,8 +124,14 @@ uniform sampler2D uPrevWord;
 uniform vec2 uOffset;      // the word's drag, in uv
 uniform vec2 uPrevOffset;
 uniform float uFade;       // 1 at the moment of a rebuild, falling to 0
-uniform int uFinish;       // 0 none · 1 grain · 2 riso · 3 scanner
-uniform vec3 uP;           // the finish's three dials, already normalised
+// One flag and one set of dials per finish, so any combination can be on at
+// once. Ordered by what they do rather than by preference: the two that
+// resample the sheet run while there is still a sheet to read, and the one
+// that adds speckle runs over whatever came out.
+uniform vec3 uOn;          // scanner · riso · grain, 0 or 1
+uniform vec3 uScan;        // band height · slip · bloom
+uniform vec3 uRiso;        // spread · angle (radians) · second ink
+uniform vec3 uGrain;       // amount · size · unused
 uniform vec2 uPx;          // one pixel, in uv
 
 /** the word layer, transparent everywhere it is not the word */
@@ -132,36 +160,39 @@ float hash(vec2 p) {
 }
 
 void main() {
-  vec3 c;
+  // Scanner moves where the sheet is read from, so it applies to the sample
+  // point before anything reads it — which is also what lets riso stack on
+  // top and misregister the already-slipped sheet rather than a clean one.
+  vec2 p = uv;
+  if (uOn.x > 0.5) {
+    float band = floor(uv.y / max(uPx.y * uScan.x * 400.0, uPx.y));
+    p.x += (hash(vec2(band, 3.7)) - 0.5) * uScan.y * uPx.x * 120.0;
+  }
 
-  if (uFinish == 2) {
-    // Riso: the same sheet pulled twice, the second plate missing its mark.
-    // Multiply, because two inks on one sheet subtract rather than add.
-    vec2 off = vec2(cos(uP.y), sin(uP.y)) * uP.x * uPx * 60.0;
-    vec3 a = sheetFaded(uv);
-    vec3 b = sheetFaded(uv + off);
-    vec3 second = vec3(1.0) - (vec3(1.0) - b) * vec3(0.15, 0.85, 0.95);
-    c = mix(a, a * second, uP.z);
-  } else if (uFinish == 3) {
-    // Scanner: whole bands slide sideways, and the bright ones bloom.
-    float band = floor(uv.y / max(uPx.y * uP.x * 400.0, uPx.y));
-    float slip = (hash(vec2(band, 3.7)) - 0.5) * uP.y * uPx.x * 120.0;
-    c = sheetFaded(uv + vec2(slip, 0.0));
+  vec3 c = sheetFaded(p);
+
+  if (uOn.x > 0.5) {
     // Bloom is light leaking *into* the ink, which is what an over-exposed
     // scan does. Keyed off brightness it caught the paper instead and washed
     // the whole sheet, because paper is the brightest thing on it.
     float dark = 1.0 - dot(c, vec3(0.299, 0.587, 0.114));
-    c += dark * uP.z * 0.30;
-  } else {
-    c = sheetFaded(uv);
+    c += dark * uScan.z * 0.30;
   }
 
-  if (uFinish == 1) {
+  if (uOn.y > 0.5) {
+    // Riso: the same sheet pulled twice, the second plate missing its mark.
+    // Multiply, because two inks on one sheet subtract rather than add.
+    vec2 off = vec2(cos(uRiso.y), sin(uRiso.y)) * uRiso.x * uPx * 60.0;
+    vec3 b = sheetFaded(p + off);
+    vec3 second = vec3(1.0) - (vec3(1.0) - b) * vec3(0.15, 0.85, 0.95);
+    c = mix(c, c * second, uRiso.z);
+  }
+
+  if (uOn.z > 0.5) {
     // Grain: paper tooth, keyed to position alone so a frame is reproducible
     // from its values — the same promise the rest of the tool makes.
-    vec2 cell = floor(gl_FragCoord.xy / max(uP.y, 1.0));
-    float n = hash(cell) - 0.5;
-    c += n * uP.x;
+    vec2 cell = floor(gl_FragCoord.xy / max(uGrain.y, 1.0));
+    c += (hash(cell) - 0.5) * uGrain.x;
   }
 
   frag = vec4(clamp(c, 0.0, 1.0), 1.0);
@@ -209,7 +240,8 @@ export interface FinishView {
   setSheet(ground: string, word: string | null): Promise<void>
   /** the word's drag, in sheet units — free, because it is only a uniform */
   setOffset(dx: number, dy: number): void
-  setFinish(id: string, params: Record<string, number>): void
+  /** which finishes are on, and at what — any combination, applied in order */
+  setFinishes(state: FinishState): void
   /** 0 to 1, how much of the previous sheet still shows */
   setFade(fade: number): void
   draw(): void
@@ -268,8 +300,10 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
     offset: u('uOffset'),
     prevOffset: u('uPrevOffset'),
     fade: u('uFade'),
-    finish: u('uFinish'),
-    p: u('uP'),
+    on: u('uOn'),
+    scan: u('uScan'),
+    riso: u('uRiso'),
+    grain: u('uGrain'),
     px: u('uPx'),
   }
   gl.uniform1i(loc.ground, 0)
@@ -281,8 +315,7 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
   let offset: [number, number] = [0, 0]
   let prevOffset: [number, number] = [0, 0]
   let fade = 0
-  let finishId = 'none'
-  let params: Record<string, number> = {}
+  let finishes: FinishState = finishState()
   let dead = false
   // the images currently on the GPU, kept so they can become the previous pair
   // on the next rebuild — the fade over them is what turns a rebuild into a morph
@@ -297,13 +330,13 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
     }
   }
 
-  /** the three dials, normalised so the shader never has to know their ranges */
-  function packed(): [number, number, number] {
-    const f = getFinish(finishId)
+  /** one finish's dials, normalised so the shader never has to know their ranges */
+  function packed(f: Finish): [number, number, number] {
+    const held = finishes[f.id]
     const at = (i: number) => {
       const spec = f.params[i]
       if (!spec) return 0
-      const v = params[spec.key] ?? spec.default
+      const v = held?.params[spec.key] ?? spec.default
       return spec.key === 'angle' ? (v * Math.PI) / 180 : (v - spec.min) / (spec.max - spec.min || 1)
     }
     return [at(0), at(1), at(2)]
@@ -325,9 +358,8 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
     setOffset(dx, dy) {
       offset = [dx / sheetW, dy / sheetH]
     },
-    setFinish(id, next) {
-      finishId = id
-      params = next
+    setFinishes(next) {
+      finishes = next
     },
     setFade(f) {
       fade = Math.max(0, Math.min(1, f))
@@ -346,9 +378,18 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
       gl.uniform2f(loc.offset, offset[0], offset[1])
       gl.uniform2f(loc.prevOffset, prevOffset[0], prevOffset[1])
       gl.uniform1f(loc.fade, fade)
-      gl.uniform1i(loc.finish, Math.max(0, FINISHES.findIndex((f) => f.id === finishId)))
-      const [a, b, c] = packed()
-      gl.uniform3f(loc.p, a, b, c)
+      // the uniforms are positional, so the order here is FINISHES' order,
+      // which is the order the shader applies them in
+      const [scan, riso, grain] = FINISHES
+      gl.uniform3f(
+        loc.on,
+        finishes[scan.id]?.on ? 1 : 0,
+        finishes[riso.id]?.on ? 1 : 0,
+        finishes[grain.id]?.on ? 1 : 0,
+      )
+      gl.uniform3f(loc.scan, ...packed(scan))
+      gl.uniform3f(loc.riso, ...packed(riso))
+      gl.uniform3f(loc.grain, ...packed(grain))
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
     },
     destroy() {

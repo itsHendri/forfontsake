@@ -26,10 +26,20 @@ import type { Step } from './urlState'
  * drag in the DOM.
  */
 
+/**
+ * What each layer of the sheet is coloured with.
+ *
+ * `ink` and `paper` are the word and the ground; `mark` is the accent the
+ * margins use for the sheet number and the address. `caption` is the rules and
+ * the two long label lines, and it defaults to `ink` — which is what it always
+ * was, before the caption became a layer you could select and recolour on its
+ * own.
+ */
 export interface PosterPalette {
   ink: string
   paper: string
   mark: string
+  caption?: string
 }
 
 /**
@@ -265,6 +275,7 @@ const esc2 = esc
  */
 function chrome(req: PosterRequest, bandTop: number, footTop: number) {
   const { w: sheetW } = getFormat(req.format)
+  const caption = req.palette.caption ?? req.palette.ink
   const small = (x: number, y: number, text: string, fill: string, size = 17, anchor = 'start') =>
     `<text x="${x}" y="${y}" font-family="${mono}" font-size="${size}" letter-spacing="2.4" ` +
     `fill="${fill}" text-anchor="${anchor}">${esc2(text.toUpperCase())}</text>`
@@ -273,14 +284,14 @@ function chrome(req: PosterRequest, bandTop: number, footTop: number) {
 
   const head =
     `<line x1="${MARGIN}" y1="${bandTop - 60}" x2="${sheetW - MARGIN}" y2="${bandTop - 60}" ` +
-    `stroke="${req.palette.ink}" stroke-width="2"/>` +
-    small(MARGIN, bandTop - 80, "For Font's Sake", req.palette.ink) +
+    `stroke="${caption}" stroke-width="2"/>` +
+    small(MARGIN, bandTop - 80, "For Font's Sake", caption) +
     small(sheetW - MARGIN, bandTop - 80, `No. ${number}`, req.palette.mark, 17, 'end')
 
   const foot =
     `<line x1="${MARGIN}" y1="${footTop}" x2="${sheetW - MARGIN}" y2="${footTop}" ` +
-    `stroke="${req.palette.ink}" stroke-width="2"/>` +
-    small(MARGIN, footTop + 38, `${chainName(req.chain)} on ${req.font.label} · Seed ${req.seed}`, req.palette.ink, 15) +
+    `stroke="${caption}" stroke-width="2"/>` +
+    small(MARGIN, footTop + 38, `${chainName(req.chain)} on ${req.font.label} · Seed ${req.seed}`, caption, 15) +
     small(sheetW - MARGIN, footTop + 38, 'forfontsake.xyz', req.palette.mark, 15, 'end')
 
   return { head, foot, small }
