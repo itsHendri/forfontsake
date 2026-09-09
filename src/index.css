@@ -802,10 +802,12 @@ h1 {
   gap: 6px;
   flex-wrap: wrap;
 }
-.glyphs-hint {
-  margin: 8px 0 0;
-  font-size: 12px;
-  color: var(--muted);
+/* a heading that carries its own (i), so the explanation is asked for rather
+   than standing under the grid forever */
+.head-with-tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
 }
 
 /* ---------- per-glyph scope ---------- */

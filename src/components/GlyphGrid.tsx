@@ -65,7 +65,20 @@ export function GlyphGrid({ set, selected, overridden, onSelect }: Props) {
   return (
     <section className="glyphs">
       <div className="glyphs-head">
-        <h2>Glyphs</h2>
+        <h2 className="head-with-tip">
+          Glyphs
+          {/* what the grid is for, asked rather than announced — the standing
+              line under it said the same thing to everybody forever, including
+              the people already using the feature */}
+          <span className="with-tip ctl-info">
+            <button type="button" className="info-btn" aria-label="About the glyph grid">
+              i
+            </button>
+            <span className="tip" role="tooltip">
+              Click letters to give just them their own settings. Shift-click for a run of them.
+            </span>
+          </span>
+        </h2>
         <div className="glyph-picks">
           {GROUPS.map((g) => {
             const chars = set.glyphs.filter(({ ch }) => g.test(ch))
@@ -92,11 +105,18 @@ export function GlyphGrid({ set, selected, overridden, onSelect }: Props) {
               Overridden
             </button>
           )}
-          {selected.size > 0 && (
-            <button type="button" className="chip" onClick={() => onSelect(new Set())}>
-              Clear
-            </button>
-          )}
+          {/* Always here, dead until there is something to clear. It used to
+              appear with the first selection and push the row along under the
+              pointer, so the control you were reaching for moved as you
+              selected. */}
+          <button
+            type="button"
+            className="chip"
+            onClick={() => onSelect(new Set())}
+            disabled={selected.size === 0}
+          >
+            Clear
+          </button>
         </div>
       </div>
       <div className="glyph-grid">
@@ -130,9 +150,6 @@ export function GlyphGrid({ set, selected, overridden, onSelect }: Props) {
           </button>
         ))}
       </div>
-      {selected.size === 0 && (
-        <p className="glyphs-hint">Click letters to give just them their own settings.</p>
-      )}
     </section>
   )
 }
