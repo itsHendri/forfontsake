@@ -7,6 +7,7 @@ import {
   dissolveFor,
   GROUNDS,
   getGround,
+  snapLines,
   settingsLine,
   chainName,
   LAYOUTS,
@@ -361,5 +362,68 @@ describe('what the sheet is printed on', () => {
 
   it('puts the same ground under the layered sheet as under the composed one', () => {
     expect(buildPosterLayers({ ...req('word'), palette, ground: 'grid' }).ground).toContain('ffs-grid')
+  })
+})
+
+describe('turning the word', () => {
+  it('leaves the sheet alone at no rotation', () => {
+    const flat = buildPoster({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 1 } })
+    const zero = buildPoster({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 1, rotate: 0 } })
+    expect(zero).toEqual(flat)
+  })
+
+  it('turns about the word’s own centre, so it cannot walk off the sheet', () => {
+    const spun = buildPoster({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 1, rotate: 30 } })
+    expect(spun).toContain('rotate(30)')
+    // scale and rotate share one origin — the translate pair around them
+    expect(spun).toMatch(/translate\([\d.-]+, ?[\d.-]+\) rotate\(30\) scale\(1\)/)
+  })
+
+  /*
+   * The reported box stays the word's own rectangle, unrotated. The room turns
+   * the pointer back through the angle before testing it; growing the box to
+   * the bounds of a spun one would claim the empty corners a turned word
+   * leaves behind, and clicking beside the letters would grab them.
+   */
+  it('reports the same box however far the word is turned', () => {
+    const still = buildPosterLayers({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 1 } }).wordBox!
+    const spun = buildPosterLayers({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 1, rotate: 45 } }).wordBox!
+    expect(spun).toEqual(still)
+  })
+})
+
+describe('what the word snaps to', () => {
+  it('offers the sheet’s own centre on both axes', () => {
+    for (const f of FORMATS) {
+      const { x, y } = snapLines(f.id)
+      expect(x, f.id).toContain(f.w / 2)
+      expect(y, f.id).toContain(f.h / 2)
+    }
+  })
+
+  it('offers the margin the type is set to, and the two rules', () => {
+    const { x, y } = snapLines('post')
+    // three each: the margin pair and the centre, the two rules and the centre
+    expect(x).toHaveLength(3)
+    expect(y).toHaveLength(3)
+    // every line is inside the sheet, or it is a line nothing can reach
+    for (const v of x) {
+      expect(v).toBeGreaterThan(0)
+      expect(v).toBeLessThan(FORMATS[0].w)
+    }
+    for (const v of y) {
+      expect(v).toBeGreaterThan(0)
+      expect(v).toBeLessThan(FORMATS[0].h)
+    }
+  })
+
+  it('lines up with where the sheet actually draws its rules', () => {
+    // the head rule and the foot rule are drawn at these y values, so a word
+    // snapped to one sits on a line that is really there
+    const svg = buildPoster(req('word'))
+    for (const y of snapLines('post').y) {
+      if (y === FORMATS[0].h / 2) continue
+      expect(svg, String(y)).toContain(`y1="${y}"`)
+    }
   })
 })

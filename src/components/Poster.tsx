@@ -8,6 +8,7 @@ import {
   getGround,
   GROUNDS,
   LAYOUTS,
+  snapLines,
   POSTER_PALETTES,
   type PosterLayout,
   type PosterPalette,
@@ -47,7 +48,7 @@ interface Props {
   onClose: () => void
 }
 
-const IDENTITY: WordTransform = { dx: 0, dy: 0, scale: 1 }
+const IDENTITY: WordTransform = { dx: 0, dy: 0, scale: 1, rotate: 0 }
 
 /**
  * The sheet, stated as its layers — topmost first, the way every layer list
@@ -136,6 +137,25 @@ const HEAVY = new Set(['growth', 'mosaic'])
 // long enough for a loop of the bubble track, short enough to stay postable
 const MAX_RECORD_SECONDS = 15
 
+// How close a snap line has to be, in *screen* pixels — converted into sheet
+// units where it is used, which is the only way it means the same thing on a
+// sheet drawn at 852px and one drawn at 400. Konva's own demo uses five and
+// tldraw eight; the middle of that is what this is.
+const SNAP_PX = 6
+
+const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+
+/** a sheet coordinate as a percentage of the sheet, which is how the frame is laid out */
+const pct = (v: number, of: number) => `${(v / of) * 100}%`
+
+/** the four corners, and what the pointer says it will do there */
+const CORNERS: [number, number, string][] = [
+  [0, 0, 'nwse-resize'],
+  [1, 0, 'nesw-resize'],
+  [0, 1, 'nesw-resize'],
+  [1, 1, 'nwse-resize'],
+]
+
 /**
  * The specimen sheet, as a thing you can take away.
  *
@@ -180,8 +200,29 @@ export function Poster(p: Props) {
   const [wordT, setWordT] = useState<WordTransform>(IDENTITY)
 
   const sheetRef = useRef<HTMLDivElement>(null)
-  // a drag in flight: committed transform at pointerdown, plus where it started
-  const dragRef = useRef<{ startX: number; startY: number; base: WordTransform } | null>(null)
+  /*
+   * A gesture in flight. `kind` is what the pointer went down on: the word
+   * itself, one of the four corners, or the knob under it — so one set of
+   * handlers covers moving, resizing and turning rather than three.
+   */
+  const dragRef = useRef<{
+    kind: 'move' | 'scale' | 'rotate'
+    startX: number
+    startY: number
+    base: WordTransform
+    /** the word's centre in client px, for the two gestures that turn about it */
+    cx: number
+    cy: number
+    /** distance or angle at pointerdown, so the gesture is relative to it */
+    from: number
+  } | null>(null)
+  /** the word is an object you select, so it has a selected state to be in */
+  const [framed, setFramed] = useState(false)
+  /** which snap lines are lit, in sheet units, while a move is in flight */
+  const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] })
+  // where the move got to, so the release commits the snapped value rather
+  // than recomputing it from a pointer that may have left the canvas
+  const moveRef = useRef<WordTransform | null>(null)
 
   // Sound. The engine is created in a click handler, never on mount — an
   // AudioContext made outside a user gesture starts suspended, and StrictMode
@@ -641,57 +682,184 @@ export function Poster(p: Props) {
     return el && el.clientWidth ? px * (format.w / el.clientWidth) : px
   }
 
+  /** the word's rectangle on the sheet, drag included — what the frame draws on */
+  const framedBox = useMemo(() => {
+    const box = layers.wordBox
+    if (!box) return null
+    return { x: box.x + wordT.dx, y: box.y + wordT.dy, w: box.w, h: box.h }
+  }, [layers.wordBox, wordT.dx, wordT.dy])
+
+  /** a client point in sheet units */
+  const toPoint = (clientX: number, clientY: number) => {
+    const el = viewRef.current?.canvas
+    if (!el) return null
+    const r = el.getBoundingClientRect()
+    if (!r.width || !r.height) return null
+    return { x: ((clientX - r.left) / r.width) * format.w, y: ((clientY - r.top) / r.height) * format.h }
+  }
+
   /**
    * Is the pointer on the word?
    *
-   * The sheet is a canvas now, so there is no element to hit. `buildPosterLayers`
-   * hands back the rectangle the word is drawn in — without its drag, because
-   * the drag is the shader's uniform — so the test adds the drag back and asks
-   * whether the point is inside. A test pins that box to the transform beside
-   * it, since a box that drifts means dragging quietly starts missing.
+   * The sheet is a canvas, so there is no element to hit. `buildPosterLayers`
+   * hands back the rectangle the word is drawn in — unrotated, and without its
+   * drag, because the drag is the shader's uniform. So the test turns the
+   * point back through the word's own angle about its centre and asks whether
+   * it is inside the plain rectangle. Growing the box to the bounds of a spun
+   * one would claim the empty corners a rotated word leaves behind.
    */
-  const onWord = (e: React.PointerEvent<HTMLDivElement>) => {
-    const box = layers.wordBox
-    const el = viewRef.current?.canvas
-    if (!box || !el) return false
-    const r = el.getBoundingClientRect()
-    if (!r.width || !r.height) return false
-    const x = ((e.clientX - r.left) / r.width) * format.w - wordT.dx
-    const y = ((e.clientY - r.top) / r.height) * format.h - wordT.dy
-    return x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h
-  }
-
-  /**
-   * Dragging moves a uniform and commits on release. A full rebuild per
-   * pointermove would re-run the whole treatment chain — tens of milliseconds
-   * on the heavy ones — where changing one uniform is free.
-   */
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (layout.id !== 'word' || !onWord(e)) return
-    e.preventDefault()
-    dragRef.current = { startX: e.clientX, startY: e.clientY, base: wordT }
-    e.currentTarget.setPointerCapture(e.pointerId)
-  }
-
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current
-    if (!drag) return
-    viewRef.current?.setOffset(
-      drag.base.dx + toSheet(e.clientX - drag.startX),
-      drag.base.dy + toSheet(e.clientY - drag.startY),
+  const onWord = (clientX: number, clientY: number) => {
+    if (!framedBox) return false
+    const at = toPoint(clientX, clientY)
+    if (!at) return false
+    const cx = framedBox.x + framedBox.w / 2
+    const cy = framedBox.y + framedBox.h / 2
+    const a = (-(wordT.rotate ?? 0) * Math.PI) / 180
+    const dx = at.x - cx
+    const dy = at.y - cy
+    const x = cx + dx * Math.cos(a) - dy * Math.sin(a)
+    const y = cy + dx * Math.sin(a) + dy * Math.cos(a)
+    return (
+      x >= framedBox.x && x <= framedBox.x + framedBox.w &&
+      y >= framedBox.y && y <= framedBox.y + framedBox.h
     )
   }
 
-  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+  /**
+   * Where a move settles: on a snap line when it is close enough, otherwise
+   * exactly where it was dropped.
+   *
+   * The tolerance is in *screen* pixels and converted in, which is the only
+   * way it can mean the same thing on a sheet drawn at 852px and one drawn at
+   * 400 — eight sheet units is a hair at one size and a shove at the other.
+   * The lines are the sheet's own: its centre, the margin the type is set to,
+   * and the two rules the head and the foot are drawn on.
+   */
+  const settle = (dx: number, dy: number) => {
+    if (!layers.wordBox) return { dx, dy, lit: { x: [] as number[], y: [] as number[] } }
+    const box = layers.wordBox
+    const tol = toSheet(SNAP_PX)
+    const lines = snapLines(format.id)
+    const lit = { x: [] as number[], y: [] as number[] }
+
+    // the word's own edges and centre are what may land on a line
+    const near = (candidates: number[], edges: number[], lines: number[]) => {
+      let best: { delta: number; line: number } | null = null
+      for (const [i, edge] of edges.entries()) {
+        for (const line of lines) {
+          const delta = line - (edge + candidates[i])
+          if (Math.abs(delta) <= tol && (!best || Math.abs(delta) < Math.abs(best.delta))) {
+            best = { delta, line }
+          }
+        }
+      }
+      return best
+    }
+
+    const xEdges = [box.x, box.x + box.w / 2, box.x + box.w]
+    const yEdges = [box.y, box.y + box.h / 2, box.y + box.h]
+    const hx = near([dx, dx, dx], xEdges, lines.x)
+    const hy = near([dy, dy, dy], yEdges, lines.y)
+    if (hx) lit.x.push(hx.line)
+    if (hy) lit.y.push(hy.line)
+    return { dx: dx + (hx?.delta ?? 0), dy: dy + (hy?.delta ?? 0), lit }
+  }
+
+  /**
+   * One set of handlers for moving, resizing and turning.
+   *
+   * Moving is the cheap one and stays a uniform: a rebuild per pointermove
+   * would re-run the whole treatment chain, tens of milliseconds on the heavy
+   * ones, where changing an offset is free. Scale and rotation are baked into
+   * the geometry, so they rebuild — which is what the size slider always did.
+   */
+  const startGesture = (
+    kind: 'move' | 'scale' | 'rotate',
+    e: React.PointerEvent<Element>,
+  ) => {
+    if (layout.id !== 'word' || !framedBox) return
+    e.preventDefault()
+    e.stopPropagation()
+    const el = viewRef.current?.canvas
+    const r = el?.getBoundingClientRect()
+    if (!r) return
+    const cx = r.left + ((framedBox.x + framedBox.w / 2) / format.w) * r.width
+    const cy = r.top + ((framedBox.y + framedBox.h / 2) / format.h) * r.height
+    const from =
+      kind === 'rotate'
+        ? Math.atan2(e.clientY - cy, e.clientX - cx)
+        : Math.hypot(e.clientX - cx, e.clientY - cy)
+    dragRef.current = { kind, startX: e.clientX, startY: e.clientY, base: wordT, cx, cy, from }
+    ;(e.currentTarget as Element).setPointerCapture(e.pointerId)
+    setFramed(true)
+  }
+
+  const onStagePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (layout.id !== 'word' || !onWord(e.clientX, e.clientY)) {
+      // a click on the ground puts the word down
+      setFramed(false)
+      return
+    }
+    setSelected('type')
+    startGesture('move', e)
+  }
+
+  /** what a gesture makes of the pointer where it is now */
+  const gestureAt = (clientX: number, clientY: number): WordTransform | null => {
+    const drag = dragRef.current
+    if (!drag) return null
+    if (drag.kind === 'move') {
+      const { dx, dy } = settle(
+        drag.base.dx + toSheet(clientX - drag.startX),
+        drag.base.dy + toSheet(clientY - drag.startY),
+      )
+      return { ...drag.base, dx, dy }
+    }
+    if (drag.kind === 'scale') {
+      // distance from the centre, which is what keeps a corner drag
+      // proportional without needing to know which corner it was
+      const now = Math.hypot(clientX - drag.cx, clientY - drag.cy)
+      const k = drag.from > 0 ? now / drag.from : 1
+      return { ...drag.base, scale: clamp(drag.base.scale * k, 0.25, 2) }
+    }
+    const now = Math.atan2(clientY - drag.cy, clientX - drag.cx)
+    const deg = ((drag.base.rotate ?? 0) + ((now - drag.from) * 180) / Math.PI + 360) % 360
+    return { ...drag.base, rotate: deg }
+  }
+
+  const onStagePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (!drag) return
+    const next = gestureAt(e.clientX, e.clientY)
+    if (!next) return
+    if (drag.kind === 'move') {
+      // free: the offset is a uniform, so nothing is rebuilt until release
+      viewRef.current?.setOffset(next.dx, next.dy)
+      setGuides(settle(drag.base.dx + toSheet(e.clientX - drag.startX), drag.base.dy + toSheet(e.clientY - drag.startY)).lit)
+      moveRef.current = next
+    } else {
+      // Shift holds a turn to fifteen degrees, the step every tool uses
+      const snapped =
+        drag.kind === 'rotate' && e.shiftKey
+          ? { ...next, rotate: Math.round((next.rotate ?? 0) / 15) * 15 }
+          : next
+      setWordT(snapped)
+    }
+  }
+
+  const onStagePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current
     if (!drag) return
     dragRef.current = null
-    const dx = drag.base.dx + toSheet(e.clientX - drag.startX)
-    const dy = drag.base.dy + toSheet(e.clientY - drag.startY)
-    setWordT({ ...drag.base, dx, dy })
+    setGuides({ x: [], y: [] })
+    if (drag.kind === 'move') {
+      const next = moveRef.current ?? gestureAt(e.clientX, e.clientY)
+      moveRef.current = null
+      if (next) setWordT(next)
+    }
   }
 
-  const moved = wordT.dx !== 0 || wordT.dy !== 0 || wordT.scale !== 1
+  const moved = wordT.dx !== 0 || wordT.dy !== 0 || wordT.scale !== 1 || (wordT.rotate ?? 0) !== 0
   const chainName = p.chain.map((c) => getTreatment(c.id).name).join(' + ')
   const inVideo = mode === 'video'
 
@@ -857,9 +1025,9 @@ export function Poster(p: Props) {
         <div
           className="sheet-stage"
           ref={sheetRef}
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={onPointerUp}
+          onPointerDown={onStagePointerDown}
+          onPointerMove={onStagePointerMove}
+          onPointerUp={onStagePointerUp}
         >
           {recording && (
             <p className="rec-pill" role="status">
@@ -867,14 +1035,64 @@ export function Poster(p: Props) {
               Recording · 0:{String(recSeconds).padStart(2, '0')}
             </p>
           )}
-          <div
-            className="sheet-live"
-            /* a new size needs a new canvas, so the holder is keyed on it */
-            key={format.id}
-            ref={mount}
-            role="img"
-            aria-label={`Specimen sheet number ${number}`}
-          />
+          <div className="sheet-holder">
+            <div
+              className="sheet-live"
+              /* a new size needs a new canvas, so the holder is keyed on it */
+              key={format.id}
+              ref={mount}
+              role="img"
+              aria-label={`Specimen sheet number ${number}`}
+            />
+            {/*
+              The word, as a thing you can take hold of.
+
+              Drawn as a DOM overlay in percentages of the sheet rather than in
+              pixels, so it stays on the word at whatever size the sheet is
+              being shown at, with no measuring and nothing to keep in step
+              when the window moves. It is `pointer-events: none` except on the
+              handles, so the drag underneath still reaches the stage.
+            */}
+            {layout.id === 'word' && framedBox && (
+              <div className="word-frame" aria-hidden="true">
+                {guides.x.map((x) => (
+                  <span className="guide is-v" key={`x${x}`} style={{ left: pct(x, format.w) }} />
+                ))}
+                {guides.y.map((y) => (
+                  <span className="guide is-h" key={`y${y}`} style={{ top: pct(y, format.h) }} />
+                ))}
+                {(framed || dragRef.current) && (
+                  <div
+                    className="word-box"
+                    style={{
+                      left: pct(framedBox.x, format.w),
+                      top: pct(framedBox.y, format.h),
+                      width: pct(framedBox.w, format.w),
+                      height: pct(framedBox.h, format.h),
+                      transform: `rotate(${wordT.rotate ?? 0}deg)`,
+                    }}
+                  >
+                    {CORNERS.map(([cx, cy, cursor]) => (
+                      <span
+                        key={`${cx}${cy}`}
+                        className="word-handle"
+                        style={{ left: `${cx * 100}%`, top: `${cy * 100}%`, cursor }}
+                        onPointerDown={(e) => startGesture('scale', e)}
+                      />
+                    ))}
+                    {/* the turn, on a stalk under the box — unmissable, which
+                        is the whole argument for it over an invisible hit area */}
+                    <span className="word-stalk" />
+                    <span
+                      className="word-spin"
+                      title="Drag to turn · hold Shift for 15°"
+                      onPointerDown={(e) => startGesture('rotate', e)}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           {glError && <p className="notice is-bad">{glError}</p>}
         </div>
 
@@ -1061,11 +1279,34 @@ export function Poster(p: Props) {
                     onChange={(e) => setWordT((t) => ({ ...t, scale: Number(e.target.value) }))}
                     onDoubleClick={() => setWordT((t) => ({ ...t, scale: 1 }))}
                   />
+                  <div className="ctl">
+                    <div className="ctl-head">
+                      <label htmlFor="word-spin">Turn</label>
+                      <output
+                        htmlFor="word-spin"
+                        className={(wordT.rotate ?? 0) === 0 ? 'is-default' : undefined}
+                      >
+                        {Math.round(wordT.rotate ?? 0)}°
+                      </output>
+                    </div>
+                    <input
+                      id="word-spin"
+                      type="range"
+                      min={0}
+                      max={359}
+                      step={1}
+                      value={Math.round(wordT.rotate ?? 0)}
+                      onChange={(e) => setWordT((t) => ({ ...t, rotate: Number(e.target.value) }))}
+                      onDoubleClick={() => setWordT((t) => ({ ...t, rotate: 0 }))}
+                    />
+                  </div>
                   <p className="note">
-                    Drag the word to place it{moved ? ' · ' : '.'}
+                    Click the word to take hold of it: drag to move, a corner to resize, the knob
+                    to turn. Hold Shift while turning for fifteen degrees at a time.
+                    {moved && ' · '}
                     {moved && (
                       <button type="button" className="linkish" onClick={() => setWordT(IDENTITY)}>
-                        Reset position
+                        Put it back
                       </button>
                     )}
                   </p>

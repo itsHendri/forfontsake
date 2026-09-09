@@ -8,6 +8,10 @@
   --muted: #6c6a61;
   --mark: #be3a22;
   --track: #d5d1c6;
+  /* the selection accent. Deliberately not --mark: the frame sits over a sheet
+     whose own accent may be anything the palette rolled, and a frame that
+     matches the artwork stops reading as chrome. */
+  --frame: #218cd8;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme='light']) {
@@ -18,6 +22,7 @@
     --muted: #8b8a7e;
     --mark: #e0603f;
     --track: #2b2c25;
+    --frame: #46a6ea;
   }
 }
 :root[data-theme='dark'] {
@@ -28,6 +33,7 @@
   --muted: #8b8a7e;
   --mark: #e0603f;
   --track: #2b2c25;
+  --frame: #46a6ea;
 }
 
 /* Metrics-only subsets of the source faces. These are never seen: they exist so
@@ -558,7 +564,7 @@ h1 {
   justify-content: center;
 }
 .sheet-live {
-  display: block;
+  display: flex;
   max-height: 100%;
 }
 /* the canvas is sized by the format, so it is let to keep its own aspect and
@@ -710,6 +716,80 @@ h1 {
 .swatch:focus-visible {
   outline: 2px solid var(--mark);
   outline-offset: 2px;
+}
+
+/* ---------- the word, as a thing you can take hold of ---------- */
+
+/* The frame is laid out in percentages of the sheet, so it stays on the word
+   at whatever size the sheet is drawn — no measuring, and nothing to keep in
+   step when the window moves. */
+/* flex, so the holder shrink-wraps the canvas exactly — the frame is absolute
+   to this box, so a holder even a pixel wider puts the handles off the word */
+.sheet-holder {
+  position: relative;
+  display: flex;
+  max-width: 100%;
+}
+.word-frame {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+/* one accent for the frame, the handles and the guides — every tool that does
+   this uses a single colour, and two would read as two different things */
+.word-box {
+  position: absolute;
+  box-shadow: 0 0 0 1px var(--frame);
+}
+.word-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--frame);
+  pointer-events: auto;
+  touch-action: none;
+}
+.word-stalk {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 1px;
+  height: 26px;
+  margin-left: -0.5px;
+  background: var(--frame);
+}
+.word-spin {
+  position: absolute;
+  left: 50%;
+  top: 100%;
+  width: 12px;
+  height: 12px;
+  margin: 20px 0 0 -6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 1px var(--frame);
+  cursor: grab;
+  pointer-events: auto;
+  touch-action: none;
+}
+.word-spin:active {
+  cursor: grabbing;
+}
+.guide {
+  position: absolute;
+  background: var(--frame);
+}
+.guide.is-v {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+.guide.is-h {
+  left: 0;
+  right: 0;
+  height: 1px;
 }
 
 /* What the sheet is printed on. Every texture is drawn by the same function

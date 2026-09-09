@@ -136,6 +136,25 @@ export interface WordTransform {
   dx: number
   dy: number
   scale: number
+  /** degrees clockwise, about the word's own centre; absent means none */
+  rotate?: number
+}
+
+/**
+ * The lines the word snaps to, in sheet units.
+ *
+ * Deliberately here rather than in the room: they are the sheet's own
+ * geometry — the centre, the margin the type is set to, and the two rules the
+ * head and the foot are drawn on — so if the sheet's layout ever moves, what
+ * the word snaps to moves with it instead of drifting out of agreement.
+ */
+export function snapLines(format?: string): { x: number[]; y: number[] } {
+  const { w, h } = getFormat(format)
+  const { headRule, footTop } = bandOf(h)
+  return {
+    x: [MARGIN, w / 2, w - MARGIN],
+    y: [headRule, h / 2, footTop],
+  }
 }
 
 /**
@@ -202,10 +221,15 @@ export const SHEET_W = FORMATS[0].w
 export const SHEET_H = FORMATS[0].h
 const MARGIN = 76
 
-/** the band the type is set in, derived from whatever height the format has */
+/**
+ * The band the type is set in, derived from whatever height the format has —
+ * and the two rules that fence it, because the word snaps to those and they
+ * must be the same numbers the sheet actually draws.
+ */
 function bandOf(h: number) {
   const footTop = h - MARGIN - 64
-  return { footTop, bandTop: MARGIN + 96, bandBottom: footTop - 48 }
+  const bandTop = MARGIN + 96
+  return { footTop, bandTop, bandBottom: footTop - 48, headRule: bandTop - 60 }
 }
 
 const esc = (s: string) =>
@@ -359,8 +383,9 @@ function chrome(req: PosterRequest, bandTop: number, footTop: number) {
 
   const number = String(req.number).padStart(3, '0')
 
+  const rule = bandTop - 60
   const head =
-    `<line x1="${MARGIN}" y1="${bandTop - 60}" x2="${sheetW - MARGIN}" y2="${bandTop - 60}" ` +
+    `<line x1="${MARGIN}" y1="${rule}" x2="${sheetW - MARGIN}" y2="${rule}" ` +
     `stroke="${caption}" stroke-width="2"/>` +
     small(MARGIN, bandTop - 80, "For Font's Sake", caption) +
     small(sheetW - MARGIN, bandTop - 80, `No. ${number}`, req.palette.mark, 17, 'end')
@@ -405,18 +430,24 @@ function placeWord(req: PosterRequest, bandTop: number, bandBottom: number) {
   // The user's placement rides on top of the auto-fit. Scaling is about the
   // word's visual centre so growing it does not shove it off the sheet.
   const t = req.wordTransform
+  const spin = t?.rotate ?? 0
   let placed = ''
-  if (t && (t.dx !== 0 || t.dy !== 0 || t.scale !== 1)) {
+  if (t && (t.dx !== 0 || t.dy !== 0 || t.scale !== 1 || spin !== 0)) {
     const cx = MARGIN + (word.width * scale) / 2
     const cy = blockTop + capHeight / 2
+    // Every part of the placement turns about the word's own centre, so
+    // growing or spinning it does not also shove it off the sheet.
     placed =
       `translate(${t.dx}, ${t.dy}) translate(${cx}, ${cy}) ` +
-      `scale(${t.scale}) translate(${-cx}, ${-cy}) `
+      `rotate(${spin}) scale(${t.scale}) translate(${-cx}, ${-cy}) `
   }
 
   // The same rectangle the transform above puts the word in, minus the drag —
   // the canvas has no DOM to hit-test, so the pointer is tested against this.
-  // Scaling is about the word's centre, so the box grows about it too.
+  // Scaling is about the word's centre, so the box grows about it too. The box
+  // stays *unrotated*: it is the word's own rectangle, and the room turns the
+  // pointer back through the angle before testing it rather than growing the
+  // box to the bounds of a spun one, which would claim empty corners.
   const grow = t?.scale ?? 1
   const w = word.width * scale
   const cx = MARGIN + w / 2
