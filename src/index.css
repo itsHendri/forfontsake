@@ -163,6 +163,36 @@ body {
   border-style: solid;
   border-color: var(--mark);
 }
+/* The two decisions the file comes from, under the name it is made into.
+   Labelled, because unlabelled they were two menus in the specimen's own bar
+   that could as easily have been about the preview. */
+.setup-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 6px 0 7px;
+}
+.setup-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.setup-field label {
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.setup-field select {
+  width: auto;
+  min-width: 0;
+  padding: 5px 9px;
+  font-size: 13px;
+}
 .topbar-meta {
   margin: 0;
   font-size: 12px;
@@ -310,21 +340,7 @@ h1 {
   background: var(--plate);
   border: 1px solid var(--rule);
   border-radius: 2px;
-  padding: 0 18px 10px;
-}
-.plate-bar {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  flex-wrap: wrap;
-  padding: 12px 0;
-  border-bottom: 1px solid var(--rule);
-}
-.plate-bar select {
-  width: auto;
-  min-width: 0;
-  padding: 5px 9px;
-  font-size: 13px;
+  padding: 4px 18px 10px;
 }
 .plate-type {
   position: relative;

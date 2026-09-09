@@ -1,12 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
 import { buildFont, nameProblem, save, suggestName, type ExportResult } from '../lib/exportFont'
-import type { FontData } from '../lib/glyphData'
-import { hasRandomness } from '../engine/treatments/registry'
+import type { FontData, Library } from '../lib/glyphData'
+import { FAMILY_LABEL, hasRandomness, type Treatment } from '../engine/treatments/registry'
+import { FONT_ACCEPT } from '../lib/importFont'
 import type { Overrides, Step } from '../lib/urlState'
 
 interface Props {
   font: FontData
   fontId: string
+  library: Library
+  treatments: Treatment[]
+  /** the treatment being edited — always `chain[active]` */
+  treatment: Treatment
   chain: Step[]
   /** "Grit + Bleed" — what the stack is called in the file name */
   chainName: string
@@ -14,8 +19,33 @@ interface Props {
   alternates: number
   /** per-character exceptions, carried into the export as-is */
   overrides?: Overrides
+  onFont: (id: string) => void
+  onTreatment: (id: string) => void
+  onUpload: (file: File) => void
+  /** set while a dropped font is being read, so the control can say so */
+  importing: boolean
   onSave: () => void
   onShare: () => void
+}
+
+/** the font select's last entry — a verb among the nouns */
+const UPLOAD = '__upload__'
+
+/**
+ * Group the picker by family, keeping whatever order the registry gave.
+ *
+ * Derived from the list it is handed rather than read from the registry, so a
+ * caller passing a subset still gets sensible groups.
+ */
+function groupTreatments(treatments: Treatment[]) {
+  const groups: { label: string; items: Treatment[] }[] = []
+  for (const t of treatments) {
+    const label = FAMILY_LABEL[t.family] ?? 'Other'
+    const found = groups.find((g) => g.label === label)
+    if (found) found.items.push(t)
+    else groups.push({ label, items: [t] })
+  }
+  return groups
 }
 
 type State =
@@ -27,8 +57,8 @@ type State =
 const kb = (n: number) => `${Math.round(n / 1024)} KB`
 
 /**
- * The bar the workbench is worked from: what the font is called, and the three
- * ways of leaving with it.
+ * The bar the workbench is worked from: what the font is made of, what it is
+ * called, and the three ways of leaving with it.
  *
  * The name field is the page title rather than a field buried next to the
  * download, because naming the thing is the first act of making it. The
@@ -46,6 +76,7 @@ export function TopBar(p: Props) {
   const [state, setState] = useState<State>({ phase: 'idle' })
   const live = useRef(true)
   const bar = useRef<HTMLElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   /*
    * The bar sticks to the top, and the dial panel sticks under it. How tall
@@ -148,6 +179,77 @@ export function TopBar(p: Props) {
           aria-invalid={problem ? true : undefined}
           aria-describedby={problem ? 'name-problem' : 'font-meta'}
         />
+        {/*
+          What the font is made of, said once and beside the name it is made
+          into. These two sat unlabelled in the plate's own bar, where they
+          read as settings for the specimen rather than as the two decisions
+          the whole file comes from — and where the line under the name was
+          left saying "Halftone on Pirata One" to a reader looking straight at
+          two menus that said it better.
+        */}
+        <div className="setup-row">
+          <span className="setup-field">
+            <label htmlFor="font">Base font</label>
+            {/*
+              Uploading lives inside the font menu — it is one of the answers to
+              "which font?", not a separate feature. A controlled select never
+              actually settles on the upload entry: picking it opens the file
+              dialog and the value snaps back to the current font on re-render.
+            */}
+            <select
+              id="font"
+              value={p.fontId}
+              disabled={p.importing}
+              onChange={(e) => {
+                if (e.target.value === UPLOAD) fileRef.current?.click()
+                else p.onFont(e.target.value)
+              }}
+            >
+              {Object.entries(p.library).map(([id, f]) => (
+                <option key={id} value={id}>
+                  {f.label}
+                </option>
+              ))}
+              <option value={UPLOAD}>{p.importing ? 'Reading…' : 'Upload your own…'}</option>
+            </select>
+            <input
+              ref={fileRef}
+              type="file"
+              hidden
+              accept={FONT_ACCEPT}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                // cleared so choosing the same file twice still fires
+                e.target.value = ''
+                if (file) p.onUpload(file)
+              }}
+            />
+          </span>
+
+          <span className="setup-field">
+            <label htmlFor="treatment">Style</label>
+            <select
+              id="treatment"
+              value={p.treatment.id}
+              onChange={(e) => p.onTreatment(e.target.value)}
+            >
+              {/* Grouped: thirteen names in one list is a wall, and the family
+                  answers "what sort of thing am I after" before "which one". */}
+              {groupTreatments(p.treatments).map((g) => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.items.map((t) => (
+                    // the blurb rides the option as hover help; as a line beside
+                    // the picker it described what the letters already showed
+                    <option key={t.id} value={t.id} title={t.blurb}>
+                      {t.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </span>
+        </div>
+
         <p className="topbar-meta" id="font-meta">
           {state.phase === 'done' ? (
             <>
@@ -157,7 +259,7 @@ export function TopBar(p: Props) {
             </>
           ) : (
             <>
-              {p.chainName} on {p.font.label} · {p.font.sourceGlyphs.toLocaleString()} glyphs · OFL
+              {p.font.sourceGlyphs.toLocaleString()} glyphs · OFL
             </>
           )}
         </p>

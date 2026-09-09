@@ -635,11 +635,18 @@ export default function App() {
       <TopBar
         font={library[state.fontId]}
         fontId={state.fontId}
+        library={library}
+        treatments={TREATMENTS}
+        treatment={treatment}
         chain={state.chain}
         chainName={chainName}
         seed={state.seed}
         alternates={state.alternates}
         overrides={state.overrides}
+        onFont={(fontId) => patch({ fontId })}
+        onTreatment={changeTreatment}
+        onUpload={onUpload}
+        importing={importing}
         onSave={save}
         onShare={() => setPosterOpen(true)}
       />
@@ -653,17 +660,10 @@ export default function App() {
             onPreset={applyPreset}
           />
           <Plate
-            library={library}
-            treatments={TREATMENTS}
             fontId={state.fontId}
-            treatment={treatment}
             text={state.text}
             result={result}
-            onFont={(fontId) => patch({ fontId })}
-            onTreatment={changeTreatment}
             onText={(text) => patch({ text })}
-            onUpload={onUpload}
-            importing={importing}
           />
           {notice && <p className="notice is-bad">{notice}</p>}
           {licence && state.fontId.startsWith('upload') && (
