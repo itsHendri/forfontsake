@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useMemo, useRef } from 'react'
 import type { GlyphSet } from '../lib/render'
 
 interface Props {
@@ -11,13 +11,41 @@ interface Props {
 }
 
 const CELL_INK = 72 // px of glyph height inside each cell
+const CHIP_INK = 30 // px of glyph height inside a range chip
 
-/** the quick selections worth a chip — ranges over what the grid shows */
-const GROUPS: { label: string; test: (ch: string) => boolean }[] = [
-  { label: 'a–z', test: (ch) => ch >= 'a' && ch <= 'z' },
-  { label: 'A–Z', test: (ch) => ch >= 'A' && ch <= 'Z' },
-  { label: '0–9', test: (ch) => ch >= '0' && ch <= '9' },
+/**
+ * The quick selections worth a chip — ranges over what the grid shows, each
+ * with the three letters that stand for it.
+ *
+ * A range is a picture of itself for the same reason a preset is: the thing
+ * that tells you what `a–z` means under this style is the letters under this
+ * style. `sample` is what gets drawn; `test` is what gets selected.
+ */
+const GROUPS: { label: string; sample: string; test: (ch: string) => boolean }[] = [
+  { label: 'a–z', sample: 'abc', test: (ch) => ch >= 'a' && ch <= 'z' },
+  { label: 'A–Z', sample: 'ABC', test: (ch) => ch >= 'A' && ch <= 'Z' },
+  { label: '0–9', sample: '012', test: (ch) => ch >= '0' && ch <= '9' },
 ]
+
+/**
+ * A range's letters, laid out from glyphs the grid has already drawn.
+ *
+ * Deliberately not a `render()` call. The grid above treats all sixty-nine
+ * glyphs on every rebuild, so the letters these chips want are sitting in the
+ * set already — laying three of them out by their own advances costs nothing
+ * and, more usefully, cannot disagree with the grid or arrive a beat after it.
+ */
+function sampleOf(set: GlyphSet, chars: string) {
+  const parts: { d: string; x: number }[] = []
+  let x = 0
+  for (const ch of chars) {
+    const g = set.glyphs.find((it) => it.ch === ch)
+    if (!g) continue
+    parts.push({ d: g.d, x })
+    x += g.adv
+  }
+  return parts.length > 0 ? { parts, width: x } : null
+}
 
 /**
  * Every glyph in the face, one to a cell.
@@ -35,6 +63,13 @@ export function GlyphGrid({ set, selected, overridden, onSelect }: Props) {
   const span = set.ascender - set.descender
   const scale = CELL_INK / span
   const lastIndex = useRef<number | null>(null)
+
+  // memoised on the set, so selecting a letter does not relay the samples
+  const samples = useMemo(() => {
+    const out: Record<string, ReturnType<typeof sampleOf>> = {}
+    for (const g of GROUPS) out[g.label] = sampleOf(set, g.sample)
+    return out
+  }, [set])
 
   const toggle = (i: number, range: boolean) => {
     const next = new Set(selected)
@@ -80,21 +115,6 @@ export function GlyphGrid({ set, selected, overridden, onSelect }: Props) {
           </span>
         </h2>
         <div className="glyph-picks">
-          {GROUPS.map((g) => {
-            const chars = set.glyphs.filter(({ ch }) => g.test(ch))
-            const on = chars.length > 0 && chars.every(({ ch }) => selected.has(ch))
-            return (
-              <button
-                type="button"
-                key={g.label}
-                className={on ? 'chip is-on' : 'chip'}
-                aria-pressed={on}
-                onClick={() => pickGroup(g.test)}
-              >
-                {g.label}
-              </button>
-            )
-          })}
           {overridden.size > 0 && (
             <button
               type="button"
@@ -118,6 +138,45 @@ export function GlyphGrid({ set, selected, overridden, onSelect }: Props) {
             Clear
           </button>
         </div>
+      </div>
+      {/*
+        The ranges, drawn as themselves. They were three words in boxes, which
+        said what would be selected but nothing about what it looks like — and
+        this is the one tool that never has to fake that picture.
+      */}
+      <div className="glyph-sets">
+        {GROUPS.map((g) => {
+          const chars = set.glyphs.filter(({ ch }) => g.test(ch))
+          const on = chars.length > 0 && chars.every(({ ch }) => selected.has(ch))
+          const sample = samples[g.label]
+          return (
+            <button
+              type="button"
+              key={g.label}
+              className={on ? 'glyph-set is-on' : 'glyph-set'}
+              aria-pressed={on}
+              onClick={() => pickGroup(g.test)}
+            >
+              <span className="glyph-set-ink">
+                {sample && (
+                  <svg
+                    height={CHIP_INK}
+                    viewBox={`0 ${-set.ascender} ${sample.width} ${span}`}
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <g transform="scale(1,-1)">
+                      {sample.parts.map((p, i) => (
+                        <path key={i} d={p.d} transform={`translate(${p.x} 0)`} />
+                      ))}
+                    </g>
+                  </svg>
+                )}
+              </span>
+              <span className="glyph-set-name">{g.label}</span>
+            </button>
+          )
+        })}
       </div>
       <div className="glyph-grid">
         {set.glyphs.map((g, i) => (

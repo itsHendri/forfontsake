@@ -845,6 +845,56 @@ h1 {
   gap: 7px;
 }
 
+/* The ranges are pictures of themselves, on the preset chips' own terms: the
+   selected one thickens its border rather than inverting, and loses a pixel of
+   padding so the row does not shift as the selection moves. */
+.glyph-sets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0;
+}
+.glyph-set {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 7px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.glyph-set:hover:not(.is-on) {
+  border-color: var(--muted);
+}
+.glyph-set.is-on {
+  border-color: var(--ink);
+  border-width: 2px;
+  padding: 7px 13px 6px;
+}
+.glyph-set-ink {
+  display: block;
+  height: 30px;
+}
+.glyph-set-ink svg {
+  display: block;
+  height: 30px;
+  width: auto;
+}
+.glyph-set-ink path {
+  fill: var(--ink);
+}
+.glyph-set-name {
+  font-size: 11.5px;
+  line-height: 16px;
+  color: var(--muted);
+}
+.glyph-set.is-on .glyph-set-name {
+  color: var(--ink);
+  font-weight: 500;
+}
+
 /* ---------- per-glyph scope ---------- */
 
 .panel .scope h2 {
@@ -957,49 +1007,67 @@ h1 {
 }
 /* The value is an input, not a readout: every tool a designer already uses
    makes it one, and a slider cannot hit 1337 on a 1–9999 range without a
-   fight. Minus and plus are the single-step nudge dragging is bad at. */
+   fight. Minus and plus are the single-step nudge dragging is bad at — and
+   all three are one control, so they are one rectangle, divided rather than
+   spaced. Three separate boxes at two different sizes read as three things
+   that happened to end up next to each other. */
 .stepper {
   display: flex;
-  align-items: center;
-  gap: 2px;
+  align-items: stretch;
+  height: 24px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  /* the dividers are the children's own edges, so nothing may spill past the
+     rounded corner */
+  overflow: hidden;
 }
 .step-btn {
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 22px;
+  width: 24px;
   padding: 0;
   font-size: 13px;
   line-height: 1;
   color: var(--muted);
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 2px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+}
+.step-btn:first-child {
+  border-right: 1px solid var(--rule);
+}
+.step-btn:last-child {
+  border-left: 1px solid var(--rule);
 }
 .step-btn:hover:not(:disabled) {
   color: var(--ink);
-  border-color: var(--ink);
+  background: var(--plate);
+}
+.step-btn:focus-visible {
+  outline: 2px solid var(--mark);
+  outline-offset: -2px;
 }
 .ctl-value {
-  /* four digits and their padding — a clipped seed is a wrong seed */
-  width: 6.6ch;
-  padding: 2px 6px;
+  /* four digits — a clipped seed is a wrong seed */
+  width: 5.6ch;
+  padding: 0 4px;
   font: inherit;
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  text-align: right;
+  text-align: center;
   color: var(--mark);
-  background: var(--paper);
-  border: 1px solid var(--rule);
-  border-radius: 2px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 .ctl-value.is-default {
   color: var(--muted);
 }
 .ctl-value:focus-visible {
   outline: 2px solid var(--mark);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 .ctl-head label {
   font-size: 14px;
