@@ -309,8 +309,14 @@ export function Poster(p: Props) {
   // The roll underneath, and whatever has been set by hand over it. Recolour
   // still moves all four at once, which is the fast way to a different sheet;
   // a swatch moves one, which is the way to the sheet you meant.
-  const rolled = POSTER_PALETTES[paletteIndex % POSTER_PALETTES.length]
-  const palette: PosterPalette = { ...rolled, caption: rolled.caption ?? rolled.ink, ...colours }
+  //
+  // Memoised, and it has to be: the sheet request below is memoised on this
+  // object, so a fresh literal every render would re-run the whole treatment
+  // chain on every render rather than when a colour actually moved.
+  const palette = useMemo<PosterPalette>(() => {
+    const rolled = POSTER_PALETTES[paletteIndex % POSTER_PALETTES.length]
+    return { ...rolled, caption: rolled.caption ?? rolled.ink, ...colours }
+  }, [paletteIndex, colours])
   const layout = LAYOUTS[layoutIndex % LAYOUTS.length]
   const format = getFormat(formatId)
   // the number is the seed's, so the same sheet always carries the same one
