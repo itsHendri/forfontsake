@@ -261,6 +261,59 @@ describe('what the sound rides', () => {
 })
 
 /**
+ * The dials that are not sliders.
+ *
+ * `kind` only changes how a dial draws; the value stays a number so presets,
+ * the URL, the CLI and the sound's bindings are untouched. What that buys is
+ * one way to get it wrong — a segment whose names do not line up with the
+ * values it can take, which draws a row of buttons where one of them can
+ * never light up.
+ */
+describe('switches and segments', () => {
+  const nonSliders = TREATMENTS.flatMap((t) =>
+    t.params.filter((s) => s.kind).map((s) => [t.id, s] as const),
+  )
+
+  it('are declared on the treatments that have them', () => {
+    expect(nonSliders.map(([id, s]) => `${id}.${s.key}`).sort()).toEqual([
+      'extrude.layer',
+      'extrude.pattern',
+      'halftone.invert',
+      'halftone.shape',
+      'onion.style',
+    ])
+  })
+
+  it('name every value a segment can take, and no more', () => {
+    for (const [id, spec] of nonSliders) {
+      if (spec.kind !== 'segment') continue
+      const stops = Math.round((spec.max - spec.min) / spec.step) + 1
+      expect(spec.options, `${id}.${spec.key}`).toHaveLength(stops)
+    }
+  })
+
+  it('are two-state wherever they are drawn as a switch', () => {
+    for (const [id, spec] of nonSliders) {
+      if (spec.kind !== 'switch') continue
+      expect([spec.min, spec.max, spec.step], `${id}.${spec.key}`).toEqual([0, 1, 1])
+    }
+  })
+
+  it('land on a value they can name', () => {
+    for (const [id, spec] of nonSliders) {
+      const t = TREATMENTS.find((x) => x.id === id)!
+      for (const preset of t.presets ?? []) {
+        const v = preset.values[spec.key] ?? spec.default
+        const i = Math.round((v - spec.min) / spec.step)
+        expect(i, `${id}.${spec.key} at ${preset.name}`).toBeGreaterThanOrEqual(0)
+        expect(i * spec.step + spec.min, `${id}.${spec.key} at ${preset.name}`).toBe(v)
+        expect(v, `${id}.${spec.key} at ${preset.name}`).toBeLessThanOrEqual(spec.max)
+      }
+    }
+  })
+})
+
+/**
  * The word the workbench writes for itself when nobody has typed their own.
  *
  * It has to be told apart from a reader's own text without a flag — App asks

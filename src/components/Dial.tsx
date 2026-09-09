@@ -79,21 +79,94 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
     ? `${spec.note[0].toUpperCase()}${spec.note.slice(1)}. Double-click the track to reset to ${resetTo}.`
     : `Double-click the track to reset to ${resetTo}.`
 
+  // The label and its (i), which every shape of this control wants: help you
+  // ask for, not help that follows the pointer.
+  const info = (
+    <span className="with-tip ctl-info">
+      <button type="button" className="info-btn" aria-label={`About ${spec.label.toLowerCase()}`}>
+        i
+      </button>
+      <span className="tip" role="tooltip" id={noteId}>
+        {note}
+      </span>
+    </span>
+  )
+
+  /*
+   * On or off, drawn as on or off.
+   *
+   * Invert is a 0–1 dial only because every parameter here is a number. As a
+   * track it showed a tick, a percentage and a thumb you had to drag to
+   * discover the range was two stops long — three pieces of furniture for a
+   * question with two answers.
+   */
+  if (spec.kind === 'switch') {
+    const on = value >= spec.max
+    return (
+      <div className={accent ? 'ctl is-override' : 'ctl'}>
+        <div className="ctl-head">
+          <span className="ctl-label">
+            <label htmlFor={id}>{spec.label}</label>
+            {info}
+          </span>
+          <input
+            id={id}
+            className="ctl-switch"
+            type="checkbox"
+            role="switch"
+            checked={on}
+            onChange={(e) => onChange(e.target.checked ? spec.max : spec.min)}
+            aria-describedby={noteId}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  /*
+   * A short list of named alternatives, drawn as the list.
+   *
+   * These are the `steady` dials by another name — the ones that pick *which*
+   * picture rather than moving within one — so a track was always the wrong
+   * promise: the values in between do not exist.
+   */
+  if (spec.kind === 'segment' && spec.options) {
+    const options = spec.options
+    return (
+      <div className={accent ? 'ctl is-override' : 'ctl'}>
+        <div className="ctl-head">
+          <span className="ctl-label">
+            <label htmlFor={id}>{spec.label}</label>
+            {info}
+          </span>
+        </div>
+        <div className="segmented" role="group" aria-label={spec.label} id={id}>
+          {options.map((name, i) => {
+            const v = settle(spec.min + i * spec.step, spec)
+            const on = value === v
+            return (
+              <button
+                type="button"
+                key={name}
+                className={on ? 'seg-btn is-on' : 'seg-btn'}
+                aria-pressed={on}
+                onClick={() => onChange(v)}
+              >
+                {name}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={accent ? 'ctl is-override' : 'ctl'}>
       <div className="ctl-head">
         <span className="ctl-label">
           <label htmlFor={id}>{spec.label}</label>
-          {/* help you ask for, not help that follows the pointer: the note is
-              nice-to-know, so it lives behind the icon and never in the flow */}
-          <span className="with-tip ctl-info">
-            <button type="button" className="info-btn" aria-label={`About ${spec.label.toLowerCase()}`}>
-              i
-            </button>
-            <span className="tip" role="tooltip" id={noteId}>
-              {note}
-            </span>
-          </span>
+          {info}
         </span>
         <div className="stepper">
           <button

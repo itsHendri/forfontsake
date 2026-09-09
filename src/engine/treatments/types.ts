@@ -12,6 +12,27 @@ export interface ParamSpec {
   /** short hint shown under the control */
   note?: string
   /**
+   * How the control draws itself. Left unset it is a slider, which is right
+   * for anything with a range to move along.
+   *
+   * A few parameters are numbers only because everything here is a number.
+   * Invert is on or off; Onion's Style is inside, centred or outside. Drawn as
+   * a track, those ask you to find out by dragging that the range is two
+   * stops long, and they show a tick and a percentage for a question that has
+   * no percentage in it. `switch` is for the two-state ones whose second state
+   * is the same picture treated differently; `segment` is for a short list of
+   * named alternatives, which is every remaining case.
+   *
+   * The value stays a number, so presets, the URL, the CLI and the sound's
+   * bindings see exactly what they saw before.
+   */
+  kind?: 'switch' | 'segment'
+  /**
+   * What each value from `min` to `max` is called, in order — required by
+   * `segment`, which has nothing else to write in the buttons.
+   */
+  options?: string[]
+  /**
    * Front-of-house controls. A treatment should expose three or four of these;
    * everything else lives behind "more" so the common case stays a few dials.
    */

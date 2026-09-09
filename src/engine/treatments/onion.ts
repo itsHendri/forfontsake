@@ -62,7 +62,7 @@ export const onion: Treatment = {
     'Neutraface run through their strokes. Beaded swaps the drawn band for discs of the same '+
     'width, which is the same ring with the ink taken out of the spaces.',
   params: [
-    { key: 'style', label: 'Style', group: 'Rings', min: 0, max: 2, step: 1, default: 0, note: '0 inside · 1 centred · 2 outside', primary: true, steady: true },
+    { key: 'style', label: 'Style', group: 'Rings', min: 0, max: 2, step: 1, default: 0, note: 'which side of the letter’s edge the rings sit on', primary: true, steady: true, kind: 'segment', options: ['Inside', 'Centred', 'Outside'] },
     { key: 'lines', label: 'Lines', group: 'Rings', min: 1, max: 8, step: 1, default: 3, primary: true },
     { key: 'gap', label: 'Gap', group: 'Rings', min: 3, max: 60, step: 1, default: 13, note: 'space between the lines' },
     { key: 'position', label: 'Position', group: 'Rings', min: -100, max: 100, step: 1, default: 0, note: 'push the whole set out of or into the letter' },
