@@ -162,9 +162,17 @@ to "Deflate the TTF inside the zip", and each is explained in DECISIONS:
 session: the word as a draggable, rotatable, snapping object; the sheet growing a
 layer list with per-layer colour; finishes stacking instead of excluding each other;
 uploadable and pre-built backgrounds; a visible play/mic transport with a level meter;
-a Saved fonts view with an empty state; and what the room is called. Those are forks
-rather than fixes, so they go to Figma as variations first — see "Design source of
-truth" below.
+a Saved fonts view with an empty state; and what the room is called.
+
+All of it is drawn in a **new Figma file**, `ZHfdGRnUCfMRxcTgF4v8qu` — "For Font's Sake
+— UX round 2, Sept 2026" — three pages (Workbench, Share room, Components) over a
+rebuilt `Letterpress` variable collection, with every specimen a real vector from the
+engine. Band 01 of each page is the app as built, with the eleven changes called out;
+every other band is a fork with its options side by side.
+
+**Twelve picks live on the ballot**, https://claude.ai/code/artifact/a7887920-2679-4a6a-b346-3018145bdcbb,
+saved to its own store as document `picks/ux-round-2`. Read that document before
+starting the build; nothing structural moves in `src/` until it is filled in.
 
 ## Debt, roughly in order of how much it matters
 
