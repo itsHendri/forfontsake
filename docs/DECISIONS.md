@@ -1168,6 +1168,133 @@ not be able to change each other by accident.
 nothing but Simplify and two fade directions, which is the answer being reported rather than a
 wasted check — the merged looks are all demonstrated, so the problem really was the ordering.
 
+## A button that reports success and shows nothing
+
+Randomise moved the seed and nothing else (`patch({ seed })`), and a treatment
+reads the seeded stream only where a dial asks it to. Halftone opens on Classic 45°,
+whose Scatter and Overspray are both zero — and `halftone.ts` only draws on the rng
+when one of those is above zero. So on first load the button was enabled, the readout
+beneath it changed to a new seed, and the letters did not move. That is the first
+thing a lot of people press.
+
+`hasRandomness` was the wrong guard for it: `deterministic` is a property of the
+*treatment*, but whether the stream is consumed is a property of the *values*. A
+guard that read the values would have been the alternative fix, and it was not taken —
+the honest conclusion is that a control which does one small thing on some settings
+and nothing on others is not worth the row it sits in. The Seed dial in Randomness
+says exactly what it does and is still there.
+
+**Reset had the same shape of problem one level down.** It sat in the plate's footer
+as a single control acting on whichever layer happened to be selected, so what it
+would undo depended on something else on the page. It belongs to the layer, so it is
+on the card, and the card names the preset it goes back to. It takes that layer's
+per-glyph exceptions with it: leaving them means pressing Reset and still seeing
+letters that disagree with the dials.
+
+The lone layer's `Clear` was this button under another name, so the two merged.
+The rule that replaced it is simpler than the one in "The workbench is a bar, a
+plate, layers and dials": Reset always, `×` only while there is more than one layer.
+No dead control, and no control that changes its name as the stack grows.
+
+With both gone the plate's footer held only the cuts-and-seed readout, which repeated
+the Randomness dials, so the strip went with them.
+
+## Five dials that were sliders because everything is a number
+
+Invert is on or off. Onion's Style is inside, centred or outside. Extrude's Layer is
+one of four pictures. Each was an `<input type=range>` with a tick and a percentage,
+and you had to drag one to discover its range was two stops long.
+
+`ParamSpec` gains `kind` (`switch` | `segment`) and `options`. **The value stays a
+number**, which is the whole design: presets, the URL, the CLI, `presetMatches` and
+the sound's bindings see exactly what they saw before, and only the drawing changes.
+
+These turn out to be almost exactly the dials already carrying `steady` — the ones
+the sound may not ride because they pick *which* picture rather than move within one
+(see "Dials the sound may not ride"). That is the same observation arriving from the
+other end, and it is the strongest evidence the split is real rather than tidy.
+
+Two tests hold the pair that can rot silently: a segment whose names do not line up
+with the values it can take, and a preset landing on a value with no name.
+
+## The sheet cuts to a new picture and dissolves into a new frame
+
+The cross-fade is a shader uniform decayed by the sheet's one rAF loop, and it is what
+makes a rebuild read as the letters morphing rather than jumping — every rebuild the
+sound causes wants it. Picking Word or Character set is not that: it is a choice you
+just made and are waiting to see, and a third of a second of the old sheet dissolving
+through the new one reads as the tool being slow to agree. Changing the sheet size had
+the same problem and worse, because the canvas is remounted at the new size and the
+fade was against an empty texture.
+
+`dissolveFor(prev, next)` in `poster.ts` is the rule, returned as the fade's starting
+value so it is the same number the uniform takes. It is a pure function so the four
+cases are tests rather than a condition buried in an effect.
+
+**The wheel handler went at the same time.** It tested the event target against
+`[data-part="word"]`, which lives inside the SVG string that becomes a GPU texture and
+has not been in the DOM since the sheet became a canvas — so it could never fire. Dead
+since that change, and invisible because the slider was doing the work.
+
+## The way out belongs in the bar
+
+Export sat at the foot of the sheet's rail, under Layout, Finish and Sound, held down
+by a spacer — so on a short screen the control the room exists to reach was the first
+thing cut. It is in the bar now beside the size and the close, which is where the
+research pass found every tool in this category puts it, and where the workbench
+already puts Download. Still one type and one button; what each type gives you rides
+the button as a tooltip rather than standing under it as a line.
+
+**And the notes went to their causes.** A refused microphone was reported at the far
+end of the rail, inside Export, under a heading about something else. Sound problems
+appear under the sound buttons; export problems take their own line in the bar.
+
+## The font you install, and the font you serve
+
+The tool made something you could install and nothing you could put on a site, which
+is where most of these are going. Download offers TTF, WOFF2, WOFF, or a zip of all
+three — one build either way, because the web formats are **containers over the same
+bytes** and the tables inside them are the ones that already passed validation.
+
+`FontFlux.export({ format: 'woff2' })` exists and would have been four lines. It was
+measured rather than assumed, and it fails twice:
+
+1. **It rewrites GSUB.** The library rebuilds layout tables from its own parsed model —
+   which is exactly why `fontio` splices our own table into the finished binary (see
+   "We write our own GSUB"). Round-tripping hands GSUB straight back to the code we
+   went to the trouble of bypassing: our 3,170-byte table came back as a different
+   3,164-byte one.
+2. **Its WOFF2 is broken on real fonts.** Anton at three cuts came out rejected by
+   ots-sanitize with "Failed to convert WOFF 2.0 font to SFNT", which is a browser
+   refusing the font. Pirata One hides this the way it hid the GSUB problem for
+   months, because almost nothing in it is a real feature — so testing on the landing
+   font would have shipped it.
+
+So `engine/webfont.ts` writes both containers over bytes that have already been
+validated. WOFF is a directory plus zlib per table; WOFF2 is one Brotli stream over
+every table end to end, with **no padding between them** — read off a file fontTools
+produced rather than assumed, and pinned by a test. `glyf` and `loca` take the null
+transform (version 3): repacking them would be a second place for the outlines to be
+wrong, and they are already the ones that passed.
+
+The compressors are arguments, not imports, because this is engine code — the CLI
+uses `node:zlib`, the browser `CompressionStream('deflate')` and `brotli-wasm` behind
+a dynamic import, so a megabyte of wasm reaches only the people who ask for a WOFF2.
+
+Verified across all seven shipped faces: fourteen files, ots-sanitize clean on every
+one, every table byte-identical to the TTF's under fontTools, and the alternate
+rotation and ligatures still shaping after an unwrap. In the browser a built WOFF2 is
+accepted by `FontFace.load()` and draws. WOFF2 lands at 19–28% of the TTF.
+
+**Variable fonts are still not on the table, and it is not a UI question.** Every
+master of a variable font has to share point count and order per glyph. This engine
+regenerates topology on every dial move — halftone dot counts follow spacing, hatch
+line counts follow pitch, Organic *inserts* points as the effect itself, and every
+treatment ends in a Clipper boolean plus `simplify`. There is no axis to interpolate
+along. No browser library writes `fvar`/`gvar` either. What could honestly be offered
+instead is a **family export**: a zip of two or three named instances of one treatment
+under one family name, so a stylesheet switches them with `font-weight`.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the

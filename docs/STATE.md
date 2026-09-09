@@ -20,12 +20,12 @@ installable font**, entirely in the browser.
 | Engine (13 treatments) | Done. Grouped in the picker as Wear, Ink, Screens, Press, Structure; the full list is in `README.md`. Organic keeps id `growth`. **Consolidated from seventeen**: Soak into Bubble; Outline and Beads into Onion; Stipple and a soft halftone into Halftone; a noise dissolve into Pixel; a drag and the Ghost rebuild into Extrude. Melt cut, Ghost retired into Extrude, **Fur added** as the one new operation. `retired.ts` keeps old links opening on what they described, and drops steps naming a cut treatment. See DECISIONS. |
 | Stacking | Done. Up to three treatments in a row, in the UI, the URL and the export. |
 | Live preview | Done. Type into the specimen itself, at up to 144px. |
-| Workbench layout | Done. An action bar (name the font, Save font, Share, Download with the meta on a tooltip), presets above the plate as pictures of themselves, Randomise and Reset inside it, layers as cards with their own thumbnail and headline dial, every dial visible — the four longest treatments breaking into named runs rather than hiding half of themselves — and the size ladder labelled above each line. See DECISIONS. |
+| Workbench layout | Done. An action bar carrying the name, **Base font and Style beside it under labels**, Save font, Share, and Download with a format menu; presets above the plate as pictures of themselves; layers as cards, **each with its own Reset**; every dial visible — the four longest treatments breaking into named runs rather than hiding half of themselves — and the size ladder labelled above each line. **Randomise is gone** and the plate's footer with it. See DECISIONS. |
 | **Presets are the default** | **Done.** No unnamed state: a treatment opens on a named preset (`defaultPreset`, else the first). Grit opens on Sandblast. Dials measure their tick, their colour and their double-click reset from that preset, not from the bare spec default. |
 | Glyph grid, waterfall | Done. All 69 preview glyphs; the grid is also the override selection surface. |
 | **Per-glyph overrides** | **Done.** Select glyphs → dial deltas over the global chain, per-glyph reroll; in the URL (7th field), the shelf and the export. |
-| **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker; overrides included. |
-| Specimen sheet | **A room of its own, not a modal.** Replaces the workbench, keeps the URL, closes with a ×. Three formats (Post 4:5, Square, Story 9:16) chosen in the header; layout picked as two engine-drawn pictures; word draggable/resizable; randomise and recolour. At 1440×1000 the sheet draws at 852 px, against 702 in the modal. |
+| **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker; overrides included. **Four ways out:** TTF, WOFF2, WOFF, or a zip of all three — one build, since the web formats are containers over the same validated bytes (`engine/webfont.ts`, written by hand because the library's own WOFF2 is rejected by OTS on real fonts). |
+| Specimen sheet | **A room of its own, not a modal.** Replaces the workbench, keeps the URL, closes with a ×. Three formats (Post 4:5, Square, Story 9:16) chosen in the header, **which also carries the export and is sticky**; layout picked as two engine-drawn pictures and switched with a cut rather than a dissolve; word draggable/resizable; randomise and recolour. At 1440×1000 the sheet draws at 852 px, against 702 in the modal. |
 | **Finishes** | **Done.** The sheet renders through WebGL2: grain, riso misregistration and a scanner losing sync, over the rendered page. Pixels, never geometry — a structural test keeps finishes off the path from a chain to a font file, and the SVG download stays letterforms only. |
 | **Sound + clip** | **Done, behind a Static / Video switch.** Sound exists only in video, so choosing MP4 can never start it. Three named modes — Pulse, Breathe, Shimmer — plus Depth and Speed. The export *is* the take: no separate Record button. **Both layouts can move**; the rail reports the measured rebuild rate when a chain is slow enough to step. |
 | Saved styles | Done, and kept across reloads in `localStorage`. |
@@ -79,7 +79,10 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
 
 ## Verified, and how
 
-- `npm run typecheck` · `npm run test` (411, including override URL round-trips, the poster's
+- `npm run typecheck` · `npm run test` (472, including the WOFF and WOFF2 containers
+  decoded back out and compared table by table, the switch/segment dials against the
+  values their presets land on, when the sheet cuts rather than dissolves, override URL
+  round-trips, the poster's
   word transform, the layered sheet against the composed one, the word's hit-test box against
   the transform that draws it, the sound's per-dial bindings, the audio maths, the recorder's
   container choice, and the structural rule that keeps finishes off the path to a font file)
@@ -133,6 +136,35 @@ The CLI builds stacks too: `--treatment=grit+bubble`, with dials addressed by po
 `--p1.amount=60 --p2.weight=30`. Position rather than name because a stack may repeat a
 treatment, which would make a bare `--p.simplify` ambiguous. `--p.` with no number is step 1,
 so every older invocation still means what it did.
+
+## The UX round, September 2026
+
+Hendri walked the live app and gave about twenty notes. Eleven were settled and are
+shipped — they are the ten commits from "Say the name is a field before you touch it"
+to "Deflate the TTF inside the zip", and each is explained in DECISIONS:
+
+| | |
+| --- | --- |
+| Name field | Dashed at rest, mark on hover — it only admitted to being a field once you were over it |
+| Base font · Style | Out of the plate's bar, up beside the name, labelled |
+| Randomise | Gone. It only moved the seed, and Halftone's landing preset never reads it |
+| Reset | On every layer card, naming the preset it returns to; the lone layer's Clear folded in |
+| Plate footer | Gone with them — the readout repeated the Randomness dials |
+| Glyph grid | Square cells; they were inheriting the global button radius |
+| Clear chip | Always present, disabled when empty, so it stops appearing under the pointer |
+| Glyph hint | An (i) on the heading, the pattern every dial already uses |
+| Five dials | Invert is a switch; Halftone Shape, Extrude Shape and Layer, Onion Style are segments |
+| Sheet layout switch | An instant cut; the dissolve stays for the rebuilds sound causes |
+| Sheet export | In the bar beside the size and the close, sticky, with the notes moved to their causes |
+| Download | TTF · WOFF2 · WOFF · all three |
+
+**What is drawn but not decided** is the rest of the notes, and they are the next
+session: the word as a draggable, rotatable, snapping object; the sheet growing a
+layer list with per-layer colour; finishes stacking instead of excluding each other;
+uploadable and pre-built backgrounds; a visible play/mic transport with a level meter;
+a Saved fonts view with an empty state; and what the room is called. Those are forks
+rather than fixes, so they go to Figma as variations first — see "Design source of
+truth" below.
 
 ## Debt, roughly in order of how much it matters
 

@@ -563,3 +563,122 @@ its main job: Unicorn ships components to the web, Paper Shaders is a library de
 exports an image at a size you pick. The format-first framing — this is a 1080 × 1350 post, and
 everything on screen serves that — is still unoccupied ground, and it is the same gap the
 August note found around fonts.
+
+---
+
+## Direct manipulation, layers and transport, measured
+
+A third pass, 9 September, for the questions Hendri's walk through the app raised that
+the earlier passes had not covered. Ditther, Unicorn Studio, Paper Shaders, Riveo,
+Jitter, Rive, Spotify and the Canva/Express format pickers were deliberately excluded —
+they are written up above.
+
+### Selecting and moving an object on a canvas
+
+- **Konva's `Transformer`** (MIT) is the closest thing to a specification anyone
+  publishes: eight anchors plus a `rotater` on a stalk, `anchorSize 10`,
+  `anchorStroke 'rgb(0,161,255)'`, `anchorStrokeWidth 1`, `borderStroke` the same blue,
+  `rotateAnchorOffset 50`, `rotationSnapTolerance 5`, `keepRatio true`, corner cursors
+  `nwse/nesw-resize`. Its own snapping demo uses `GUIDELINE_OFFSET = 5` px and draws
+  guides as 1 px dashed `[4, 6]` lines in that same blue, destroyed on `dragend`.
+- **tldraw** snaps at **8 screen px** and — the interesting part — has **no rotation
+  handle at all**: a hit area sits with its inside corner on the geometry's corner and
+  the cursor becomes `nesw-rotate`. Source-available, not open source; production needs
+  a key and the hobby key stamps a watermark, so it is a reference and not a dependency.
+- **Figma** rotates by hovering just outside a bound, Shift snaps to 15°, and its snap
+  guides are red. **Canva**'s are purple, its rotate handle is outside the border, and
+  Cmd/Ctrl temporarily suspends snapping.
+- **Polotno** is the ready-made version of all of this and is **$249/month** with no
+  free tier, which settles it.
+
+**What this suggests:** the numbers are unanimous enough to copy without choosing a
+library — ~10 px anchors, a 1 px border, 5–8 px snap tolerance, one accent for both
+handles and guides, guides dashed, Shift for 15° steps. The sheet is a WebGL canvas
+with a reported `wordBox`, so the overlay is ours either way; Konva would bring a
+stage we do not want. The open question is tldraw's handle-less rotate against a
+visible stalk, which is a picture worth drawing both ways.
+
+### Backgrounds
+
+Kittl, Canva and Photoroom all agree on the shape: the background is **a special
+bottom layer set by a one-click action**, never a free object you might drag. Kittl
+puts them in a Textures library and adds "Use as Background" to any image's context
+menu; Canva has a Backgrounds tab and "Set image as background"; **Photoroom's picker
+is three tabs — AI / Color / Image — with upload in the first slot of Image**, under
+"Start with", ahead of the preset categories. PosterMyWall is the same with a gradient
+pair instead of textures.
+
+**What this suggests:** Colour / Texture / Image tabs, upload first inside Image,
+thumbnails in a grid, and a background swap that never changes what is selected.
+
+### Layers carrying several effects
+
+- **Figma**: effects are rows under the layer, each with its own eye and settings icon,
+  drag to reorder, and order changes the render. It caps them per kind — 8 drop
+  shadows, 8 inner shadows, 1 layer blur, 1 background blur, 2 noise, 1 texture.
+- **Pixelmator Pro**: unlimited stacked effects applied **bottom to top**, drag to
+  reorder, and an effect can be applied to several *layers* at once. An Effects layer
+  affects everything below it — Unicorn Studio's rule again, from a different vendor.
+- **Photoshop** nests `fx` under the layer with an eye per effect and a master eye.
+  Photopea does the same and its multi-layer apply is an open bug.
+
+**What this suggests:** the shipped pattern is indented effect rows with an eye each,
+reorderable, order = render order. Multi-selecting *layers* to apply one effect is
+common; **multi-selecting effects is done by nobody**, which answers Hendri's question
+about ganging grain and riso — they gang by both being on, not by being co-selected.
+
+### The number field
+
+- **Blender** is the closest precedent for one rectangle holding everything: `<` and
+  `>` triangles appear at the ends **only on hover**, the value sits in the middle, the
+  fill is the background of the field, drag anywhere scrubs, Ctrl snaps, Shift is fine,
+  click types, and expressions evaluate.
+- **Figma** scrubs from the *label*, with cursor height selecting 2× / 1× / ½ / ¼ speed.
+  **Webflow** uses Alt-drag inside the input and ↑/↓ for ±1. **Framer**'s `ControlType.Number`
+  is a slider plus field by default and a stepper when asked.
+- **The pill**: macOS Control Center's brightness and volume sliders are the reference —
+  a thick rounded track whose fill *is* the value. iOS 26 added a neutral anchor so the
+  fill can start mid-track, which is what our tick at the landing preset wants to be.
+
+### Booleans
+
+Figma renders a boolean component property as a **switch**. Framer's `ControlType.Boolean`
+is a **checkbox** with optional labels, and its enums get a segmented control. Blender
+uses checkboxes for options and pressed-in buttons for toggles. Paper Shaders exposes
+`inverted` as a plain boolean, drawn as a switch in its playground.
+
+**What this suggests, and what shipped:** switch for a state that stays on, segments for
+named alternatives. That is what `kind` now encodes.
+
+### Export formats
+
+Everyone ships a set, not a file. **Transfonter** is five checkboxes (TTF/EOT/WOFF/
+WOFF2/SVG) and a zip with the CSS and a demo page. **Glyphs 3** has an OTF tab with
+`.otf` / `.woff` / `.woff2` checkboxes and a CFF-versus-TrueType radio. **Font Squirrel**
+sells Basic / Optimal / Expert presets. **Fontshare** hands over OTF plus WOFF2; **Google
+Fonts** hands over static TTFs plus the variable file where one exists.
+
+**On variable fonts, the negative finding is the useful one:** no browser-based tool
+lets a user pick axes and export a variable font. opentype.js documents that it cannot
+write one (issue #788), samsa-core only writes static instances and says it is not
+production ready, and the only real route is fontTools' `varLib` under Pyodide — tens
+of megabytes. That is on top of our own blocker, which is that the engine has no
+compatible masters to interpolate between.
+
+### Play and mic
+
+- **Chrome's autoplay policy** makes the gesture mandatory: an `AudioContext` created
+  before a user gesture is suspended until something calls `resume()` in one. So a play
+  control on the canvas is not a nicety, it is the thing that starts the audio.
+- **Specterr** plays a beat-reactive canvas at 60 fps the moment a track is dropped.
+  **Adobe Express**'s Animate-from-audio takes a recording or an upload first, then
+  previews with a play button or the spacebar. **Kaiber** binds bass/mid/treble to a
+  parameter per layer, which is our binding table by another name.
+- **Chrome Music Lab's Spectrogram** puts a microphone button in the bottom control row.
+  **Riverside** shows a level meter under the name, which is the ordinary way a product
+  says "the mic is live" — and is what our sheet has never had.
+
+**What this suggests:** a play affordance on the canvas for the first gesture, transport
+under the canvas after that, and a level bar beside the mic button. Three of Hendri's
+"the mic does nothing" causes are addressable this way; the fourth is that `SoundDrive`
+is a difference rather than a level, so steady sound correctly settles to nothing.
