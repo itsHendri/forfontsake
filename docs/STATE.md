@@ -116,6 +116,11 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
   drops itself rather than emptying the shelf. Exercised in the browser too: seeded entries
   survive a reload, entries naming a font or treatment that no longer exists are pruned
   rather than crashing the page, and partial entries are backfilled from defaults.
+- **On the live site after this round's deploy** (run 34400350089, 9 September): the workbench
+  serves with the setup row, the picture range chips, square cells, the one-box stepper and no
+  Randomise, and the format menu offers all four. A **WOFF2 built in the page** came back as
+  172 KB with a `wOF2` signature and was accepted by `FontFace.load()`, which is the browser's
+  own sanitiser — so the new containers work where it counts, not only on this machine.
 - **On the live site**, not just locally: `https://forfontsake.xyz` serves, `http` and `www`
   both 301 to the canonical apex, HTTPS is enforced, and pressing Download there produced
   `Growth-Regular.ttf` — 519 KB, sfntVersion `0x00010000`, 17 tables, accepted by
