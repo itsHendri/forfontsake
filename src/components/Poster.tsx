@@ -86,7 +86,16 @@ export function Poster(p: Props) {
   const [soundModeId, setSoundModeId] = useState(DEFAULT_MODE.id)
   const [stillType, setStillType] = useState<'png' | 'svg'>('png')
   const [busy, setBusy] = useState(false)
-  const [note, setNote] = useState<string | null>(null)
+  /*
+   * Two notes, because they had two causes and one place to appear.
+   *
+   * A refused microphone used to be reported at the foot of the rail inside
+   * Export — the length of the whole room away from the button that asked for
+   * it, and under a heading about something else. A message about a thing you
+   * just pressed belongs beside the thing you just pressed.
+   */
+  const [soundNote, setSoundNote] = useState<string | null>(null)
+  const [exportNote, setExportNote] = useState<string | null>(null)
   const [wordT, setWordT] = useState<WordTransform>(IDENTITY)
 
   const sheetRef = useRef<HTMLDivElement>(null)
@@ -203,7 +212,7 @@ export function Poster(p: Props) {
   }, [p.chain])
 
   const startSound = async (kind: 'loop' | 'mic') => {
-    setNote(null)
+    setSoundNote(null)
     try {
       const engine = engineRef.current ?? new AudioEngine()
       engineRef.current = engine
@@ -215,7 +224,7 @@ export function Poster(p: Props) {
       startTicking()
     } catch (e) {
       stopSound()
-      setNote(e instanceof Error ? e.message : String(e))
+      setSoundNote(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -406,7 +415,7 @@ export function Poster(p: Props) {
       const { blob, extension } = await recorder.stop()
       await saveFile(blob, `${recStemRef.current}-live.${extension}`)
     } catch (e) {
-      setNote(e instanceof Error ? e.message : String(e))
+      setExportNote(e instanceof Error ? e.message : String(e))
     }
   }
   /** finish any take, then leave — the exit that keeps the work */
@@ -425,7 +434,7 @@ export function Poster(p: Props) {
   const startRecording = () => {
     const engine = engineRef.current
     if (!engine || recorderRef.current) return
-    setNote(null)
+    setExportNote(null)
     try {
       const canvas = viewRef.current?.canvas
       if (!canvas) throw new Error('The sheet is not ready to record yet.')
@@ -440,7 +449,7 @@ export function Poster(p: Props) {
         })
       }, 1000)
     } catch (e) {
-      setNote(e instanceof Error ? e.message : String(e))
+      setExportNote(e instanceof Error ? e.message : String(e))
     }
   }
 
@@ -453,7 +462,8 @@ export function Poster(p: Props) {
    */
   const downloadSvg = async () => {
     await saveFile(new Blob([composed()], { type: 'image/svg+xml;charset=utf-8' }), `${stem}.svg`)
-    if (finishId !== 'none') setNote('The SVG carries the letters, not the finish — a finish is pixels.')
+    if (finishId !== 'none')
+      setExportNote('The SVG carries the letters, not the finish — a finish is pixels.')
   }
 
   // Drawn again at 2× so the sheet holds up posted anywhere that shows it
@@ -461,7 +471,7 @@ export function Poster(p: Props) {
   // of applying a finish would be two finishes.
   const downloadPng = async () => {
     setBusy(true)
-    setNote(null)
+    setExportNote(null)
     try {
       const shot = createFinishView(2, format.w, format.h)
       try {
@@ -477,7 +487,7 @@ export function Poster(p: Props) {
         shot.destroy()
       }
     } catch (e) {
-      setNote(e instanceof Error ? e.message : String(e))
+      setExportNote(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
@@ -632,10 +642,74 @@ export function Poster(p: Props) {
             </option>
           ))}
         </select>
+        {/*
+          The way out with the artefact, in the bar rather than at the foot of
+          a rail you have to reach the bottom of. One type and one button: a
+          second row of verbs beside a download is furniture, and the type
+          already says what they said. What each type gives you rides the
+          button as a tooltip, the way the workbench's download does.
+        */}
+        <div className="sheet-export">
+          {inVideo ? (
+            <>
+              <span className="pill">MP4 · up to {MAX_RECORD_SECONDS}s</span>
+              <span className="with-tip">
+                <button
+                  type="button"
+                  className={recording ? 'is-live' : 'save'}
+                  disabled={!soundSource && !recording}
+                  onClick={() => (recording ? void finishRecording() : startRecording())}
+                >
+                  {recording ? `Stop · ${recSeconds}s` : 'Record & download'}
+                </button>
+                <span className="tip" role="tooltip">
+                  {recording
+                    ? 'It saves itself at the end, and closing finishes the take rather than losing it.'
+                    : soundSource
+                      ? 'The dials are riding the sound. The take starts when you press it.'
+                      : 'Start the loop or the mic first — a clip is a recording of something moving.'}
+                </span>
+              </span>
+            </>
+          ) : (
+            <>
+              <label className="visually-hidden" htmlFor="still-type">
+                File type
+              </label>
+              <select
+                id="still-type"
+                value={stillType}
+                onChange={(e) => setStillType(e.target.value as 'png' | 'svg')}
+              >
+                <option value="png">PNG · 2×</option>
+                <option value="svg">SVG</option>
+              </select>
+              <span className="with-tip">
+                <button type="button" className="save" onClick={download} disabled={busy}>
+                  {busy ? 'Rendering…' : 'Download'}
+                </button>
+                <span className="tip" role="tooltip">
+                  {stillType === 'svg'
+                    ? 'Letterforms only — a finish is pixels, so it cannot travel in a vector file.'
+                    : `${format.w} × ${format.h}, drawn again at 2× so it holds up posted large.`}
+                </span>
+              </span>
+            </>
+          )}
+        </div>
+
         {/* closing finishes a take rather than losing it — see handleClose */}
         <button type="button" className="sheet-close" onClick={handleClose} aria-label="Close the sheet">
           ✕
         </button>
+
+        {/* whatever went wrong on the way out, under the control it went wrong
+            for — the bar wraps it onto its own line rather than growing */}
+        {exportNote && (
+          <p className="sheet-problem" role="alert">
+            {exportNote}
+          </p>
+        )}
       </header>
 
       <div className="sheet-body">
@@ -803,6 +877,13 @@ export function Poster(p: Props) {
                   {soundSource === 'mic' ? 'Stop mic' : 'Use mic'}
                 </button>
               </div>
+              {/* a refused microphone is reported beside the button that asked
+                  for it, not at the far end of the rail under Export */}
+              {soundNote && (
+                <p className="note is-bad" role="alert">
+                  {soundNote}
+                </p>
+              )}
               <div className="chips">
                 {MODES.map((m) => (
                   <button
@@ -857,64 +938,6 @@ export function Poster(p: Props) {
             </div>
           )}
 
-          <div className="rail-push" />
-
-          {/*
-            One type and one button. Copy SVG and Copy link went with this: a
-            second row of verbs beside a download is furniture, and the type
-            select already says everything the extra buttons said.
-          */}
-          <div className="group ruled">
-            <h2>Export</h2>
-            {inVideo ? (
-              <>
-                <div className="row">
-                  <span className="pill">MP4</span>
-                  <span className="pill">up to {MAX_RECORD_SECONDS}s</span>
-                  <button
-                    type="button"
-                    className={recording ? 'is-live' : 'save'}
-                    disabled={!soundSource && !recording}
-                    onClick={() => (recording ? void finishRecording() : startRecording())}
-                  >
-                    {recording ? `Stop · ${recSeconds}s` : 'Record & download'}
-                  </button>
-                </div>
-                <p className="note">
-                  {recording
-                    ? 'It saves itself at the end, and closing finishes the take rather than losing it.'
-                    : soundSource
-                      ? 'The dials are riding the sound. The take starts when you press it.'
-                      : 'Start the loop or the mic first — a clip is a recording of something moving.'}
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="row">
-                  <label className="visually-hidden" htmlFor="still-type">
-                    File type
-                  </label>
-                  <select
-                    id="still-type"
-                    value={stillType}
-                    onChange={(e) => setStillType(e.target.value as 'png' | 'svg')}
-                  >
-                    <option value="png">PNG · 2×</option>
-                    <option value="svg">SVG</option>
-                  </select>
-                  <button type="button" className="save" onClick={download} disabled={busy}>
-                    {busy ? 'Rendering…' : 'Download'}
-                  </button>
-                </div>
-                <p className="note">
-                  {stillType === 'svg'
-                    ? 'Letterforms only — a finish is pixels, so it cannot travel in a vector file.'
-                    : `${format.w} × ${format.h}, drawn again at 2× so it holds up posted large.`}
-                </p>
-              </>
-            )}
-            {note && <p className="note">{note}</p>}
-          </div>
         </aside>
       </div>
     </div>

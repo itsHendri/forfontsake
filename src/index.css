@@ -450,13 +450,36 @@ h1 {
   height: 100vh;
   background: var(--paper);
 }
+/* The way out lives here, so the bar holds the room's whole frame: what it is,
+   what shape it is, still or moving, and how you leave with it. Sticky and
+   opaque like the workbench's, so it survives a viewport short enough to make
+   the whole room scroll. */
 .sheet-bar {
   display: flex;
   align-items: center;
   gap: 14px;
   flex: none;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
   padding: 12px 26px;
   border-bottom: 1px solid var(--rule);
+  background: var(--paper);
+}
+.sheet-export {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* the specificity matters: `.sheet-bar > *` sets flex:none below, and this has
+   to be allowed its own line rather than sitting in the row */
+.sheet-bar .sheet-problem {
+  flex: 0 0 100%;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--mark);
 }
 .sheet-name {
   font-size: 17px;
@@ -593,14 +616,13 @@ h1 {
   color: var(--muted);
   font-weight: 500;
 }
+/* a message about the thing you just pressed, in the colour of a problem */
+.sheet-rail .note.is-bad {
+  color: var(--mark);
+}
 .sheet-rail button.is-live {
   color: var(--mark);
   box-shadow: inset 0 0 0 1px var(--mark);
-}
-/* the exits sit at the foot of the rail, where you leave from */
-.rail-push {
-  flex: 1 1 auto;
-  min-height: 8px;
 }
 .pill {
   display: inline-flex;
@@ -707,6 +729,14 @@ h1 {
   .sheet-close {
     order: 2;
     margin-left: auto;
+  }
+  .sheet-export {
+    order: 5;
+    flex: 1 1 auto;
+  }
+  .sheet-export .with-tip,
+  .sheet-export .save {
+    flex: 1 1 auto;
   }
   .sheet-no {
     font-size: 11px;
