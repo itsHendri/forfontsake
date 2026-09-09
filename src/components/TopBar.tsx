@@ -25,8 +25,11 @@ interface Props {
   onUpload: (file: File) => void
   /** set while a dropped font is being read, so the control can say so */
   importing: boolean
+  /** how many fonts are on the shelf, so the way in can say so */
+  savedCount: number
   onSave: () => void
   onShare: () => void
+  onOpenSaved: () => void
 }
 
 /** the font select's last entry — a verb among the nouns */
@@ -295,6 +298,12 @@ export function TopBar(p: Props) {
       <div className="topbar-actions">
         <button type="button" onClick={p.onSave}>
           Save font
+        </button>
+        {/* The way back to what you kept. It counts, because a door with a
+            number on it is the difference between a feature you remember
+            having and one you have to go looking for. */}
+        <button type="button" onClick={p.onOpenSaved} disabled={p.savedCount === 0}>
+          Saved{p.savedCount > 0 && ` · ${p.savedCount}`}
         </button>
         <button type="button" onClick={p.onShare}>
           Share

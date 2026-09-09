@@ -29,7 +29,7 @@ import { Brand, SignOff } from './components/Brand'
 import type { Thumb } from './components/Thumb'
 import { GlyphGrid } from './components/GlyphGrid'
 import { Waterfall } from './components/Waterfall'
-import { Shelf, type Kept } from './components/Shelf'
+import { Saved, type Kept } from './components/Saved'
 import { Poster } from './components/Poster'
 
 /**
@@ -164,7 +164,13 @@ export default function App() {
   const [state, setState] = useState<WorkbenchState | null>(null)
   // The shelf is stored as states, not as rendered outlines — see savedStyles.
   const [saved, setSaved] = useState<WorkbenchState[]>([])
-  const [posterOpen, setPosterOpen] = useState(false)
+  /*
+   * Which room you are in. Both the sheet and the saved fonts replace the
+   * workbench rather than opening over it — same URL, same state on either
+   * side of the line — so this is one piece of state rather than a boolean
+   * per room, and adding a third cannot leave two of them open at once.
+   */
+  const [view, setView] = useState<'bench' | 'share' | 'saved'>('bench')
   // which step in the stack the dials are editing
   const [active, setActive] = useState(0)
   // which glyphs the dials are editing — empty means the whole face
@@ -316,6 +322,7 @@ export default function App() {
               overrides: s.overrides,
             }),
             treatmentName: s.chain.map((c) => getTreatment(c.id).name).join(' + '),
+            fontLabel: library[s.fontId]?.label ?? s.fontId,
           },
         ]
       } catch {
@@ -614,7 +621,7 @@ export default function App() {
    * specimen gets the window and closing brings the bench back exactly as it
    * was. The state lives on either side of this line, so nothing is rebuilt.
    */
-  if (posterOpen) {
+  if (view === 'share') {
     return (
       <Poster
         font={library[state.fontId]}
@@ -624,7 +631,24 @@ export default function App() {
         seed={state.seed}
         // one word sets a sheet; a sentence would come out too small to read
         word={specimenText.split(/\s+/)[0] || treatment.name}
-        onClose={() => setPosterOpen(false)}
+        onClose={() => setView('bench')}
+      />
+    )
+  }
+
+  /* The same arrangement for the shelf, for the same reason: a saved font is
+     what a session produced, and it was living in a 44px strip under the
+     footer that you had to already know about. */
+  if (view === 'saved') {
+    return (
+      <Saved
+        kept={kept}
+        onRestore={(s) => {
+          setState(s)
+          setView('bench')
+        }}
+        onForget={(id) => setSaved((list) => list.filter((_, i) => i !== id))}
+        onClose={() => setView('bench')}
       />
     )
   }
@@ -647,8 +671,10 @@ export default function App() {
         onTreatment={changeTreatment}
         onUpload={onUpload}
         importing={importing}
+        savedCount={saved.length}
         onSave={save}
-        onShare={() => setPosterOpen(true)}
+        onShare={() => setView('share')}
+        onOpenSaved={() => setView('saved')}
       />
 
       <div className="layout">
@@ -719,12 +745,6 @@ export default function App() {
           onReroll={reroll}
         />
       </div>
-
-      <Shelf
-        kept={kept}
-        onRestore={(s) => setState(s)}
-        onForget={(id) => setSaved((list) => list.filter((_, i) => i !== id))}
-      />
 
       <SignOff />
     </div>

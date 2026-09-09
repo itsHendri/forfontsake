@@ -761,13 +761,11 @@ h1 {
 /* ---------- glyphs ---------- */
 
 .glyphs,
-.waterfall,
-.shelf {
+.waterfall {
   margin-top: 30px;
 }
 .glyphs h2,
 .waterfall h2,
-.shelf h2,
 .panel h2 {
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 11px;
@@ -778,8 +776,7 @@ h1 {
   font-weight: 500;
 }
 .glyphs h2,
-.waterfall h2,
-.shelf h2 {
+.waterfall h2 {
   color: var(--mark);
 }
 
@@ -1451,54 +1448,124 @@ select:focus-visible {
   color: var(--muted);
 }
 
-/* ---------- saved styles ---------- */
+/* ---------- saved fonts ---------- */
 
-.shelf-strip {
+/* A room, not a strip. It used to be a scrolling row of 44px thumbnails under
+   the footer, so the only way to find a saved font was to already know it was
+   down there — and the picture of it was smaller than the preset chip that
+   made it. */
+.saved-view {
   display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  padding-bottom: 6px;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--paper);
 }
-.kept {
-  position: relative;
-  flex: 0 0 auto;
+.saved-bar {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  flex: none;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 20px 26px 16px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--paper);
 }
-.kept > button:first-child {
-  display: block;
+.saved-bar h1 {
+  font-size: 26px;
+}
+.saved-count {
+  margin: 0;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.saved-bar .sheet-close {
+  margin-left: auto;
+  align-self: center;
+}
+.saved-body {
+  flex: 1;
+  padding: 26px;
+}
+.saved-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+.saved-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 18px 16px;
   background: var(--plate);
-  padding: 8px;
-  text-align: left;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
 }
-.kept svg {
+/* The word gets the height, because it is the thing being kept. A fixed box
+   rather than a hugging one, so a long name and a short one line up. */
+.saved-ink {
+  display: flex;
+  align-items: center;
+  min-height: 74px;
+}
+.saved-ink svg {
   display: block;
-  height: 44px;
-  width: auto;
+  width: 100%;
+  height: 74px;
 }
-.kept path {
+.saved-ink path {
   fill: var(--ink);
 }
-.kept span {
-  display: block;
+.saved-meta {
+  margin: 0;
   font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 9px;
+  font-size: 10.5px;
   color: var(--muted);
-  margin-top: 5px;
-  white-space: nowrap;
 }
-.kept .forget {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  padding: 0;
-  width: 18px;
-  height: 18px;
-  line-height: 1;
-  border-radius: 50%;
-  opacity: 0;
+.saved-acts {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
-.kept:hover .forget,
-.kept .forget:focus-visible {
-  opacity: 1;
+.saved-acts .save {
+  margin-left: 0;
+}
+
+/* The empty state shows the sentence at the size the feature is shown at,
+   rather than describing it in small grey type under an empty box. */
+.saved-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 320px;
+  padding: 40px 26px;
+  text-align: center;
+  border: 1px dashed var(--rule);
+  border-radius: 3px;
+}
+.saved-empty-word {
+  margin: 0;
+  font-size: clamp(28px, 5vw, 44px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--rule);
+}
+.saved-empty-line {
+  margin: 0;
+  max-width: 48ch;
+  font-size: 14px;
+  color: var(--muted);
+}
+.saved-empty-line b {
+  color: var(--ink);
+  font-weight: 500;
 }
 
 @media (max-width: 860px) {
