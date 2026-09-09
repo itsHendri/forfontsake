@@ -80,7 +80,7 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
 
 ## Verified, and how
 
-- `npm run typecheck` · `npm run test` (958, including the grounds against the sheet they
+- `npm run typecheck` · `npm run test` (486 across 21 files, including the grounds against the sheet they
   draw, where the word snaps and that those lines are ones the sheet really draws, the
   word box holding still however far the word is turned, the finish order the shader's
   positional uniforms depend on, the WOFF and WOFF2 containers
@@ -161,6 +161,12 @@ to "Deflate the TTF inside the zip", and each is explained in DECISIONS:
 | Sheet layout switch | An instant cut; the dissolve stays for the rebuilds sound causes |
 | Sheet export | In the bar beside the size and the close, sticky, with the notes moved to their causes |
 | Download | TTF · WOFF2 · WOFF · all three |
+
+**A counting trap, recorded because it briefly overstated the suite.** A background task's
+git worktree lives at `.claude/worktrees/<name>/`, inside the repo, so vitest globbed into it
+and counted every test file twice — 42 files and 958 tests where there are 21 and 486. Nothing
+was wrong with the tests; the number was. Removing the worktree fixed it. Worth a `vitest`
+exclude if worktrees become a habit.
 
 **The slider track was the one note left, and it was looked at and kept** — six tracks
 drawn at real size, the densest of them built out across the whole page, and the current
