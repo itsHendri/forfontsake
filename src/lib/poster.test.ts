@@ -4,6 +4,7 @@ import {
   SHEET_H,
   buildPoster,
   buildPosterLayers,
+  dissolveFor,
   settingsLine,
   chainName,
   LAYOUTS,
@@ -290,5 +291,25 @@ describe('a sheet the sound can move', () => {
     expect(buildPosterLayers({ ...req('chars'), chain: quiet }).ground).toBe(
       buildPosterLayers({ ...req('chars'), chain }).ground,
     )
+  })
+})
+
+describe('when a sheet dissolves and when it cuts', () => {
+  const post = { layout: 'word', format: 'post' }
+
+  it('dissolves a rebuild of the same picture — that is the morph', () => {
+    expect(dissolveFor(post, post)).toBe(1)
+  })
+
+  it('cuts to a new layout, because the reader is waiting to see it', () => {
+    expect(dissolveFor(post, { layout: 'chars', format: 'post' })).toBe(0)
+  })
+
+  it('cuts to a new size for the same reason', () => {
+    expect(dissolveFor(post, { layout: 'word', format: 'story' })).toBe(0)
+  })
+
+  it('fades the first sheet in, having nothing to cut from', () => {
+    expect(dissolveFor(null, post)).toBe(1)
   })
 })

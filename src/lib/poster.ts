@@ -203,6 +203,28 @@ function drawGlyphs(req: PosterRequest, chars: string) {
   return out
 }
 
+/**
+ * How hard the next sheet arrives: dissolved into the last one, or in its place.
+ *
+ * The cross-fade is what makes a rebuild read as a morph rather than a jump,
+ * and every rebuild the sound causes wants it — the letters are meant to swell
+ * and subside, not cut. Changing the layout or the size is not that. It is a
+ * choice the reader just made and is waiting to see, and half a second of the
+ * old picture dissolving through the new one reads as the tool being slow to
+ * agree. Those two land instantly; everything else still dissolves.
+ *
+ * Returned as the fade's starting value so it is the same number the shader
+ * uniform takes, and so the rule sits in one named place rather than as a
+ * condition inside an effect.
+ */
+export function dissolveFor(
+  prev: { layout: string; format: string } | null,
+  next: { layout: string; format: string },
+): number {
+  if (!prev) return 1
+  return prev.layout === next.layout && prev.format === next.format ? 1 : 0
+}
+
 /** "Grit + Bleed" — what the sheet calls the stack */
 export function chainName(chain: Step[]): string {
   return chain.map((s) => getTreatment(s.id).name).join(' + ')

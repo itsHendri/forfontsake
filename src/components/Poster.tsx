@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   buildPoster,
   buildPosterLayers,
+  dissolveFor,
   FORMATS,
   getFormat,
   LAYOUTS,
@@ -91,9 +92,6 @@ export function Poster(p: Props) {
   const sheetRef = useRef<HTMLDivElement>(null)
   // a drag in flight: committed transform at pointerdown, plus where it started
   const dragRef = useRef<{ startX: number; startY: number; base: WordTransform } | null>(null)
-  const wheelTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // wheel events arrive in bursts faster than the commit; accumulate here
-  const pendingScale = useRef<number | null>(null)
 
   // Sound. The engine is created in a click handler, never on mount — an
   // AudioContext made outside a user gesture starts suspended, and StrictMode
@@ -350,7 +348,9 @@ export function Poster(p: Props) {
     }
   }, [])
 
-  // a new sheet, and the fade over the old one that makes it a morph
+  // A new sheet, and the fade over the old one that makes it a morph — except
+  // where the reader asked for a different picture rather than a moving one.
+  const lastPicture = useRef<{ layout: string; format: string } | null>(null)
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
@@ -358,10 +358,13 @@ export function Poster(p: Props) {
       lastLayers.current?.ground === layers.ground && lastLayers.current?.word === layers.word
     if (same) return
     lastLayers.current = { ground: layers.ground, word: layers.word }
+    const picture = { layout: layout.id, format: format.id }
+    const fade = dissolveFor(lastPicture.current, picture)
+    lastPicture.current = picture
     void view.setSheet(layers.ground, layers.word).then(() => {
-      fadeRef.current = 1
+      fadeRef.current = fade
     })
-  }, [layers, viewAge])
+  }, [layers, viewAge, layout.id, format.id])
 
   const finishSpec = getFinish(finishId)
   useEffect(() => {
@@ -537,21 +540,6 @@ export function Poster(p: Props) {
     setWordT({ ...drag.base, dx, dy })
   }
 
-  /** wheel over the word resizes it; committed on a short trailing debounce */
-  const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    if (layout.id !== 'word') return
-    const target = e.target as Element
-    if (!target.closest?.('[data-part="word"]')) return
-    const factor = Math.exp(-e.deltaY * 0.0012)
-    const next = clamp((pendingScale.current ?? wordT.scale) * factor, 0.25, 2)
-    pendingScale.current = next
-    if (wheelTimer.current) clearTimeout(wheelTimer.current)
-    wheelTimer.current = setTimeout(() => {
-      pendingScale.current = null
-      setWordT((t) => ({ ...t, scale: next }))
-    }, 90)
-  }
-
   const moved = wordT.dx !== 0 || wordT.dy !== 0 || wordT.scale !== 1
   const chainName = p.chain.map((c) => getTreatment(c.id).name).join(' + ')
   const inVideo = mode === 'video'
@@ -657,7 +645,6 @@ export function Poster(p: Props) {
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
-          onWheel={onWheel}
         >
           {recording && (
             <p className="rec-pill" role="status">
@@ -934,5 +921,4 @@ export function Poster(p: Props) {
   )
 }
 
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
