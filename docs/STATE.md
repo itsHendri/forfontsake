@@ -162,6 +162,12 @@ to "Deflate the TTF inside the zip", and each is explained in DECISIONS:
 | Sheet export | In the bar beside the size and the close, sticky, with the notes moved to their causes |
 | Download | TTF · WOFF2 · WOFF · all three |
 
+**The slider track was the one note left, and it was looked at and kept** — six tracks
+drawn at real size, the densest of them built out across the whole page, and the current
+one chosen anyway. The measurements and what they settled are in DECISIONS under "The
+sliders were looked at and kept"; bands 10 and 11 in Figma hold the drawings. Nothing to
+build, and the round is closed.
+
 **All twelve picks came back, and all nine that needed building are shipped.** Hendri
 took every recommendation. In ballot order: picture chips for the glyph ranges, the
 one-box stepper, the Saved fonts view, the stalk rotation handle, the layer list at the

@@ -1440,6 +1440,37 @@ you can replace, colour that belongs to something, finishes that stack, a word
 you can take hold of. The question was raised in the Ditther conversation and
 left open because it changes more than a label.
 
+## The sliders were looked at and kept
+
+The one note from the September walk that came out with nothing behind it: the sliders
+felt basic, and a lozenge was floated. It was drawn properly — six tracks at the real rail
+width on Halftone's own dials, and the densest of them, a fused row carrying its minus and
+plus in cells cut into its own ends, built out across the whole 1440 page.
+
+The measurements are worth keeping even though nothing changed, because they are the case
+anyone would have to answer to reopen this. One dial is **47px**; Halftone's group is
+**1,037px** and the whole rail **1,454px**, against a 768px screen. The fused row put the
+group at **652px** and the rail at **981px** — a third of the rail back.
+
+**Hendri kept the current track anyway, and that is a real answer rather than inertia.**
+The complaint underneath "basic" turned out to be about the stepper, which is what shipped:
+minus, value and plus in one divided rectangle. With that fixed the track stopped being the
+thing that bothered him. Density was never the problem being reported, so buying it with a
+row that has to redefine what double-clicking means, and that leaves 0 and 100 looking alike
+at a glance, was paying for the wrong thing.
+
+What the drawings settled, so it does not get re-argued from scratch:
+
+- **The tick has to survive.** A dial's tick, its muted-or-marked colour and its
+  double-click reset all measure from the landing preset. Any track that loses it loses
+  "is this a lot?".
+- **The ends can be fused.** Minus and plus as cells inside the row's own ends works, and
+  it is what would make a fused row viable if the rail ever does need the height.
+- **Two of Halftone's fourteen are no longer sliders**, so any track change lands in a rail
+  that is already a mix of rows, a segmented control and a switch.
+
+Bands 10 and 11 in the Figma file carry all of it.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the
