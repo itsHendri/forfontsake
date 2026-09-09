@@ -170,7 +170,7 @@ export default function App() {
    * side of the line — so this is one piece of state rather than a boolean
    * per room, and adding a third cannot leave two of them open at once.
    */
-  const [view, setView] = useState<'bench' | 'share' | 'saved'>('bench')
+  const [view, setView] = useState<'bench' | 'compose' | 'saved'>('bench')
   // which step in the stack the dials are editing
   const [active, setActive] = useState(0)
   // which glyphs the dials are editing — empty means the whole face
@@ -621,7 +621,7 @@ export default function App() {
    * specimen gets the window and closing brings the bench back exactly as it
    * was. The state lives on either side of this line, so nothing is rebuilt.
    */
-  if (view === 'share') {
+  if (view === 'compose') {
     return (
       <Poster
         font={library[state.fontId]}
@@ -673,7 +673,7 @@ export default function App() {
         importing={importing}
         savedCount={saved.length}
         onSave={save}
-        onShare={() => setView('share')}
+        onCompose={() => setView('compose')}
         onOpenSaved={() => setView('saved')}
       />
 

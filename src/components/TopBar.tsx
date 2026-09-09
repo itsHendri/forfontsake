@@ -28,7 +28,7 @@ interface Props {
   /** how many fonts are on the shelf, so the way in can say so */
   savedCount: number
   onSave: () => void
-  onShare: () => void
+  onCompose: () => void
   onOpenSaved: () => void
 }
 
@@ -305,8 +305,10 @@ export function TopBar(p: Props) {
         <button type="button" onClick={p.onOpenSaved} disabled={p.savedCount === 0}>
           Saved{p.savedCount > 0 && ` · ${p.savedCount}`}
         </button>
-        <button type="button" onClick={p.onShare}>
-          Share
+        {/* Compose, not Share. Share is what you do once the thing exists;
+            this is the room where it gets made. */}
+        <button type="button" onClick={p.onCompose}>
+          Compose
         </button>
         {/*
           The web formats are the same font in a smaller container — the tables

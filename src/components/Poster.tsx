@@ -161,14 +161,19 @@ const CORNERS: [number, number, string][] = [
 ]
 
 /**
- * The specimen sheet, as a thing you can take away.
+ * Compose: the room where a font becomes something you would post.
  *
  * A workbench screenshot is a picture of software. The same letters set on a
  * numbered sheet is a specimen, which is the form a foundry has always
  * published in — and it is the artefact somebody actually wants to post.
- * Randomise and Recolour are here rather than in the panel because they belong
- * to the sheet, not to the font. The word itself can be dragged and resized:
- * the sheet is a layout the user finishes, not a template they receive.
+ *
+ * It was called Share, which named the exit rather than the room: sharing is
+ * what you do once the thing exists, and this is where it gets made. What is
+ * in here is a sheet stated as its layers — a ground, the type, the caption
+ * and whatever finishes are on — with the word as an object you can take hold
+ * of. Everything here belongs to the sheet, never to the font: the structural
+ * test that keeps finishes off the path to a font file is the same rule
+ * written down.
  */
 export function Poster(p: Props) {
   const [sheetSeed, setSheetSeed] = useState(p.seed)
@@ -1030,7 +1035,7 @@ export function Poster(p: Props) {
         </div>
 
         {/* closing finishes a take rather than losing it — see handleClose */}
-        <button type="button" className="sheet-close" onClick={handleClose} aria-label="Close the sheet">
+        <button type="button" className="sheet-close" onClick={handleClose} aria-label="Leave Compose">
           ✕
         </button>
 
