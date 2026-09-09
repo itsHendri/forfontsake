@@ -766,8 +766,11 @@ h1 {
   /* an unusually wide glyph is clipped rather than scaled down: every cell is
      drawn at one scale, which is what puts the whole grid on shared baselines */
   overflow: hidden;
-  /* the cell is a button now — selection surface for per-glyph dials */
+  /* the cell is a button now — selection surface for per-glyph dials, so it
+     also has to undo the rounded corner every other button wants: a grid of
+     glyphs is a grid, and rounded cells read as a row of chips */
   border: 0;
+  border-radius: 0;
   padding: 0;
   position: relative;
   cursor: pointer;
