@@ -728,7 +728,9 @@ h1 {
     order: 3;
     margin: 0;
   }
-  .sheet-bar select {
+  /* the direct child only: the export's own type menu is a select too, and
+     ordering it would put Download in front of the thing it downloads */
+  .sheet-bar > select {
     order: 4;
     flex: 1 1 auto;
     min-width: 0;
@@ -741,9 +743,11 @@ h1 {
     order: 5;
     flex: 1 1 auto;
   }
-  .sheet-export .with-tip,
-  .sheet-export .save {
+  .sheet-export .with-tip {
     flex: 1 1 auto;
+  }
+  .sheet-export .save {
+    width: 100%;
   }
   .sheet-no {
     font-size: 11px;

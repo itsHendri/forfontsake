@@ -50,14 +50,20 @@ const spec = (id: WebFontFormat) => WEB_FONT_FORMATS.find((f) => f.id === id)!
 /**
  * Several formats at once become a zip, because a click may hand over one file.
  *
- * Stored rather than deflated: two of the three are already compressed, and a
- * second pass over them buys nothing but time.
+ * Compressed per file rather than for the archive: WOFF and WOFF2 are already
+ * deflated and Brotlied respectively, so a second pass over them costs time and
+ * saves nothing — but the TTF is raw, and it is the biggest of the three. On a
+ * Halftone Pirata One it is 1.9 MB of a 2.3 MB archive.
  */
 async function zipOf(files: { format: WebFontFormat; bytes: ArrayBuffer }[], stem: string) {
   const { default: JSZip } = await import('jszip')
   const zip = new JSZip()
-  for (const f of files) zip.file(`${stem}.${spec(f.format).extension}`, f.bytes)
-  return zip.generateAsync({ type: 'blob', compression: 'STORE' })
+  for (const f of files) {
+    zip.file(`${stem}.${spec(f.format).extension}`, f.bytes, {
+      compression: f.format === 'ttf' ? 'DEFLATE' : 'STORE',
+    })
+  }
+  return zip.generateAsync({ type: 'blob' })
 }
 
 /**
