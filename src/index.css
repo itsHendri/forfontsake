@@ -560,8 +560,10 @@ h1 {
   position: relative;
   min-width: 0;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 12px;
 }
 .sheet-live {
   display: flex;
@@ -577,6 +579,10 @@ h1 {
   max-height: calc(100vh - 148px);
   box-shadow: 0 4px 28px color-mix(in srgb, var(--ink) 26%, transparent);
   touch-action: none;
+}
+/* the strip needs its own room, so the sheet gives some back */
+.sheet-stage.has-transport canvas {
+  max-height: calc(100vh - 208px);
 }
 .rec-pill {
   position: absolute;
@@ -716,6 +722,82 @@ h1 {
 .swatch:focus-visible {
   outline: 2px solid var(--mark);
   outline-offset: 2px;
+}
+
+/* ---------- play, the mic, and proof that either is working ---------- */
+
+/* On the sheet, because that is where somebody in video mode is looking — and
+   because a browser will not start audio outside a user gesture, so this is
+   the control that makes sound possible rather than a shortcut to it. */
+.sheet-play {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 22px 14px;
+  border: 0;
+  border-radius: 8px;
+  background: color-mix(in srgb, #0a0b0d 78%, transparent);
+  color: #fff;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sheet-play:hover {
+  background: color-mix(in srgb, #0a0b0d 88%, transparent);
+}
+.sheet-play-glyph {
+  display: block;
+  width: 0;
+  height: 0;
+  margin-left: 5px;
+  border-left: 20px solid #fff;
+  border-top: 13px solid transparent;
+  border-bottom: 13px solid transparent;
+}
+
+/* Under the sheet, not on it. It is a control strip for the thing above it,
+   and the artefact is the one surface in this room nothing should cover. */
+.transport {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--paper);
+  box-shadow: 0 3px 16px color-mix(in srgb, var(--ink) 22%, transparent);
+}
+.transport button {
+  font-size: 12px;
+  padding: 5px 10px;
+}
+.transport-mode {
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.meter {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 18px;
+}
+.meter-bar {
+  width: 3px;
+  height: 100%;
+  border-radius: 1px;
+  background: var(--track);
+}
+.meter-bar.is-lit {
+  background: var(--mark);
 }
 
 /* ---------- the word, as a thing you can take hold of ---------- */

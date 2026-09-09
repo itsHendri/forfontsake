@@ -145,6 +145,10 @@ const SNAP_PX = 6
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
+// Fourteen bars, spaced so the quiet end has resolution — speech sits low and
+// a linear ladder would leave a working mic looking like a dead one.
+const METER_BARS = Array.from({ length: 14 }, (_, i) => Math.pow((i + 1) / 15, 1.7))
+
 /** a sheet coordinate as a percentage of the sheet, which is how the frame is laid out */
 const pct = (v: number, of: number) => `${(v / of) * 100}%`
 
@@ -250,6 +254,18 @@ export function Poster(p: Props) {
   }, [soundModeId])
   const engineRef = useRef<AudioEngine | null>(null)
   const rafRef = useRef<number | null>(null)
+  /*
+   * How loud it is, for the meter.
+   *
+   * The room has never had one, which is most of why the microphone read as
+   * dead: a working mic and a refused one looked identical, because the mic is
+   * deliberately not monitored — playing it back through the speakers is a
+   * feedback loop. Published at about twelve times a second rather than every
+   * frame; a meter is read by eye and sixty setStates a second is sixty
+   * renders a second.
+   */
+  const [level, setLevel] = useState(0)
+  const levelAt = useRef(0)
   // how long the last sheet took to build, so the tick can back off adaptively
   const buildCost = useRef(0)
 
@@ -309,6 +325,7 @@ export function Poster(p: Props) {
     engineRef.current?.setSource(null)
     setSoundSource(null)
     setModChain(null)
+    setLevel(0)
   }, [])
 
   // the overlay closing takes the sound with it — and abandons any take
@@ -338,7 +355,12 @@ export function Poster(p: Props) {
       // Tick every frame so the envelopes and detectors stay accurate; only
       // the glides run on the scaled clock — the Speed dial is time dilation
       // on the motion, not on the analysis.
-      const bands = drive.read(engine.tick(dt), dt * soundSpeedRef.current)
+      const frame = engine.tick(dt)
+      const bands = drive.read(frame, dt * soundSpeedRef.current)
+      if (now - levelAt.current >= 80) {
+        levelAt.current = now
+        setLevel(frame.level)
+      }
       // ...but rebuild the geometry at a pace the chain can afford
       if (now - lastBuild >= Math.max(tier, buildCost.current * 1.5)) {
         lastBuild = now
@@ -1023,7 +1045,7 @@ export function Poster(p: Props) {
 
       <div className="sheet-body">
         <div
-          className="sheet-stage"
+          className={inVideo && soundSource ? 'sheet-stage has-transport' : 'sheet-stage'}
           ref={sheetRef}
           onPointerDown={onStagePointerDown}
           onPointerMove={onStagePointerMove}
@@ -1093,6 +1115,50 @@ export function Poster(p: Props) {
               </div>
             )}
           </div>
+          {/*
+            The first gesture, on the sheet.
+
+            Not decoration: a browser will not let an AudioContext out of
+            suspended until something resumes it inside a user gesture, so a
+            play control is what makes sound possible at all. It sits on the
+            artefact because that is where somebody in video mode is looking,
+            and it gives way to the strip the moment anything is running —
+            every audio-reactive tool in the research pass does exactly this.
+          */}
+          {inVideo && !soundSource && (
+            <button
+              type="button"
+              className="sheet-play"
+              onClick={() => void startSound('loop')}
+              title="Play the loop and let the letters ride it"
+            >
+              <span className="sheet-play-glyph" aria-hidden="true" />
+              Play
+            </button>
+          )}
+
+          {inVideo && soundSource && (
+            <div className="transport">
+              <button type="button" className="is-live" onClick={stopSound}>
+                Stop
+              </button>
+              <button
+                type="button"
+                onClick={() => startSound(soundSource === 'mic' ? 'loop' : 'mic')}
+                title={soundSource === 'mic' ? 'Back to the bubble loop' : 'Let the room drive it'}
+              >
+                {soundSource === 'mic' ? 'Play loop' : 'Use mic'}
+              </button>
+              {/* proof that sound is arriving, which the room has never had */}
+              <span className="meter" role="img" aria-label={`Level ${Math.round(level * 100)} per cent`}>
+                {METER_BARS.map((b, i) => (
+                  <span key={i} className={level > b ? 'meter-bar is-lit' : 'meter-bar'} />
+                ))}
+              </span>
+              <span className="transport-mode">{getMode(soundModeId).name}</span>
+            </div>
+          )}
+
           {glError && <p className="notice is-bad">{glError}</p>}
         </div>
 
@@ -1415,22 +1481,11 @@ export function Poster(p: Props) {
           {inVideo && (
             <div className="group ruled sound">
               <h2>Sound</h2>
-              <div className="row">
-                <button
-                  type="button"
-                  className={soundSource === 'loop' ? 'is-live' : undefined}
-                  onClick={() => (soundSource === 'loop' ? stopSound() : startSound('loop'))}
-                >
-                  {soundSource === 'loop' ? 'Stop' : 'Play loop'}
-                </button>
-                <button
-                  type="button"
-                  className={soundSource === 'mic' ? 'is-live' : undefined}
-                  onClick={() => (soundSource === 'mic' ? stopSound() : startSound('mic'))}
-                >
-                  {soundSource === 'mic' ? 'Stop mic' : 'Use mic'}
-                </button>
-              </div>
+              {/* Play and the mic live under the sheet, where you are looking.
+                  What is left here is what the sound does once it is running. */}
+              {!soundSource && (
+                <p className="note">Press play on the sheet, or switch to the mic once it is running.</p>
+              )}
               {/* a refused microphone is reported beside the button that asked
                   for it, not at the far end of the rail under Export */}
               {soundNote && (
