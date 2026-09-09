@@ -135,6 +135,10 @@ body {
   min-width: 0;
   margin-right: auto;
 }
+/* The dashes are always there. A field that only admits to being a field once
+   the pointer is over it is a field nobody finds: the name is the first thing
+   on the page and the first act of making a font, so it says so at rest and
+   deepens under the pointer rather than appearing under it. */
 .name-field {
   display: block;
   font: inherit;
@@ -144,14 +148,14 @@ body {
   letter-spacing: -0.01em;
   color: var(--ink);
   background: transparent;
-  border: 1px dashed transparent;
+  border: 1px dashed var(--rule);
   border-radius: 2px;
   padding: 2px 6px;
   margin: 0 0 3px -7px;
   max-width: 100%;
 }
 .name-field:hover {
-  border-color: var(--rule);
+  border-color: var(--mark);
 }
 .name-field:focus,
 .name-field[aria-invalid='true'] {
