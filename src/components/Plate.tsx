@@ -18,12 +18,6 @@ interface Props {
   onUpload: (file: File) => void
   /** set while a dropped font is being read, so the control can say so */
   importing: boolean
-  seed: number
-  alternates: number
-  /** false when nothing in the stack consumes randomness */
-  canRandomise: boolean
-  onRandomise: () => void
-  onReset: () => void
 }
 
 /** the font select's last entry — a verb among the nouns */
@@ -227,34 +221,6 @@ export function Plate(p: Props) {
         </div>
       </div>
 
-      {/*
-        Randomise and Reset act on the letters in this box and nowhere else, so
-        they live in it. In the rail they sat among the panel's own furniture
-        and read as settings rather than as things you do to what you can see.
-      */}
-      <div className="plate-foot">
-        <button
-          type="button"
-          className="linkish"
-          onClick={p.onRandomise}
-          disabled={!p.canRandomise}
-          title={p.canRandomise ? 'Move the seed to a new value' : 'Nothing in this stack is random'}
-        >
-          Randomise
-        </button>
-        <button type="button" className="linkish" onClick={p.onReset}>
-          Reset
-        </button>
-        <p className="plate-readout">
-          {p.canRandomise ? (
-            <>
-              {p.alternates} {p.alternates === 1 ? 'cut' : 'cuts'} per letter · seed {p.seed}
-            </>
-          ) : (
-            <>one cut per letter</>
-          )}
-        </p>
-      </div>
     </section>
   )
 }

@@ -326,28 +326,6 @@ h1 {
   padding: 5px 9px;
   font-size: 13px;
 }
-.plate-foot {
-  display: flex;
-  align-items: baseline;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-top: 2px;
-  padding-top: 10px;
-  border-top: 1px solid var(--rule);
-}
-.plate-foot .linkish:disabled {
-  color: var(--muted);
-  text-decoration: none;
-  cursor: not-allowed;
-}
-.plate-readout {
-  margin: 0 0 0 auto;
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 11px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
 .plate-type {
   position: relative;
   /* headroom for faces whose ascenders reach past the field's own line box */
@@ -1254,8 +1232,7 @@ select:focus-visible {
   color: var(--muted);
   cursor: pointer;
 }
-/* The stack can never be empty, so the last layer has nothing to delete and
-   the control becomes what it can honestly do — put the dials back. */
+/* Every card carries its own Reset, so it names the layer it acts on. */
 .layer-clear {
   flex: none;
   padding: 2px 8px;

@@ -3,7 +3,6 @@ import {
   TREATMENTS,
   getTreatment,
   defaults,
-  hasRandomness,
   initialParams,
   specimenFor,
   type Treatment,
@@ -463,18 +462,6 @@ export default function App() {
     })
   }
 
-  const resetDials = () => {
-    if (!scoped) {
-      // back to the named state this step is sitting on, not to an unnamed
-      // baseline and not to a preset the user never chose
-      patchStep(step, { params: state.chain[step].origin ?? initialParams(treatment) })
-      return
-    }
-    // reset for a selection means "back to the global settings", not defaults
-    patchOverrides((overrides) => {
-      for (const ch of scopeChars) if (overrides[ch]) overrides[ch].params[step] = {}
-    })
-  }
 
   /** drop every exception the selected glyphs carry, reroll nudge included */
   const resetOverrides = () => {
@@ -517,9 +504,19 @@ export default function App() {
     })
   }
 
-  /** the last layer cannot be removed, so its control puts the dials back */
-  const clearStep = (i: number) => {
-    patchStep(i, landed(getTreatment(state.chain[i].id)))
+  /**
+   * Put one layer back to the named setting it is sitting on.
+   *
+   * The card's own control, so it names the layer it acts on rather than
+   * acting on whichever one happens to be selected — which is what the old
+   * footer Reset did. It goes back to the step's `origin`, the preset that was
+   * actually chosen, and takes that layer's per-glyph exceptions with it:
+   * leaving them behind would mean pressing Reset and still seeing letters
+   * that disagree with the dials.
+   */
+  const resetStep = (i: number) => {
+    const t = getTreatment(state.chain[i].id)
+    patchStep(i, { params: state.chain[i].origin ?? initialParams(t) })
     patchOverrides((overrides) => {
       for (const o of Object.values(overrides)) o.params[i] = {}
     })
@@ -667,11 +664,6 @@ export default function App() {
             onText={(text) => patch({ text })}
             onUpload={onUpload}
             importing={importing}
-            seed={state.seed}
-            alternates={state.alternates}
-            canRandomise={hasRandomness(state.chain)}
-            onRandomise={() => patch({ seed: Math.floor(Math.random() * 9999) + 1 })}
-            onReset={resetDials}
           />
           {notice && <p className="notice is-bad">{notice}</p>}
           {licence && state.fontId.startsWith('upload') && (
@@ -716,7 +708,7 @@ export default function App() {
           onSelectStep={setActive}
           onAddStep={addStep}
           onRemoveStep={removeStep}
-          onClearStep={clearStep}
+          onResetStep={resetStep}
           onSeed={(seed) => patch({ seed })}
           onAlternates={(alternates) => patch({ alternates })}
           scope={scopeChars}

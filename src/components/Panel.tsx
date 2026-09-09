@@ -4,6 +4,7 @@ import {
   getTreatment,
   hasRandomness,
   initialParams,
+  presetMatches,
   STACK_WIDE_KEYS,
   type ParamSpec,
   type ParamValues,
@@ -28,8 +29,8 @@ interface Props {
   onSelectStep: (i: number) => void
   onAddStep: () => void
   onRemoveStep: (i: number) => void
-  /** the last remaining layer cannot be removed, only reset */
-  onClearStep: (i: number) => void
+  /** put one layer back to the named setting it is sitting on */
+  onResetStep: (i: number) => void
   onSeed: (seed: number) => void
   onAlternates: (n: number) => void
   /** the glyphs the dials are editing — empty means the whole face */
@@ -41,6 +42,19 @@ interface Props {
   onClearScope: () => void
   onResetOverrides: () => void
   onReroll: () => void
+}
+
+/**
+ * What a layer's Reset puts it back to, named where it has a name.
+ *
+ * Almost always a preset, because there is no unnamed state to land on — so
+ * the control can say "back to Coarse dots" rather than "back to defaults",
+ * which is the difference between a promise and a threat.
+ */
+function landingName(step: Step): string {
+  const t = getTreatment(step.id)
+  const params = step.origin ?? initialParams(t)
+  return t.presets?.find((preset) => presetMatches(preset, params))?.name ?? 'its defaults'
 }
 
 /**
@@ -163,11 +177,25 @@ export function Panel(p: Props) {
                   {treatment.name}
                 </button>
                 {/*
-                  The stack can never be empty, so the last layer has nothing to
-                  delete. Rather than leaving a dead × sitting there, the control
-                  becomes what it can honestly do: put the dials back.
+                  Reset belongs to the layer it resets. It used to sit in the
+                  plate's footer, where it was one control for whichever layer
+                  happened to be selected — so what it would undo depended on
+                  something else on the page. Every card carries its own.
                 */}
-                {stacked ? (
+                <button
+                  type="button"
+                  className="layer-clear"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    p.onResetStep(i)
+                  }}
+                  title={`Put ${treatment.name} back to ${landingName(step)}`}
+                >
+                  Reset
+                </button>
+                {/* The stack can never be empty, so the last layer has nothing
+                    to delete and shows no × at all — better than a dead one. */}
+                {stacked && (
                   <button
                     type="button"
                     className="layer-drop"
@@ -179,18 +207,6 @@ export function Panel(p: Props) {
                     title="Remove this layer"
                   >
                     ×
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="layer-clear"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      p.onClearStep(i)
-                    }}
-                    title="Put this layer back to its defaults"
-                  >
-                    Clear
                   </button>
                 )}
               </div>
