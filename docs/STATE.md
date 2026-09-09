@@ -25,10 +25,11 @@ installable font**, entirely in the browser.
 | Glyph grid, waterfall | Done. All 69 preview glyphs; the grid is also the override selection surface. |
 | **Per-glyph overrides** | **Done.** Select glyphs → dial deltas over the global chain, per-glyph reroll; in the URL (7th field), the shelf and the export. |
 | **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker; overrides included. **Four ways out:** TTF, WOFF2, WOFF, or a zip of all three — one build, since the web formats are containers over the same validated bytes (`engine/webfont.ts`, written by hand because the library's own WOFF2 is rejected by OTS on real fonts). |
-| Specimen sheet | **A room of its own, not a modal.** Replaces the workbench, keeps the URL, closes with a ×. Three formats (Post 4:5, Square, Story 9:16) chosen in the header, **which also carries the export and is sticky**; layout picked as two engine-drawn pictures and switched with a cut rather than a dissolve; word draggable/resizable; randomise and recolour. At 1440×1000 the sheet draws at 852 px, against 702 in the modal. |
-| **Finishes** | **Done.** The sheet renders through WebGL2: grain, riso misregistration and a scanner losing sync, over the rendered page. Pixels, never geometry — a structural test keeps finishes off the path from a chain to a font file, and the SVG download stays letterforms only. |
+| Compose (was Share) | **A room of its own, not a modal.** Replaces the workbench, keeps the URL, closes with a ×. Three formats (Post 4:5, Square, Story 9:16) chosen in the header, **which also carries the export and is sticky**; layout picked as two engine-drawn pictures and switched with a cut rather than a dissolve. At 1440×1000 the sheet draws at 852 px, against 702 in the modal. Renamed on 9 September: Share named the exit, not the room. |
+| **Finishes** | **Done, and they stack.** The sheet renders through WebGL2: grain, riso misregistration and a scanner losing sync, in that order and in any combination. Pixels, never geometry — a structural test keeps finishes off the path from a chain to a font file, and the SVG download stays letterforms only. |
+| **The sheet as layers** | **Done.** Background, Word, Caption, Finishes; picking one swaps the rail to its properties. Colour belongs to a layer instead of to a six-palette cycle, the ground carries a drawn texture or a picture you upload, and the word is an object with corner handles, a rotation knob and guides that snap to the sheet's own rules. |
 | **Sound + clip** | **Done, behind a Static / Video switch.** Sound exists only in video, so choosing MP4 can never start it. Three named modes — Pulse, Breathe, Shimmer — plus Depth and Speed. The export *is* the take: no separate Record button. **Both layouts can move**; the rail reports the measured rebuild rate when a chain is slow enough to step. |
-| Saved styles | Done, and kept across reloads in `localStorage`. |
+| Saved fonts | **A room of its own**, reached from `Saved · N` in the bar, with an empty state. Kept across reloads in `localStorage`. |
 | Bring your own font | Done, from the font menu. Read in the worker, licence reported, held in memory. |
 | CLI export + verification | Done. `build:font` + `verify:font` (7 checks). |
 | Deployment | **Live** at forfontsake.xyz. Pushes to `main` deploy; HTTPS enforced. |
@@ -79,7 +80,10 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
 
 ## Verified, and how
 
-- `npm run typecheck` · `npm run test` (472, including the WOFF and WOFF2 containers
+- `npm run typecheck` · `npm run test` (958, including the grounds against the sheet they
+  draw, where the word snaps and that those lines are ones the sheet really draws, the
+  word box holding still however far the word is turned, the finish order the shader's
+  positional uniforms depend on, the WOFF and WOFF2 containers
   decoded back out and compared table by table, the switch/segment dials against the
   values their presets land on, when the sheet cuts rather than dissolves, override URL
   round-trips, the poster's
@@ -158,11 +162,12 @@ to "Deflate the TTF inside the zip", and each is explained in DECISIONS:
 | Sheet export | In the bar beside the size and the close, sticky, with the notes moved to their causes |
 | Download | TTF · WOFF2 · WOFF · all three |
 
-**What is drawn but not decided** is the rest of the notes, and they are the next
-session: the word as a draggable, rotatable, snapping object; the sheet growing a
-layer list with per-layer colour; finishes stacking instead of excluding each other;
-uploadable and pre-built backgrounds; a visible play/mic transport with a level meter;
-a Saved fonts view with an empty state; and what the room is called.
+**All twelve picks came back, and all nine that needed building are shipped.** Hendri
+took every recommendation. In ballot order: picture chips for the glyph ranges, the
+one-box stepper, the Saved fonts view, the stalk rotation handle, the layer list at the
+head of the rail, gated finish sections, the background picker in the rail, play on the
+sheet with a level meter, and **Compose** as the room's name. Each is explained in
+DECISIONS; the picks themselves are still readable at `picks/ux-round-2`.
 
 All of it is drawn in a **new Figma file**, `ZHfdGRnUCfMRxcTgF4v8qu` — "For Font's Sake
 — UX round 2, Sept 2026" — three pages (Workbench, Share room, Components) over a
@@ -306,7 +311,8 @@ stays out of the URL for now.
 layout: the workbench makes a *font* and the second room makes a *post*, so "Share" may be the
 wrong name for a room — Share is what you do at the end. Whether that room is called Compose,
 and whether a background image, an inverted palette and your own text layers are in scope, are
-both Hendri's to call.
+both Hendri's to call. **Answered on 9 September: it is called Compose, and the background
+image and per-layer colour are both in — see DECISIONS.**
 
 **Round two, 7 September.** Hendri picked the tabbed rail (S5) as the direction and gave notes,
 which are now settled across every frame in band 04 of the Share page: the format picker moves

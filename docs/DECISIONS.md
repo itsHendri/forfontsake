@@ -1295,6 +1295,151 @@ along. No browser library writes `fvar`/`gvar` either. What could honestly be of
 instead is a **family export**: a zip of two or three named instances of one treatment
 under one family name, so a stylesheet switches them with `font-weight`.
 
+## The sheet is its layers, and that is what colour was missing
+
+Recolour cycled six fixed palettes. That is the only shape the control could
+take, because nothing on the sheet had a name for a colour to belong to — there
+was no "the word" for an ink to be a property of. Stating the sheet as
+**Background, Word, Caption, Finishes**, topmost first, gives every property an
+owner, and picking a layer swaps the rail to it. Four colours on three layers
+replace one roll of the dice.
+
+Recolour stays: moving all four at once is the fast way to a *different* sheet,
+where a swatch is the way to the sheet you meant. A roll clears what was set by
+hand, because a roll is a whole sheet.
+
+`PosterPalette` gained `caption`, defaulting to `ink` — which is what the rules
+and the two long label lines always were, before the caption became a thing you
+could select.
+
+**The list is the workbench's list on purpose.** Two rooms read the same way,
+which is the argument the tabbed rail won on last time.
+
+One trap, caught by lint rather than by eye: the palette became a fresh object
+literal, and the sheet request is memoised on it, so `buildPosterLayers` — the
+whole treatment chain — ran on every render instead of when a colour moved.
+
+## Finishes stack, in the order they actually apply
+
+They were a radio row with a `None` in it, which asks which single pass a page
+has been through. A page can be scanned badly, printed in two inks and still be
+on toothy paper. The shader takes a flag and a dial set per finish instead of
+one branch on an id, and `None` goes with the exclusivity that made it mean
+something — a finish that is off dims rather than vanishing, so the rail still
+shows what you are not using.
+
+**The order is fixed and it is a fact, not a preference.** Scanner and riso
+*resample* the sheet: they read it at a displaced point, so they have to run
+while there is still a sheet to read — and running scanner first is what lets
+riso misregister an already-slipped sheet rather than a clean one. Grain is
+speckle over whatever came out, so it is last however many are on. Offering a
+user-orderable stack would be offering a choice where there is one right answer.
+
+**The uniforms are positional**, so `FINISHES`' order now feeds each finish its
+own dials by index. Reordering that list would silently hand each finish
+another's numbers, so the order is written down in a test.
+
+Nobody in the field multi-selects *effects*, which was worth checking before
+building a selection model for them: Figma, Photoshop, Photopea and Pixelmator
+all gang effects by having both on. Multi-selecting *layers* to apply one effect
+is the common thing, and this room has four layers, so it is not the problem.
+
+## The ground is a layer, and it is drawn rather than shipped
+
+Background was one flat colour, so it was a word for the paper. It now carries a
+texture — flat, wash, screen, grid, tooth — and, if you bring one, a picture.
+
+Every texture is a few SVG tags. An asset would be a download every visitor pays
+for whether or not they ever open this room, and a texture that shipped as a PNG
+would be stranded on the colour it was baked at. These take the palette, so
+recolouring the ground recolours the texture with it. The picker calls the same
+function that draws the sheet, so it cannot show something the sheet will not
+produce.
+
+**An uploaded picture is cut down to the sheet before it is kept.** The sheet
+reaches the GPU as an SVG inside a data URI, so anything in it is re-encoded on
+every rebuild — which is on the path a dial move takes. Redrawn once at 1080
+wide, a 6 MB photo is a couple of hundred kilobytes. The paper still goes down
+underneath: a transparent PNG and a picture that does not cover the sheet both
+leave gaps, and a gap should be the sheet's colour rather than whatever the
+canvas was.
+
+## The word is an object
+
+It could be dragged and resized by a slider, with nothing to say it was a thing
+and nothing to line it up against. It gets a frame now: four corner handles that
+scale about its own centre, and a knob on a stalk that turns it.
+
+**The knob is drawn.** tldraw and Figma both use an invisible hit area just
+outside the corner, and on a surface most people will touch once, unmissable
+beats uncluttered. Shift holds a turn to fifteen degrees.
+
+**What it snaps to is the sheet's own geometry** — its two centre lines, the
+margin the type is set to, and the two rules the head and the foot are drawn on
+— and those come from `bandOf`, the function that places them. Pointing the snap
+at the band top instead put it sixty units off the head rule, on a line that is
+not there; a test now holds the two together.
+
+**The tolerance is six *screen* pixels, converted in.** Six sheet units is a
+hair on a sheet drawn at 852px and a shove on one drawn at 400.
+
+Two deliberate choices underneath:
+
+- **The reported word box stays unrotated**, and the room turns the pointer back
+  through the angle before testing it. Growing the box to the bounds of a spun
+  one would claim the empty corners a turned word leaves behind.
+- **Moving stays a shader uniform; scale and rotation bake into the geometry.**
+  A rebuild per `pointermove` re-runs the whole treatment chain, which moving
+  cannot afford — and which the size slider has always paid.
+
+## Four reasons the microphone looked dead
+
+Three were about where the controls are.
+
+1. Play and the mic were the third group down a rail you have to scroll, and
+   exist only in video. Play is on the sheet now, and it is not decoration: a
+   browser will not let an `AudioContext` out of suspended until something
+   resumes it inside a user gesture, so it is the control that makes sound
+   possible rather than a shortcut to it. It gives way to a strip under the
+   sheet — under, not over: the artefact is the one surface here nothing should
+   cover.
+2. A refused permission was reported at the far end of the rail, inside Export.
+   Fixed earlier in this round.
+3. **Nothing confirmed sound was arriving.** The mic is deliberately not
+   monitored — playing it back through the speakers is a feedback loop — so a
+   working mic and a refused one looked identical. There is a meter now:
+   fourteen bars, spaced so the quiet end has resolution, because speech sits
+   low and a linear ladder leaves a live mic looking dead. Published about
+   twelve times a second; a meter is read by eye, and sixty setStates a second
+   is sixty renders a second.
+
+The fourth is not a layout problem and no control will fix it. `SoundDrive`
+subtracts a slow envelope from a fast one, so it answers *change* rather than
+level: hold a note and the drive settles back to the values you set. That is the
+design — see "The sheet is a performance" — and it is exactly what somebody
+testing a microphone does. The meter at least shows the sound arriving while the
+letters sit still.
+
+## Saved fonts are a room, and Share is called Compose
+
+Two smaller things from the same round.
+
+The shelf was a scrolling row of 44px thumbnails under the sign-off, so the only
+way to find a font you had kept was to already know it was there — and the
+picture of it was smaller than the preset chip that made it. It replaces the
+workbench the way the sheet does, with a count on the door (`Saved · 3`),
+disabled while there is nothing behind it. It has an **empty state**, which it
+could not have before: `Shelf` returned `null` when empty, so the feature was
+invisible until the first time you used it.
+
+`posterOpen` generalised to one `view`, so a third room cannot leave two open.
+
+And **Share became Compose**. Share named the exit rather than the room: sharing
+is what you do once the thing exists, and this is where it gets made — a ground
+you can replace, colour that belongs to something, finishes that stack, a word
+you can take hold of. The question was raised in the Ditther conversation and
+left open because it changes more than a label.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the
