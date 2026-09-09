@@ -5,6 +5,8 @@ import {
   dissolveFor,
   FORMATS,
   getFormat,
+  getGround,
+  GROUNDS,
   LAYOUTS,
   POSTER_PALETTES,
   type PosterLayout,
@@ -63,6 +65,8 @@ const LAYERS: {
     finishes: FinishState
     layout: PosterLayout
     wordT: WordTransform
+    ground: string
+    backdrop: string | null
   }) => string
   /** which colour the row shows a chip of, if any */
   swatch?: 'paper' | 'ink' | 'mark'
@@ -87,8 +91,21 @@ const LAYERS: {
           : `placed · ${wordT.scale.toFixed(2)}×`,
     swatch: 'ink',
   },
-  { id: 'background', name: () => 'Background', sub: () => 'flat', swatch: 'paper' },
+  {
+    id: 'background',
+    name: () => 'Background',
+    sub: ({ ground, backdrop }) =>
+      backdrop ? 'your picture' : getGround(ground).name.toLowerCase(),
+    swatch: 'paper',
+  },
 ]
+
+/** a ground drawn small, for the picker — the same function that draws the sheet */
+function groundArt(id: string, palette: PosterPalette): string {
+  return `<svg viewBox="0 0 88 58" width="100%" height="100%" preserveAspectRatio="none">${
+    (GROUNDS.find((g) => g.id === id) ?? GROUNDS[0]).draw(88, 58, palette)
+  }</svg>`
+}
 
 /**
  * One colour, on the layer it belongs to.
@@ -214,6 +231,10 @@ export function Poster(p: Props) {
   const [selected, setSelected] = useState<'background' | 'type' | 'caption' | 'finishes' | null>(null)
   /** colours set by hand, over whatever the palette roll last landed on */
   const [colours, setColours] = useState<Partial<PosterPalette>>({})
+  /** what the sheet is printed on: a drawn texture, or a picture you brought */
+  const [groundId, setGroundId] = useState(GROUNDS[0].id)
+  const [backdrop, setBackdrop] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   // Closing must never discard work: a take in flight is finished and saved
   // on the way out, and the backdrop stops being a close target while sound
@@ -352,8 +373,10 @@ export function Poster(p: Props) {
       palette,
       number,
       wordTransform: wordT,
+      ground: groundId,
+      backdrop,
     }),
-    [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, layout.id, format.id, palette, number, wordT],
+    [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, layout.id, format.id, palette, number, wordT, groundId, backdrop],
   )
 
   /*
@@ -462,6 +485,36 @@ export function Poster(p: Props) {
       fadeRef.current = fade
     })
   }, [layers, viewAge, layout.id, format.id])
+
+  /**
+   * A picture you brought, cut down to the sheet before it is kept.
+   *
+   * The sheet is drawn as an SVG string and rasterised through a data URI, so
+   * whatever comes in has to travel inside it — a 6 MB photo would be encoded
+   * on every rebuild, which is on the path a dial move takes. Redrawn once at
+   * the sheet's own size, it is a couple of hundred kilobytes and nothing
+   * downstream has to care where it came from.
+   */
+  const takeBackdrop = async (file: File) => {
+    setExportNote(null)
+    try {
+      const bitmap = await createImageBitmap(file)
+      // cover, so a picture of any shape fills the sheet without distorting
+      const k = Math.max(format.w / bitmap.width, format.h / bitmap.height)
+      const c = document.createElement('canvas')
+      c.width = format.w
+      c.height = format.h
+      const ctx = c.getContext('2d')
+      if (!ctx) throw new Error('could not read that picture')
+      const w = bitmap.width * k
+      const h = bitmap.height * k
+      ctx.drawImage(bitmap, (format.w - w) / 2, (format.h - h) / 2, w, h)
+      bitmap.close()
+      setBackdrop(c.toDataURL('image/jpeg', 0.86))
+    } catch (e) {
+      setExportNote(e instanceof Error ? e.message : 'could not read that picture')
+    }
+  }
 
   const anyFinish = FINISHES.some((f) => finishes[f.id]?.on)
   useEffect(() => {
@@ -850,7 +903,9 @@ export function Poster(p: Props) {
                   >
                     <span className="layer-row-text">
                       <span className="layer-row-name">{l.name(layout)}</span>
-                      <span className="layer-row-sub">{l.sub({ palette, finishes, layout, wordT })}</span>
+                      <span className="layer-row-sub">
+                        {l.sub({ palette, finishes, layout, wordT, ground: groundId, backdrop })}
+                      </span>
                     </span>
                     {l.swatch && (
                       <span className="layer-row-swatch" style={{ background: palette[l.swatch] }} aria-hidden="true" />
@@ -917,7 +972,70 @@ export function Poster(p: Props) {
           {selected === 'background' && (
             <div className="group ruled">
               <h2>Background</h2>
-              <Swatch label="Ground" value={palette.paper} onChange={(v) => setColours((c) => ({ ...c, paper: v }))} />
+              <Swatch label="Colour" value={palette.paper} onChange={(v) => setColours((c) => ({ ...c, paper: v }))} />
+              {/*
+                Textures are drawn, not shipped — a gradient and a dot screen
+                are a few tags each, and an asset would be a download every
+                visitor pays for whether or not they open this room. They take
+                their colours from the palette, so recolouring the ground
+                recolours the texture with it.
+              */}
+              <div className="grounds">
+                {GROUNDS.map((g) => {
+                  const on = !backdrop && g.id === groundId
+                  return (
+                    <button
+                      type="button"
+                      key={g.id}
+                      className={on ? 'ground is-on' : 'ground'}
+                      aria-pressed={on}
+                      onClick={() => {
+                        setGroundId(g.id)
+                        setBackdrop(null)
+                      }}
+                    >
+                      <span
+                        className="ground-art"
+                        aria-hidden="true"
+                        dangerouslySetInnerHTML={{ __html: groundArt(g.id, palette) }}
+                      />
+                      <span>{g.name}</span>
+                    </button>
+                  )
+                })}
+                {/* Upload sits in the row rather than beside it: it is one more
+                    answer to "what is this printed on", not a separate feature. */}
+                <button
+                  type="button"
+                  className={backdrop ? 'ground is-on' : 'ground'}
+                  aria-pressed={!!backdrop}
+                  onClick={() => fileRef.current?.click()}
+                >
+                  <span className="ground-art is-upload" aria-hidden="true">
+                    {backdrop ? <img src={backdrop} alt="" /> : '+'}
+                  </span>
+                  <span>{backdrop ? 'Yours' : 'Upload'}</span>
+                </button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  hidden
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    // cleared so choosing the same file twice still fires
+                    e.target.value = ''
+                    if (file) void takeBackdrop(file)
+                  }}
+                />
+              </div>
+              {backdrop && (
+                <div className="row">
+                  <button type="button" className="linkish" onClick={() => setBackdrop(null)}>
+                    Remove the picture
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

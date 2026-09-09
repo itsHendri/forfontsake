@@ -57,6 +57,75 @@ export const POSTER_PALETTES: PosterPalette[] = [
 ]
 
 /**
+ * What the sheet is printed on.
+ *
+ * Everything here is drawn rather than shipped: a gradient, a dot screen and a
+ * ruled grid are a few tags each, and an asset would be a download every
+ * visitor pays for whether or not they ever open this room. They take their
+ * colours from the palette, so changing the ground colour changes the texture
+ * with it rather than leaving it stranded on the old one.
+ *
+ * An uploaded image is the one exception and it is not in this list — it is a
+ * property of the sheet, held by the page and embedded when the sheet is drawn.
+ */
+export interface Ground {
+  id: string
+  name: string
+  draw(w: number, h: number, p: PosterPalette): string
+}
+
+const TOOTH_ID = 'ffs-tooth'
+
+export const GROUNDS: Ground[] = [
+  { id: 'flat', name: 'Flat', draw: (w, h, p) => `<rect width="${w}" height="${h}" fill="${p.paper}"/>` },
+  {
+    id: 'wash',
+    name: 'Wash',
+    draw: (w, h, p) =>
+      `<defs><linearGradient id="ffs-wash" x1="0" y1="0" x2="0" y2="1">` +
+      `<stop offset="0" stop-color="${p.paper}"/>` +
+      `<stop offset="1" stop-color="${p.caption ?? p.ink}" stop-opacity="0.22"/>` +
+      `</linearGradient></defs>` +
+      `<rect width="${w}" height="${h}" fill="${p.paper}"/>` +
+      `<rect width="${w}" height="${h}" fill="url(#ffs-wash)"/>`,
+  },
+  {
+    id: 'screen',
+    name: 'Screen',
+    draw: (w, h, p) =>
+      `<defs><pattern id="ffs-screen" width="18" height="18" patternUnits="userSpaceOnUse">` +
+      `<circle cx="4.5" cy="4.5" r="2.4" fill="${p.caption ?? p.ink}" fill-opacity="0.18"/>` +
+      `<circle cx="13.5" cy="13.5" r="2.4" fill="${p.caption ?? p.ink}" fill-opacity="0.18"/>` +
+      `</pattern></defs>` +
+      `<rect width="${w}" height="${h}" fill="${p.paper}"/>` +
+      `<rect width="${w}" height="${h}" fill="url(#ffs-screen)"/>`,
+  },
+  {
+    id: 'grid',
+    name: 'Grid',
+    draw: (w, h, p) =>
+      `<defs><pattern id="ffs-grid" width="48" height="48" patternUnits="userSpaceOnUse">` +
+      `<path d="M48 0H0V48" fill="none" stroke="${p.caption ?? p.ink}" stroke-opacity="0.16" stroke-width="1"/>` +
+      `</pattern></defs>` +
+      `<rect width="${w}" height="${h}" fill="${p.paper}"/>` +
+      `<rect width="${w}" height="${h}" fill="url(#ffs-grid)"/>`,
+  },
+  {
+    id: 'tooth',
+    name: 'Tooth',
+    draw: (w, h, p) =>
+      `<defs><filter id="${TOOTH_ID}" x="0" y="0" width="100%" height="100%">` +
+      `<feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"/>` +
+      `<feColorMatrix type="saturate" values="0"/>` +
+      `</filter></defs>` +
+      `<rect width="${w}" height="${h}" fill="${p.paper}"/>` +
+      `<rect width="${w}" height="${h}" filter="url(#${TOOTH_ID})" opacity="0.14"/>`,
+  },
+]
+
+export const getGround = (id?: string): Ground => GROUNDS.find((g) => g.id === id) ?? GROUNDS[0]
+
+/**
  * Where the user has dragged and resized the word, in sheet pixels.
  *
  * Applied on top of the auto-fit: `scale` multiplies the fitted size about the
@@ -114,6 +183,14 @@ export interface PosterRequest {
   format?: string
   /** the user's placement of the word; only the word layout reads it */
   wordTransform?: WordTransform
+  /** which of GROUNDS to print on; an unknown id falls through to flat */
+  ground?: string
+  /**
+   * An uploaded picture, as a data URL, filling the sheet under everything
+   * else. It wins over `ground`, because choosing a picture is a louder
+   * decision than choosing a texture.
+   */
+  backdrop?: string | null
   /** per-character exceptions to the chain, exactly as the workbench has them */
   overrides?: Overrides
 }
@@ -412,6 +489,25 @@ function bandChars(req: PosterRequest, bandTop: number, bandBottom: number) {
     .join('')
 }
 
+/**
+ * The ground, whatever it is: a picture if one has been uploaded, otherwise
+ * the chosen texture, otherwise flat paper.
+ *
+ * The paper rect is drawn under a picture as well, because a transparent PNG
+ * and a picture that does not cover the sheet both leave gaps, and a gap
+ * should be the sheet's own colour rather than whatever the canvas was.
+ */
+function ground(req: PosterRequest, w: number, h: number): string {
+  if (req.backdrop) {
+    return (
+      `<rect width="${w}" height="${h}" fill="${req.palette.paper}"/>` +
+      `<image href="${req.backdrop}" x="0" y="0" width="${w}" height="${h}" ` +
+      `preserveAspectRatio="xMidYMid slice"/>`
+    )
+  }
+  return getGround(req.ground).draw(w, h, req.palette)
+}
+
 /** the sheet's own frame, so every layer is cut to the same size */
 const wrap = (body: string, w: number, h: number) =>
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}" ` +
@@ -425,11 +521,7 @@ export function buildPoster(req: PosterRequest): string {
   const { head, foot } = chrome(req, bandTop, footTop)
   const band = layout.id === 'chars' ? bandChars(req, bandTop, bandBottom) : bandWord(req, bandTop, bandBottom)
 
-  return wrap(
-    `<rect width="${w}" height="${h}" fill="${req.palette.paper}"/>` + head + band + foot,
-    w,
-    h,
-  )
+  return wrap(ground(req, w, h) + head + band + foot, w, h)
 }
 
 /**
@@ -457,8 +549,8 @@ export function buildPosterLayers(req: PosterRequest): {
 
   const layout = LAYOUTS.find((l) => l.id === req.layout) ?? LAYOUTS[0]
   const { head, foot } = chrome(req, bandTop, footTop)
-  // the same order the composed sheet uses: paper, head, band, foot
-  const paper = `<rect width="${w}" height="${h}" fill="${req.palette.paper}"/>`
+  // the same order the composed sheet uses: ground, head, band, foot
+  const paper = ground(req, w, h)
 
   if (layout.id === 'chars') {
     return {

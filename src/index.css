@@ -712,6 +712,56 @@ h1 {
   outline-offset: 2px;
 }
 
+/* What the sheet is printed on. Every texture is drawn by the same function
+   that draws the sheet, so the picker cannot show something the sheet will
+   not produce. */
+.grounds {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.ground {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 6px;
+  border-radius: 4px;
+  background: var(--paper);
+  font-size: 11px;
+  color: var(--muted);
+}
+.ground:hover:not(.is-on) {
+  border-color: var(--muted);
+}
+.ground.is-on {
+  border-color: var(--ink);
+  border-width: 2px;
+  padding: 5px;
+  color: var(--ink);
+  font-weight: 500;
+}
+.ground-art {
+  display: block;
+  width: 100%;
+  aspect-ratio: 88 / 58;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+.ground-art svg,
+.ground-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.ground-art.is-upload {
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  color: var(--muted);
+}
+
 /* A finish that is off dims rather than vanishing, so the rail shows what you
    are not using and roughly what turning it on would cost. */
 .finish {

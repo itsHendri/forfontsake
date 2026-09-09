@@ -5,6 +5,8 @@ import {
   buildPoster,
   buildPosterLayers,
   dissolveFor,
+  GROUNDS,
+  getGround,
   settingsLine,
   chainName,
   LAYOUTS,
@@ -311,5 +313,53 @@ describe('when a sheet dissolves and when it cuts', () => {
 
   it('fades the first sheet in, having nothing to cut from', () => {
     expect(dissolveFor(null, post)).toBe(1)
+  })
+})
+
+describe('what the sheet is printed on', () => {
+  const palette = POSTER_PALETTES[0]
+
+  it('draws every ground from the palette, so recolouring carries the texture', () => {
+    for (const g of GROUNDS) {
+      const svg = g.draw(1080, 1350, palette)
+      expect(svg, g.id).toContain(palette.paper)
+      expect(svg, g.id).toContain('width="1080"')
+    }
+  })
+
+  it('gives each ground its own picture', () => {
+    const drawn = GROUNDS.map((g) => g.draw(1080, 1350, palette))
+    expect(new Set(drawn).size).toBe(GROUNDS.length)
+  })
+
+  it('falls through to flat on an unknown id', () => {
+    expect(getGround('nope')).toBe(GROUNDS[0])
+    expect(getGround()).toBe(GROUNDS[0])
+  })
+
+  it('prints the sheet on the ground it was asked for', () => {
+    const base = { ...req('word'), palette }
+    const flat = buildPoster({ ...base, ground: 'flat' })
+    const screen = buildPoster({ ...base, ground: 'screen' })
+    expect(flat).not.toEqual(screen)
+    expect(screen).toContain('ffs-screen')
+  })
+
+  /*
+   * A picture is a louder decision than a texture, so it wins — and the paper
+   * still goes down under it, because a transparent PNG and a picture that
+   * does not cover the sheet both leave gaps, and a gap should be the sheet's
+   * own colour rather than whatever the canvas was.
+   */
+  it('lets an uploaded picture beat the texture, over the paper', () => {
+    const svg = buildPoster({ ...req('word'), palette, ground: 'screen', backdrop: 'data:image/jpeg;base64,AAAA' })
+    expect(svg).toContain('data:image/jpeg;base64,AAAA')
+    expect(svg).toContain('preserveAspectRatio="xMidYMid slice"')
+    expect(svg).not.toContain('ffs-screen')
+    expect(svg.indexOf(palette.paper)).toBeLessThan(svg.indexOf('data:image'))
+  })
+
+  it('puts the same ground under the layered sheet as under the composed one', () => {
+    expect(buildPosterLayers({ ...req('word'), palette, ground: 'grid' }).ground).toContain('ffs-grid')
   })
 })
