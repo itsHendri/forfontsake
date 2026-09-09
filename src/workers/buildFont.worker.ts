@@ -14,6 +14,8 @@
  */
 import { buildTreatedFont, type BuildOptions, type BuildResult } from '../engine/fontio'
 import { extractFont, readLicence, guessReserved, type Extracted } from '../engine/extract'
+import { toWoff, toWoff2, type WebFontFormat } from '../engine/webfont'
+import { brotli, deflate } from '../lib/compress'
 
 export interface BuildRequest {
   kind: 'build'
@@ -23,6 +25,17 @@ export interface BuildRequest {
   seed: number
   alternates: number
   overrides?: BuildOptions['overrides']
+  /**
+   * Which containers to hand back. The font is built once whatever this says
+   * — the web formats are wrappers over the same bytes — so asking for all
+   * three costs a Brotli pass rather than a second treatment run.
+   */
+  formats: WebFontFormat[]
+}
+
+export interface BuiltFile {
+  format: WebFontFormat
+  bytes: ArrayBuffer
 }
 
 export interface ExtractRequest {
@@ -33,7 +46,7 @@ export interface ExtractRequest {
 export type WorkerRequest = BuildRequest | ExtractRequest
 
 export type BuildResponse =
-  | { ok: true; bytes: ArrayBuffer; stats: Omit<BuildResult, 'bytes'> }
+  | { ok: true; files: BuiltFile[]; stats: Omit<BuildResult, 'bytes'> }
   | { ok: false; error: string }
   | { progress: number }
 
@@ -70,25 +83,37 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
     return
   }
 
-  try {
-    const result = buildTreatedFont({
-      source: req.source,
-      chain: req.chain,
-      names: req.names,
-      seed: req.seed,
-      alternates: req.alternates,
-      overrides: req.overrides,
-      onProgress: (fraction) => post({ progress: fraction } as BuildResponse),
-    })
-    const { bytes, ...stats } = result
-    // copied out of the pooled buffer so the transfer cannot hand over more
-    // than the font itself
-    const out = bytes.slice().buffer
-    post({ ok: true, bytes: out, stats } as BuildResponse, [out])
-  } catch (err) {
-    post({
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-    } as BuildResponse)
-  }
+  void (async () => {
+    try {
+      const result = buildTreatedFont({
+        source: req.source,
+        chain: req.chain,
+        names: req.names,
+        seed: req.seed,
+        alternates: req.alternates,
+        overrides: req.overrides,
+        onProgress: (fraction) => post({ progress: fraction } as BuildResponse),
+      })
+      const { bytes, ...stats } = result
+
+      const files: BuiltFile[] = []
+      for (const format of req.formats) {
+        // copied out of the pooled buffer so a transfer cannot hand over more
+        // than the font itself
+        const wrapped =
+          format === 'woff'
+            ? await toWoff(bytes, deflate)
+            : format === 'woff2'
+              ? await toWoff2(bytes, brotli)
+              : bytes.slice()
+        files.push({ format, bytes: wrapped.slice().buffer })
+      }
+      post({ ok: true, files, stats } as BuildResponse, files.map((f) => f.bytes))
+    } catch (err) {
+      post({
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      } as BuildResponse)
+    }
+  })()
 }

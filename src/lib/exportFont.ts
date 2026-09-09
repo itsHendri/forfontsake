@@ -6,6 +6,7 @@
 import BuildWorker from '../workers/buildFont.worker?worker'
 import type { BuildRequest, BuildResponse } from '../workers/buildFont.worker'
 import { violatesReservedNames } from '../engine/fontio'
+import { WEB_FONT_FORMATS, type WebFontFormat } from '../engine/webfont'
 import { loadSource, type FontData } from './glyphData'
 import type { Overrides, Step } from './urlState'
 
@@ -21,6 +22,11 @@ export interface ExportRequest {
   familyName: string
   /** per-character exceptions to the chain — the worker takes them as-is */
   overrides?: Overrides
+  /**
+   * Which containers to come back with. More than one arrives as a zip, since
+   * a browser may only be handed one file per gesture.
+   */
+  formats: WebFontFormat[]
 }
 
 export interface ExportResult {
@@ -30,6 +36,28 @@ export interface ExportResult {
   addedGlyphs: number
   maxPoints: number
   bytes: number
+  /** what came back, for the line under the button */
+  formats: WebFontFormat[]
+}
+
+/** the stem every file of one export shares — no punctuation, as OpenType asks */
+export function fontStem(familyName: string): string {
+  return `${familyName.trim().replace(/[^A-Za-z0-9]+/g, '')}-Regular`
+}
+
+const spec = (id: WebFontFormat) => WEB_FONT_FORMATS.find((f) => f.id === id)!
+
+/**
+ * Several formats at once become a zip, because a click may hand over one file.
+ *
+ * Stored rather than deflated: two of the three are already compressed, and a
+ * second pass over them buys nothing but time.
+ */
+async function zipOf(files: { format: WebFontFormat; bytes: ArrayBuffer }[], stem: string) {
+  const { default: JSZip } = await import('jszip')
+  const zip = new JSZip()
+  for (const f of files) zip.file(`${stem}.${spec(f.format).extension}`, f.bytes)
+  return zip.generateAsync({ type: 'blob', compression: 'STORE' })
 }
 
 /**
@@ -77,16 +105,29 @@ export function buildFont(
           done(() => reject(new Error(msg.error)))
           return
         }
-        const family = req.familyName.trim()
-        done(() =>
-          resolve({
-            blob: new Blob([msg.bytes], { type: 'font/ttf' }),
-            fileName: `${family.replace(/[^A-Za-z0-9]+/g, '')}-Regular.ttf`,
-            glyphCount: msg.stats.glyphCount,
-            addedGlyphs: msg.stats.addedGlyphs,
-            maxPoints: msg.stats.maxPoints,
-            bytes: msg.bytes.byteLength,
-          }),
+        const stem = fontStem(req.familyName)
+        const one = msg.files.length === 1 ? msg.files[0] : null
+        const packed = one
+          ? Promise.resolve({
+              blob: new Blob([one.bytes], { type: spec(one.format).mime }),
+              fileName: `${stem}.${spec(one.format).extension}`,
+            })
+          : zipOf(msg.files, stem).then((blob) => ({ blob, fileName: `${stem}.zip` }))
+
+        void packed.then(
+          ({ blob, fileName }) =>
+            done(() =>
+              resolve({
+                blob,
+                fileName,
+                glyphCount: msg.stats.glyphCount,
+                addedGlyphs: msg.stats.addedGlyphs,
+                maxPoints: msg.stats.maxPoints,
+                bytes: blob.size,
+                formats: msg.files.map((f) => f.format),
+              }),
+            ),
+          (e: unknown) => done(() => reject(e instanceof Error ? e : new Error(String(e)))),
         )
       }
       worker.onerror = (e) => done(() => reject(new Error(e.message || 'the font builder failed')))
@@ -98,6 +139,7 @@ export function buildFont(
         seed: req.seed,
         alternates: req.alternates,
         overrides: req.overrides,
+        formats: req.formats,
         names: {
           familyName: req.familyName.trim(),
           styleName: 'Regular',

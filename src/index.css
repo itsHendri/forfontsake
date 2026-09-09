@@ -207,6 +207,13 @@ body {
   align-items: center;
   gap: 8px;
 }
+/* the wrapper, next to the button that hands it over */
+.format-pick {
+  width: auto;
+  flex: none;
+  padding: 7px 8px;
+  font-size: 13px;
+}
 .export-problem {
   margin: 8px 0 0;
   font-size: 12px;

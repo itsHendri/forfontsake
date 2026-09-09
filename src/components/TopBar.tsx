@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { buildFont, nameProblem, save, suggestName, type ExportResult } from '../lib/exportFont'
+import { WEB_FONT_FORMATS, type WebFontFormat } from '../engine/webfont'
 import type { FontData, Library } from '../lib/glyphData'
 import { FAMILY_LABEL, hasRandomness, type Treatment } from '../engine/treatments/registry'
 import { FONT_ACCEPT } from '../lib/importFont'
@@ -57,6 +58,28 @@ type State =
 const kb = (n: number) => `${Math.round(n / 1024)} KB`
 
 /**
+ * What you can leave with. TTF is the font you install; the two web formats
+ * are the same font in a smaller wrapper, which is what a stylesheet wants —
+ * and asking for all three is one build, since they are containers over one
+ * set of bytes rather than three exports.
+ */
+const ALL: WebFontFormat[] = ['ttf', 'woff2', 'woff']
+const CHOICES: { id: string; formats: WebFontFormat[]; label: string; note: string }[] = [
+  ...WEB_FONT_FORMATS.map((f) => ({
+    id: f.id,
+    formats: [f.id],
+    label: `.${f.extension}`,
+    note: f.note,
+  })),
+  {
+    id: 'all',
+    formats: ALL,
+    label: 'all three',
+    note: 'A zip of all three: the one you install, and the two a website serves.',
+  },
+]
+
+/**
  * The bar the workbench is worked from: what the font is made of, what it is
  * called, and the three ways of leaving with it.
  *
@@ -74,6 +97,8 @@ export function TopBar(p: Props) {
   const [name, setName] = useState(() => suggestName(p.font, p.chainName))
   const [touched, setTouched] = useState(false)
   const [state, setState] = useState<State>({ phase: 'idle' })
+  const [choiceId, setChoiceId] = useState('ttf')
+  const choice = CHOICES.find((c) => c.id === choiceId) ?? CHOICES[0]
   const live = useRef(true)
   const bar = useRef<HTMLElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -112,10 +137,11 @@ export function TopBar(p: Props) {
     if (!touched) setName(suggestName(p.font, p.chainName))
   }, [p.fontId, p.chainName, p.font, touched])
 
-  // any change to the geometry makes a finished build stale
+  // any change to the geometry — or to what you asked for — makes a finished
+  // build stale, and "Download again" would otherwise hand over the old one
   useEffect(() => {
     setState((s) => (s.phase === 'done' || s.phase === 'failed' ? { phase: 'idle' } : s))
-  }, [p.fontId, p.chain, p.seed, p.alternates, p.overrides])
+  }, [p.fontId, p.chain, p.seed, p.alternates, p.overrides, choiceId])
 
   const problem = nameProblem(name, p.font)
   const busy = state.phase === 'building'
@@ -136,6 +162,7 @@ export function TopBar(p: Props) {
           alternates: p.alternates,
           overrides: p.overrides,
           familyName: name,
+          formats: choice.formats,
         },
         (progress) => live.current && setState({ phase: 'building', progress }),
       )
@@ -153,7 +180,7 @@ export function TopBar(p: Props) {
   const label = !busy
     ? state.phase === 'done' && !state.saved
       ? 'Download again'
-      : 'Download .ttf'
+      : `Download ${choice.label}`
     : state.progress < 1
       ? `Treating… ${Math.round(state.progress * 100)}%`
       : 'Assembling…'
@@ -272,12 +299,34 @@ export function TopBar(p: Props) {
         <button type="button" onClick={p.onShare}>
           Share
         </button>
+        {/*
+          The web formats are the same font in a smaller container — the tables
+          inside are byte for byte the ones the sanitiser accepted — so this is
+          a choice of wrapper, not of build.
+        */}
+        <label className="visually-hidden" htmlFor="font-format">
+          File format
+        </label>
+        <select
+          id="font-format"
+          className="format-pick"
+          value={choiceId}
+          onChange={(e) => setChoiceId(e.target.value)}
+        >
+          {CHOICES.map((c) => (
+            <option key={c.id} value={c.id} title={c.note}>
+              {c.label}
+            </option>
+          ))}
+        </select>
         {/* the tooltip is the meta line, hung off the control it describes */}
         <span className="with-tip">
           <button type="button" className="save" onClick={run} disabled={busy || !!problem}>
             {label}
           </button>
           <span className="tip" role="tooltip">
+            {choice.note}
+            <br />
             {p.font.label} · {p.chainName} ·{' '}
             {varies ? `${p.alternates} cuts on the Latin letters` : 'one cut per letter'} from{' '}
             {p.font.sourceGlyphs.toLocaleString()} glyphs · OFL

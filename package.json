@@ -18,6 +18,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "brotli-wasm": "^3.0.1",
     "clipper2-ts": "^2.0.1-18",
     "d3-delaunay": "^6.0.4",
     "font-flux-js": "^2.7.2",
