@@ -1820,9 +1820,22 @@ export function Poster(p: Props) {
                   <div className="ctl-head">
                     <label htmlFor="word-spin">Turn</label>
                     <span className="stepper">
+                      {/* the same divided rectangle the dials use, so a number
+                          you can type reads the same wherever it appears */}
+                      <button
+                        type="button"
+                        className="step-btn"
+                        aria-label="Turn back fifteen degrees"
+                        onClick={() =>
+                          setWordT((t) => ({ ...t, rotate: (((t.rotate ?? 0) - 15 + 360) % 360) }))
+                        }
+                      >
+                        −
+                      </button>
                       <input
                         id="word-spin"
                         type="number"
+                        className={(wordT.rotate ?? 0) === 0 ? 'ctl-value is-default' : 'ctl-value'}
                         min={0}
                         max={359}
                         step={15}
@@ -1834,7 +1847,16 @@ export function Poster(p: Props) {
                           }))
                         }
                       />
-                      <span className="stepper-unit">°</span>
+                      <button
+                        type="button"
+                        className="step-btn"
+                        aria-label="Turn on fifteen degrees"
+                        onClick={() =>
+                          setWordT((t) => ({ ...t, rotate: (((t.rotate ?? 0) + 15) % 360) }))
+                        }
+                      >
+                        +
+                      </button>
                     </span>
                   </div>
                   <p className="note">

@@ -1543,6 +1543,7 @@ h1 {
 .ctl-value {
   /* four digits — a clipped seed is a wrong seed */
   width: 5.6ch;
+  -moz-appearance: textfield;
   padding: 0 4px;
   font: inherit;
   font-family: 'Roboto Mono', ui-monospace, monospace;
@@ -1556,6 +1557,13 @@ h1 {
 }
 .ctl-value.is-default {
   color: var(--muted);
+}
+/* a number field is still a number field: the browser's own spinners would be a
+   second pair of steppers inside the one this already is */
+.ctl-value::-webkit-outer-spin-button,
+.ctl-value::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
 }
 .ctl-value:focus-visible {
   outline: 2px solid var(--mark);
