@@ -408,6 +408,20 @@ export interface WordBox {
   h: number
 }
 
+/**
+ * The word's box as it looks mid-gesture, before the outlines have caught up.
+ *
+ * Resizing is shown on the GPU while the hand is down and baked into the
+ * geometry on release, so between those two moments the box the sheet was
+ * built with is the wrong size for the frame drawn over it. It grows about its
+ * own centre, exactly as the placement does.
+ */
+export function liveBox(box: WordBox, ratio: number): WordBox {
+  const cx = box.x + box.w / 2
+  const cy = box.y + box.h / 2
+  return { x: cx - (box.w * ratio) / 2, y: cy - (box.h * ratio) / 2, w: box.w * ratio, h: box.h * ratio }
+}
+
 function placeWord(req: PosterRequest, bandTop: number, bandBottom: number) {
   const word = drawWord(req)
   const { w: sheetW } = getFormat(req.format)

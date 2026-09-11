@@ -123,6 +123,15 @@ uniform sampler2D uPrevGround;
 uniform sampler2D uPrevWord;
 uniform vec2 uOffset;      // the word's drag, in uv
 uniform vec2 uPrevOffset;
+// What the word has been scaled and turned by *since* the geometry under it
+// was last rebuilt. A gesture moves these; letting go bakes them back into the
+// outlines and returns them to (1, 0). Both are about the word's own centre,
+// which arrives as uPivot in uv.
+uniform vec3 uWordT;       // scale, turn in radians, unused
+uniform vec3 uPrevWordT;
+uniform vec2 uPivot;
+uniform vec2 uPrevPivot;
+uniform vec2 uSheet;       // the sheet in pixels, to undo uv's aspect
 uniform float uFade;       // 1 at the moment of a rebuild, falling to 0
 // One flag and one set of dials per finish, so any combination can be on at
 // once. Ordered by what they do rather than by preference: the two that
@@ -140,18 +149,32 @@ vec4 wordAt(sampler2D t, vec2 p) {
   return texture(t, p);
 }
 
+/**
+ * Where to read the word from, to show it turned and resized without the
+ * outlines having been rebuilt.
+ *
+ * Done in sheet pixels rather than in uv: uv is not square, so a rotation
+ * applied in it shears the letters by the sheet's own aspect ratio.
+ */
+vec2 wordUv(vec2 p, vec2 off, vec2 pivot, vec3 t) {
+  vec2 q = (p - off - pivot) * uSheet;
+  float c = cos(-t.y), s = sin(-t.y);
+  q = vec2(c * q.x - s * q.y, s * q.x + c * q.y) / max(t.x, 0.0001);
+  return pivot + q / uSheet;
+}
+
 /** the sheet as drawn: the word laid over the ground */
-vec3 sheet(sampler2D g, sampler2D w, vec2 off, vec2 p) {
+vec3 sheet(sampler2D g, sampler2D w, vec2 off, vec2 pivot, vec3 t, vec2 p) {
   vec3 base = texture(g, p).rgb;
-  vec4 word = wordAt(w, p - off);
+  vec4 word = wordAt(w, wordUv(p, off, pivot, t));
   return mix(base, word.rgb, word.a);
 }
 
 /** the sheet including the cross-fade that turns a rebuild into a morph */
 vec3 sheetFaded(vec2 p) {
-  vec3 now = sheet(uGround, uWord, uOffset, p);
+  vec3 now = sheet(uGround, uWord, uOffset, uPivot, uWordT, p);
   if (uFade <= 0.0) return now;
-  vec3 was = sheet(uPrevGround, uPrevWord, uPrevOffset, p);
+  vec3 was = sheet(uPrevGround, uPrevWord, uPrevOffset, uPrevPivot, uPrevWordT, p);
   return mix(now, was, uFade);
 }
 
@@ -240,6 +263,12 @@ export interface FinishView {
   setSheet(ground: string, word: string | null): Promise<void>
   /** the word's drag, in sheet units — free, because it is only a uniform */
   setOffset(dx: number, dy: number): void
+  /**
+   * How far the word has been resized and turned since the sheet under it was
+   * built, about a pivot in sheet units. (1, 0) is "the geometry already says
+   * this", which is what a rebuild restores.
+   */
+  setWordTransform(scale: number, rotateDeg: number, pivotX: number, pivotY: number): void
   /** which finishes are on, and at what — any combination, applied in order */
   setFinishes(state: FinishState): void
   /** 0 to 1, how much of the previous sheet still shows */
@@ -300,6 +329,11 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
     offset: u('uOffset'),
     prevOffset: u('uPrevOffset'),
     fade: u('uFade'),
+    wordT: u('uWordT'),
+    prevWordT: u('uPrevWordT'),
+    pivot: u('uPivot'),
+    prevPivot: u('uPrevPivot'),
+    sheet: u('uSheet'),
     on: u('uOn'),
     scan: u('uScan'),
     riso: u('uRiso'),
@@ -311,9 +345,17 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
   gl.uniform1i(loc.prevGround, 2)
   gl.uniform1i(loc.prevWord, 3)
   gl.uniform2f(loc.px, 1 / canvas.width, 1 / canvas.height)
+  gl.uniform2f(loc.sheet, sheetW, sheetH)
 
   let offset: [number, number] = [0, 0]
   let prevOffset: [number, number] = [0, 0]
+  // (scale, turn in radians) and the centre they are about, in uv. The
+  // defaults say "the geometry is already what you see", so a view nobody
+  // touches draws exactly what it drew before this existed.
+  let wordT: [number, number, number] = [1, 0, 0]
+  let prevWordT: [number, number, number] = [1, 0, 0]
+  let pivot: [number, number] = [0.5, 0.5]
+  let prevPivot: [number, number] = [0.5, 0.5]
   let fade = 0
   let finishes: FinishState = finishState()
   let dead = false
@@ -350,6 +392,11 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
       upload(tex.prevGround, liveGround)
       upload(tex.prevWord, liveWord)
       prevOffset = [offset[0], offset[1]]
+      // the sheet arriving has the gesture baked into it, so the fade runs
+      // from where the last one was left to a word that needs no transform
+      prevWordT = [wordT[0], wordT[1], 0]
+      prevPivot = [pivot[0], pivot[1]]
+      wordT = [1, 0, 0]
       upload(tex.ground, g)
       upload(tex.word, w)
       liveGround = g
@@ -357,6 +404,10 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
     },
     setOffset(dx, dy) {
       offset = [dx / sheetW, dy / sheetH]
+    },
+    setWordTransform(scale, rotateDeg, pivotX, pivotY) {
+      wordT = [scale, (rotateDeg * Math.PI) / 180, 0]
+      pivot = [pivotX / sheetW, pivotY / sheetH]
     },
     setFinishes(next) {
       finishes = next
@@ -378,6 +429,10 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
       gl.uniform2f(loc.offset, offset[0], offset[1])
       gl.uniform2f(loc.prevOffset, prevOffset[0], prevOffset[1])
       gl.uniform1f(loc.fade, fade)
+      gl.uniform3f(loc.wordT, ...wordT)
+      gl.uniform3f(loc.prevWordT, ...prevWordT)
+      gl.uniform2f(loc.pivot, ...pivot)
+      gl.uniform2f(loc.prevPivot, ...prevPivot)
       // the uniforms are positional, so the order here is FINISHES' order,
       // which is the order the shader applies them in
       const [scan, riso, grain] = FINISHES

@@ -8,6 +8,7 @@ import {
   getGround,
   GROUNDS,
   LAYOUTS,
+  liveBox,
   snapLines,
   POSTER_PALETTES,
   type PosterLayout,
@@ -143,6 +144,14 @@ const MAX_RECORD_SECONDS = 15
 // tldraw eight; the middle of that is what this is.
 const SNAP_PX = 6
 
+/**
+ * How long a resize or a turn may stay a shader uniform before the outlines
+ * are rebuilt under it. Long enough that a slider's whole sweep is one
+ * rebuild, short enough that letting go feels like the letters sharpening
+ * rather than a second thought.
+ */
+const BAKE_MS = 150
+
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
 // Fourteen bars, spaced so the quiet end has resolution — speech sits low and
@@ -206,7 +215,18 @@ export function Poster(p: Props) {
    */
   const [soundNote, setSoundNote] = useState<string | null>(null)
   const [exportNote, setExportNote] = useState<string | null>(null)
+  /*
+   * Two transforms, and the difference between them is what the GPU is doing.
+   *
+   * `wordT` is what the reader is doing right now; `bakedT` is what the
+   * outlines on the sheet were last built with. A resize or a turn shows as a
+   * shader uniform while the hand is down — the whole treatment chain would
+   * otherwise re-run on every pointermove, tens of milliseconds each on the
+   * heavy chains — and is baked into the geometry when it lets go, which is
+   * what makes the letters crisp again and what the export reads.
+   */
   const [wordT, setWordT] = useState<WordTransform>(IDENTITY)
+  const [bakedT, setBakedT] = useState<WordTransform>(IDENTITY)
 
   const sheetRef = useRef<HTMLDivElement>(null)
   /*
@@ -440,11 +460,11 @@ export function Poster(p: Props) {
       format: format.id,
       palette,
       number,
-      wordTransform: wordT,
+      wordTransform: bakedT,
       ground: groundId,
       backdrop,
     }),
-    [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, layout.id, format.id, palette, number, wordT, groundId, backdrop],
+    [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, layout.id, format.id, palette, number, bakedT, groundId, backdrop],
   )
 
   /*
@@ -483,7 +503,16 @@ export function Poster(p: Props) {
   // The composed sheet is what the SVG download and the clipboard hand over,
   // and it is built only when one of them is pressed: composing it alongside
   // the layers would run the whole treatment chain twice per rebuild.
-  const composed = () => buildPoster(sheetReq)
+  /*
+   * What an export reads.
+   *
+   * A gesture or the size field can be a shader uniform at the moment Download
+   * is pressed — the geometry under it is a beat behind on purpose. An export
+   * is not allowed to be: it builds from the live transform, which is the same
+   * request when nothing is mid-flight.
+   */
+  const exactReq = wordT === bakedT ? sheetReq : { ...sheetReq, wordTransform: wordT }
+  const composed = () => buildPoster(exactReq)
 
   const stem = `forfontsake-${p.chain.map((c) => c.id).join('-')}-${layout.id}-${String(number).padStart(3, '0')}`
 
@@ -503,6 +532,73 @@ export function Poster(p: Props) {
   // bumped whenever a view is made, so the sheet is handed to the new one
   // rather than waiting on layers that may never change again
   const [viewAge, setViewAge] = useState(0)
+
+  /*
+   * The sheet draws when something has changed, and keeps drawing only while
+   * something is still changing.
+   *
+   * It used to be one unconditional sixty-a-second loop for as long as the
+   * room was open, which on a still sheet with no finishes and no sound is
+   * sixty full-screen passes a second to produce the same pixels. The frames
+   * that must keep coming are the fade after a rebuild, a take being recorded,
+   * and sound driving the dials — so those three re-arm it and nothing else
+   * does.
+   */
+  const drawReq = useRef<number | null>(null)
+  const lastDraw = useRef(performance.now())
+  const keepDrawing = useRef(false)
+  const requestDraw = useCallback(() => {
+    if (drawReq.current !== null) return
+    const tick = (now: number) => {
+      drawReq.current = null
+      // clamped: a tab that was away for a minute must not swallow the fade
+      const dt = Math.min(0.1, (now - lastDraw.current) / 1000)
+      lastDraw.current = now
+      if (fadeRef.current > 0) {
+        // a slower drift earns a longer dissolve, as the CSS version did
+        fadeRef.current = Math.max(
+          0,
+          fadeRef.current - dt / (0.35 / Math.max(0.35, soundSpeedRef.current)),
+        )
+      }
+      const view = viewRef.current
+      if (view) {
+        view.setFade(fadeRef.current)
+        view.draw()
+      }
+      if (fadeRef.current > 0 || keepDrawing.current) drawReq.current = requestAnimationFrame(tick)
+    }
+    lastDraw.current = performance.now()
+    drawReq.current = requestAnimationFrame(tick)
+  }, [])
+
+  useEffect(() => {
+    keepDrawing.current = recording || soundSource !== null
+    if (keepDrawing.current) requestDraw()
+  }, [recording, soundSource, requestDraw])
+
+  /*
+   * The size field bakes when it stops moving.
+   *
+   * A gesture knows when it is over — the pointer comes up. A range input does
+   * not: React gives it an event a frame and no "done", so the geometry
+   * catches up a beat after the last one rather than on every one. Any gesture
+   * that ends first bakes it sooner, which is why this only ever moves the
+   * bake earlier.
+   */
+  useEffect(() => {
+    if (wordT === bakedT) return
+    const t = setTimeout(() => setBakedT(wordT), BAKE_MS)
+    return () => clearTimeout(t)
+  }, [wordT, bakedT])
+
+  useEffect(
+    () => () => {
+      if (drawReq.current !== null) cancelAnimationFrame(drawReq.current)
+      drawReq.current = null
+    },
+    [],
+  )
 
   /*
    * Creation and teardown both live on the ref, deliberately.
@@ -539,6 +635,8 @@ export function Poster(p: Props) {
   // A new sheet, and the fade over the old one that makes it a morph — except
   // where the reader asked for a different picture rather than a moving one.
   const lastPicture = useRef<{ layout: string; format: string } | null>(null)
+  /** the transform the textures now on the GPU were drawn with */
+  const gpuT = useRef<WordTransform>(IDENTITY)
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
@@ -549,10 +647,39 @@ export function Poster(p: Props) {
     const picture = { layout: layout.id, format: format.id }
     const fade = dissolveFor(lastPicture.current, picture)
     lastPicture.current = picture
+    const built = sheetReq.wordTransform
     void view.setSheet(layers.ground, layers.word).then(() => {
+      gpuT.current = built
       fadeRef.current = fade
+      requestDraw()
     })
+    // sheetReq is what produced these layers; the guard above is on the layers
+    // themselves, so a request that changed nothing never gets this far
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layers, viewAge, layout.id, format.id])
+
+  /*
+   * The word, resampled rather than rebuilt.
+   *
+   * Whatever the hand has done since the outlines were drawn goes to the
+   * shader as a scale and an angle about the word's own centre. When the two
+   * agree — which is every moment except a gesture in flight — this is the
+   * identity and the sheet is exactly what the geometry says.
+   */
+  useEffect(() => {
+    const view = viewRef.current
+    const box = layers.wordBox
+    if (!view || !box) return
+    const built = gpuT.current
+    view.setWordTransform(
+      wordT.scale / (built.scale || 1),
+      (wordT.rotate ?? 0) - (built.rotate ?? 0),
+      box.x + box.w / 2,
+      box.y + box.h / 2,
+    )
+    view.setOffset(wordT.dx, wordT.dy)
+    requestDraw()
+  }, [wordT, layers.wordBox, viewAge, requestDraw])
 
   /**
    * A picture you brought, cut down to the sheet before it is kept.
@@ -587,32 +714,8 @@ export function Poster(p: Props) {
   const anyFinish = FINISHES.some((f) => finishes[f.id]?.on)
   useEffect(() => {
     viewRef.current?.setFinishes(finishes)
-  }, [finishes])
-
-  // One loop while the sheet is open. It is a full-screen quad over 1080×1350 —
-  // a rounding error next to the geometry that produced the sheet — and having
-  // one loop means the fade, the drag and the dials all reach the screen the
-  // same way.
-  useEffect(() => {
-    let raf = 0
-    let last = performance.now()
-    const tick = (now: number) => {
-      const dt = (now - last) / 1000
-      last = now
-      if (fadeRef.current > 0) {
-        // a slower drift earns a longer dissolve, as the CSS version did
-        fadeRef.current = Math.max(0, fadeRef.current - dt / (0.35 / Math.max(0.35, soundSpeed)))
-      }
-      const view = viewRef.current
-      if (view) {
-        view.setFade(fadeRef.current)
-        view.draw()
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [soundSpeed])
+    requestDraw()
+  }, [finishes, requestDraw])
 
   const finishRecording = async () => {
     const recorder = recorderRef.current
@@ -686,7 +789,10 @@ export function Poster(p: Props) {
       try {
         shot.setFinishes(finishes)
         shot.setOffset(wordT.dx, wordT.dy)
-        await shot.setSheet(layers.ground, layers.word)
+        // built from the live transform, not the sheet on screen: a resize
+        // still settling would otherwise go out at the size before it
+        const exact = exactReq === sheetReq ? layers : buildPosterLayers(exactReq)
+        await shot.setSheet(exact.ground, exact.word)
         shot.draw()
         const blob = await new Promise<Blob>((resolve, reject) =>
           shot.canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('could not draw the sheet'))), 'image/png'),
@@ -709,12 +815,19 @@ export function Poster(p: Props) {
     return el && el.clientWidth ? px * (format.w / el.clientWidth) : px
   }
 
-  /** the word's rectangle on the sheet, drag included — what the frame draws on */
+  /**
+   * The word's rectangle on the sheet, drag included — what the frame draws on.
+   *
+   * Grown by however far the live size has got ahead of the built one, so the
+   * handles stay on the letters through a resize the geometry has not caught
+   * up with yet.
+   */
   const framedBox = useMemo(() => {
     const box = layers.wordBox
     if (!box) return null
-    return { x: box.x + wordT.dx, y: box.y + wordT.dy, w: box.w, h: box.h }
-  }, [layers.wordBox, wordT.dx, wordT.dy])
+    const grown = liveBox(box, wordT.scale / (bakedT.scale || 1))
+    return { x: grown.x + wordT.dx, y: grown.y + wordT.dy, w: grown.w, h: grown.h }
+  }, [layers.wordBox, wordT.dx, wordT.dy, wordT.scale, bakedT.scale])
 
   /** a client point in sheet units */
   const toPoint = (clientX: number, clientY: number) => {
@@ -862,6 +975,7 @@ export function Poster(p: Props) {
     if (drag.kind === 'move') {
       // free: the offset is a uniform, so nothing is rebuilt until release
       viewRef.current?.setOffset(next.dx, next.dy)
+      requestDraw()
       setGuides(settle(drag.base.dx + toSheet(e.clientX - drag.startX), drag.base.dy + toSheet(e.clientY - drag.startY)).lit)
       moveRef.current = next
     } else {
@@ -870,6 +984,8 @@ export function Poster(p: Props) {
         drag.kind === 'rotate' && e.shiftKey
           ? { ...next, rotate: Math.round((next.rotate ?? 0) / 15) * 15 }
           : next
+      // free while the hand is down: the sheet is resampled on the GPU and the
+      // outlines are rebuilt once, on release
       setWordT(snapped)
     }
   }
@@ -882,8 +998,14 @@ export function Poster(p: Props) {
     if (drag.kind === 'move') {
       const next = moveRef.current ?? gestureAt(e.clientX, e.clientY)
       moveRef.current = null
-      if (next) setWordT(next)
+      if (next) {
+        setWordT(next)
+        setBakedT(next)
+      }
+      return
     }
+    // the letters go back to being outlines rather than a resampled picture
+    setBakedT(wordT)
   }
 
   const moved = wordT.dx !== 0 || wordT.dy !== 0 || wordT.scale !== 1 || (wordT.rotate ?? 0) !== 0

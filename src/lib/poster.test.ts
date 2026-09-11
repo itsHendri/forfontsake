@@ -7,6 +7,7 @@ import {
   dissolveFor,
   GROUNDS,
   getGround,
+  liveBox,
   snapLines,
   settingsLine,
   chainName,
@@ -362,6 +363,40 @@ describe('what the sheet is printed on', () => {
 
   it('puts the same ground under the layered sheet as under the composed one', () => {
     expect(buildPosterLayers({ ...req('word'), palette, ground: 'grid' }).ground).toContain('ffs-grid')
+  })
+})
+
+describe('the box mid-gesture', () => {
+  const box = { x: 100, y: 200, w: 400, h: 120 }
+
+  it('is the built box when nothing has moved since', () => {
+    expect(liveBox(box, 1)).toEqual(box)
+  })
+
+  it('grows about its own centre, so the handles stay on the letters', () => {
+    const grown = liveBox(box, 2)
+    expect(grown.w).toBe(800)
+    expect(grown.h).toBe(240)
+    expect(grown.x + grown.w / 2).toBe(box.x + box.w / 2)
+    expect(grown.y + grown.h / 2).toBe(box.y + box.h / 2)
+  })
+
+  it('shrinks about it too', () => {
+    const small = liveBox(box, 0.5)
+    expect(small.w).toBe(200)
+    expect(small.x + small.w / 2).toBe(box.x + box.w / 2)
+  })
+
+  it('agrees with what the sheet draws once the size is baked in', () => {
+    // the same 1.5× shown as a uniform and then built into the geometry has to
+    // put the frame in the same place, or letting go moves the handles
+    const built = buildPosterLayers({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 1.5 } })
+    const plain = buildPosterLayers({ ...req('word'), wordTransform: { dx: 0, dy: 0, scale: 1 } })
+    const shown = liveBox(plain.wordBox!, 1.5)
+    expect(shown.w).toBeCloseTo(built.wordBox!.w, 6)
+    expect(shown.h).toBeCloseTo(built.wordBox!.h, 6)
+    expect(shown.x).toBeCloseTo(built.wordBox!.x, 6)
+    expect(shown.y).toBeCloseTo(built.wordBox!.y, 6)
   })
 })
 
