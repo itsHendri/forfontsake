@@ -1471,6 +1471,195 @@ What the drawings settled, so it does not get re-argued from scratch:
 
 Bands 10 and 11 in the Figma file carry all of it.
 
+## The lag was never the engine
+
+Hendri said the product felt slow and laggy. The reflex answer is "the treatment chain is
+expensive", and it is — Grit takes 42 ms over a word, a stack of two 146. But a Halftone
+word is 4 ms, and a Halftone dial drag was blocking the main thread for 1.71 seconds across
+a sixty-step sweep. The engine was not what was being paid for.
+
+What was: **work scheduled between input events that React cannot abandon once it starts.**
+`useDeferredValue` on the glyph grid's key does exactly what it says — it renders the grid at
+a lower priority — but the sixty-nine-glyph `renderGlyphSet` inside the memo is one
+uninterruptible task, so every tick of the drag paid for the whole face. The fix is not
+finer scheduling, it is *not starting*: a trailing timer runs it once when the value settles,
+and the grid says it is behind by going pale. Fifty-two milliseconds on Halftone, 1.7
+seconds on a stack, spent once instead of sixty times.
+
+Three more of the same shape. **The size ladder wrote the word's forty-kilobyte path into
+the DOM seven times**, once per rung, and the browser parsed and rasterised each
+independently; it writes it once into `defs` now and points seven `<use>` at it. (The
+carrier `<svg>` is zero-sized rather than `display: none`, which stops Safari rendering
+referenced content, and the fill moves to the `svg` because a `<use>` inherits into its
+shadow tree rather than matching `.fall-ink path`.) **The shelf's twelve thumbnails were a
+memo in `App`**, so pressing Save re-treated twelve words while you were still at the bench,
+and so did loading the page; they are drawn by the room that shows them. And
+**`history.replaceState` ran per input event**, which is also a correctness bug: Safari
+throws `SecurityError` past a hundred calls in thirty seconds, which a drag reached in ten,
+and a throw inside an effect unmounts the tree.
+
+### Two transforms, and the difference between them is what the GPU is doing
+
+Dragging the word was already free, because the offset is a shader uniform over a texture of
+the sheet. Resizing and turning were not: every `pointermove` and every slider tick re-ran
+the whole chain and re-uploaded two 1080×1350 textures. A comment in `poster.ts` claimed
+resizing was debounced. It was not, and had not been for some time.
+
+So the word now has a live transform and a baked one. A gesture moves the live one, which
+goes to the shader as a scale and an angle about the word's own centre; letting go bakes it
+into the geometry, which is what makes the letters outlines again rather than a resampled
+picture. The inverse map is done in **sheet pixels rather than in uv**, because uv is not
+square and a rotation applied in it shears the letters by the sheet's aspect ratio.
+
+That approximation has to be checked against the thing it approximates, so it was: a 40°
+turn and a 1.5× resize shown as uniforms differ from the same values built into the outlines
+by 0.4 and 0.98 of a channel out of 255, where the change itself is 7.3 and 9.3. A sixty-step
+sweep of either control went from 31.7 and 22.5 ms a step to 16.3 — one frame, so both are
+now waiting on the display rather than on the engine.
+
+The same pass found the room drawing **sixty full-screen passes a second for as long as it
+was open**, on a still sheet with no finishes and no sound. It draws when something changes
+now, and re-arms only while the cross-fade is running, a take is recording, or sound is
+driving the dials.
+
+### A colour is not a reason to re-treat a word
+
+The sheet is memoised on the palette. So are the two layout thumbnails, one of which is the
+character set. Dragging through the colour picker therefore re-ran the chain over the word
+*and* over sixty-nine glyphs, twice, per event: 131 ms a step and 4.7 seconds of blocked main
+thread over a forty-step sweep.
+
+The outlines are cached now on exactly what they depend on — font, chain, seed, overrides,
+word — and nothing else about a sheet touches geometry. The character set is a getter, so
+the word layout never treats glyphs it is not showing. A colour is 25.9 ms a step with no
+long task at all; Recolour and switching to the character set went to zero, the latter
+because its outlines were already made for the thumbnail beside it.
+
+One trap worth writing down: the picker must keep its own shown value. A controlled
+`<input type="color">` whose `value` prop is a frame behind gets snapped back to the old
+colour by the render in between, and the swatch fights the hand dragging it.
+
+**What is deliberately still slow**: opening Compose, and Randomise. Both are new outlines,
+and no amount of memoising makes new outlines cheaper. That is the worker's job, and the
+worker is the next round — scoped in STATE.
+
+## Keeping a font is not one of the ways out
+
+`Save font` sat in the action bar beside Compose and Download, which are the two things that
+hand you a file. It does not hand you anything: it keeps the thing you have named. Every
+tool that has both puts the favourite beside the file's name and the outputs at the far end
+of the bar — Canva, Jitter and Framer all do, and it is the same reasoning as the name field
+being the page title.
+
+So it is a heart on the name's own line. Outline when the font is not kept, filled when it
+is, and pressing it again forgets — which the button could not express at all, and which
+meant there was no way to take a font off the shelf without going into the room. (Pressing
+`Save font` twice quietly moved the entry to the front, because a duplicate would have been
+worse. A mark that can be turned on can be turned off.)
+
+`Saved · N` goes up a level into the mark's row. It is navigation rather than an action, and
+the heart is what the hand wants while working. The count stays — a door with a number on it
+is the difference between a feature you remember having and one you go looking for — but the
+door is hidden rather than disabled at zero, because a dead button in the row above the bar
+is furniture.
+
+## One verb, and the choice underneath it
+
+Download was a select and then a button: pick the wrapper, then press the verb. That is a
+question asked of everybody, including everybody who is not leaving. No tool in the category
+does it that way — Canva, Adobe Express and Figma all make Download the verb and hang the
+format under it, because the choice only exists once you have decided to download.
+
+So one button, four rows, and the line that used to ride the button as a tooltip is written
+against the row it describes. It said the same thing in two places before — as an `<option
+title>` and as the tip — and neither was where you were looking.
+
+`Menu.tsx` is the first popover in this project, so it is also the pattern: `aria-expanded`,
+`menuitem` rows, arrows and Home/End, Escape to close and hand the button its focus back, a
+press outside to dismiss. Compose's export takes the same control; in video there is nothing
+to choose, so it stays a button.
+
+## You should be able to click the thing you can see
+
+Four notes from Hendri's walk through Compose, and they are all the same note: the rail was
+the only way in.
+
+**The sheet had no row.** It was the state of having nothing selected, and the only way back
+to it was pressing the highlighted layer a second time. Nothing said so, so the layout
+picker and the two rolls read as gone the moment you touched a layer. It is a row at the
+foot of its own list now. Escape has the same shape of fix: it used to leave the room
+whatever you were doing, so the reflex for "close this panel" threw away the sheet. It backs
+out one step at a time.
+
+**Clicking the sheet selects what you clicked.** The canvas is WebGL, so there is nothing in
+the document to hit; `sheetParts` derives the caption's six marks as rectangles from the same
+numbers `chrome()` draws them with, which is why the thing you click and the thing you see
+cannot drift apart. The rail names the mark you picked and which of its two swatches owns
+it. Order is the word, then the marks, then the ground — the order they are stacked in.
+
+Nothing on the sheet can be *dragged* except the word, and that is on purpose: this room is
+a way to preview a font, not a second surface to design one on.
+
+**A turn is a handle with a number beside it, not a track.** Figma, Canva and tldraw all turn
+from a handle and keep a field for the angle you can name; none of them has a rotation
+slider. So the slider is gone and the field stays. The snapping is inverted from those
+tools, though — **on by default, Shift to let go** — because a word a degree and a half off
+level on a sheet with two rules ruled across it is a mistake rather than a choice, and the
+tool should be the one holding it straight. The pull is Konva's shape rather than a coarser
+scale: 43° lands on 45, 37° stays at 37, and the square angles get a wider pull because
+upright, sideways and upside down are worth landing exactly on.
+
+## Three grounds, one of which was not doing anything
+
+**Wash is cut.** A vertical gradient is the one thing on that list that paper does not do.
+
+**Screen halved its pitch.** At eighteen units a dot was nearly four pixels on a sheet shown
+at 852, which reads as spots on the paper rather than as a screen. Finer dots carry more ink
+for the same weight, so the opacity came up as the radius came down.
+
+**Tooth was doing nothing, for three reasons at once**, and Hendri was right that it looked
+identical to Flat. Its `baseFrequency` was 0.85 — a period of 1.2 sheet units, under a device
+pixel once a 1080 sheet is drawn at the 850-odd it is shown at, so it averaged out.
+`feTurbulence` also writes a random *alpha* averaging about a half, and `feColorMatrix
+saturate` does not touch alpha, so the whole thing came out as one uniform 14%-of-a-half
+veil. And it never took the palette, so it was the only ground that did not recolour with
+the sheet. Measured against flat paper on the live site: 3.3 darker, and *no more variation
+at all* — a dimmer, not a texture.
+
+It is a coarse fractal noise now, its alpha banded so only the tail takes any ink, flooded
+with the sheet's caption ink: 5.4 darker and 1.8 more variation, against the dot screen's
+3.1. The picker's chips draw at sheet proportions rather than at the chip's own size, so a
+swatch shows the texture at the scale the sheet will — they were showing a coarser one,
+which is a picture of a different ground.
+
+The old test only asserted that the five grounds produced five different strings, which a
+texture rendering identically to flat passes easily. The new ones assert what actually
+failed: every texture contains the palette's ink, the noise period is at least three units,
+and the tooth bands its alpha rather than wearing a blanket opacity.
+
+## An effect's reach is where you put it
+
+An uploaded backdrop already travels to the GPU inside the ground's SVG, so it was one
+texture away from being something the shader could work on. Four print processes now do:
+a rotated dot screen, an ordered dither, a duotone and a coarse mosaic.
+
+They belong to the Background layer rather than to Finishes, and that scope is the whole
+point rather than an implementation detail. A finish is a pass over the finished page — that
+is what makes it a finish. These reprint the *ground*, and the word is composited over the
+result, so the type stays crisp letterforms on a screened photograph instead of being
+screened along with it. Unicorn Studio states the rule better than I can: an effect that is
+a child of a layer touches only that layer.
+
+Print vocabulary rather than filter names, because that is the language the rest of the tool
+speaks. Two dials each at most, so the existing `vec3` packing holds, and `PICTURE_EFFECTS`'
+order is load-bearing exactly as `FINISHES`' is — the uniforms are positional, and a test
+pins it. The switch-and-dials stack the finishes rail was made of is a shared component now,
+so the two rails cannot drift.
+
+A **video** backdrop is the obvious next one and is not built. It cannot travel inside the
+SVG the way an image does: it needs its own sampler and a per-frame `texImage2D`. The draw
+loop already runs while a take is recording, so the loop is not the missing part.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the
@@ -1487,12 +1676,13 @@ what is left is below.
    `scripts/style-samples.ts` does on the CLI. Small.
 4. **WebCodecs recorder** with `MediaRecorder` as the Safari fallback, the 15 s cap lifted,
    MP4 with the audio muxed. Medium; `src/lib/videoRecorder.ts`.
-5. **Poster geometry in a worker.** A rebuild runs on the main thread, so a heavy chain on the
-   character set freezes the page for about a second at a time — dials stop answering and a
-   recorded clip gets frozen stretches. `buildFont.worker.ts` is the pattern and the engine is
-   already DOM-free, so the move is mechanical; the cost is that a synchronous call becomes a
-   request and a reply, which needs ordering guards. Medium. **Only worth it if character-set
-   clips on heavy chains turn out to matter** — the word sheet is already fast enough.
+5. **Geometry in a worker**, for the sheet and for the bench both. This is now the only
+   thing left holding the main thread: after the September speed round, opening Compose and
+   Randomise are the two actions that still block, and they block because they are new
+   outlines. `buildFont.worker.ts` is the pattern, the engine is DOM-free, and
+   `sheetGeometry` in `poster.ts` has already split the outlines from the strings drawn
+   round them. The cost is that a synchronous call becomes a request and a reply, which
+   needs latest-wins ordering. Scoped in STATE under "Speed, September 2026".
 6. **Whole-window drop target** for a font, and a visible **Copy link** for the URL state.
    Small.
 7. **Slant and Tracking** as export-safe global dials — a shear on the outlines, a uniform
@@ -1502,7 +1692,10 @@ what is left is below.
     label when a value is off its default (Webflow's trick, better than our tick on the track).
     The typeable value, the steppers and the dark caption shipped with the layout pass.
 9. **Tune the thirteen against each other** on the contact sheet.
-10. **Nothing about the sheet is in the URL.** Format, layout, palette, seed, word placement,
+10. **A video backdrop.** The picture effects work on an image texture that arrives inside
+    the ground's SVG; a `<video>` needs its own sampler and a per-frame `texImage2D`. Medium,
+    and it would export for free — the PNG and the recorder both read the same canvas.
+11. **Nothing about the sheet is in the URL.** Format, layout, palette, seed, word placement,
     finish and the sound mode are all local to `Poster`, so a sheet you like cannot be
     reopened or sent to anybody. That was an open question when the sheet was a modal; now
     that it is a room with real settings in it, it is a hole. Small to medium.

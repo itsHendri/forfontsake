@@ -20,16 +20,18 @@ installable font**, entirely in the browser.
 | Engine (13 treatments) | Done. Grouped in the picker as Wear, Ink, Screens, Press, Structure; the full list is in `README.md`. Organic keeps id `growth`. **Consolidated from seventeen**: Soak into Bubble; Outline and Beads into Onion; Stipple and a soft halftone into Halftone; a noise dissolve into Pixel; a drag and the Ghost rebuild into Extrude. Melt cut, Ghost retired into Extrude, **Fur added** as the one new operation. `retired.ts` keeps old links opening on what they described, and drops steps naming a cut treatment. See DECISIONS. |
 | Stacking | Done. Up to three treatments in a row, in the UI, the URL and the export. |
 | Live preview | Done. Type into the specimen itself, at up to 144px. |
-| Workbench layout | Done. An action bar carrying the name, **Base font and Style beside it under labels**, Save font, Share, and Download with a format menu; presets above the plate as pictures of themselves; layers as cards, **each with its own Reset**; every dial visible — the four longest treatments breaking into named runs rather than hiding half of themselves — and the size ladder labelled above each line. **Randomise is gone** and the plate's footer with it. See DECISIONS. |
+| Workbench layout | Done. An action bar carrying the name **with a heart beside it** — filled when the font is kept, and pressing it again forgets — **Base font and Style under labels**, then Compose and Download as the two ways out. `Saved · N` sits in the mark's row above the bar, hidden at zero; presets above the plate as pictures of themselves; layers as cards, **each with its own Reset**; every dial visible — the four longest treatments breaking into named runs rather than hiding half of themselves — and the size ladder labelled above each line. **Randomise is gone** and the plate's footer with it. See DECISIONS. |
 | **Presets are the default** | **Done.** No unnamed state: a treatment opens on a named preset (`defaultPreset`, else the first). Grit opens on Sandblast. Dials measure their tick, their colour and their double-click reset from that preset, not from the bare spec default. |
 | Glyph grid, waterfall | Done. All 69 preview glyphs; the grid is also the override selection surface. |
 | **Per-glyph overrides** | **Done.** Select glyphs → dial deltas over the global chain, per-glyph reroll; in the URL (7th field), the shelf and the export. |
-| **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker; overrides included. **Four ways out:** TTF, WOFF2, WOFF, or a zip of all three — one build, since the web formats are containers over the same validated bytes (`engine/webfont.ts`, written by hand because the library's own WOFF2 is rejected by OTS on real fonts). |
+| **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker; overrides included. **One Download button that opens its four choices** (`Menu.tsx`, the project's only popover): TTF, WOFF2, WOFF, or a zip of all three — one build, since the web formats are containers over the same validated bytes (`engine/webfont.ts`, written by hand because the library's own WOFF2 is rejected by OTS on real fonts). |
 | Compose (was Share) | **A room of its own, not a modal.** Replaces the workbench, keeps the URL, closes with a ×. Three formats (Post 4:5, Square, Story 9:16) chosen in the header, **which also carries the export and is sticky**; layout picked as two engine-drawn pictures and switched with a cut rather than a dissolve. At 1440×1000 the sheet draws at 852 px, against 702 in the modal. Renamed on 9 September: Share named the exit, not the room. |
 | **Finishes** | **Done, and they stack.** The sheet renders through WebGL2: grain, riso misregistration and a scanner losing sync, in that order and in any combination. Pixels, never geometry — a structural test keeps finishes off the path from a chain to a font file, and the SVG download stays letterforms only. |
-| **The sheet as layers** | **Done.** Background, Word, Caption, Finishes; picking one swaps the rail to its properties. Colour belongs to a layer instead of to a six-palette cycle, the ground carries a drawn texture or a picture you upload, and the word is an object with corner handles, a rotation knob and guides that snap to the sheet's own rules. |
+| **The sheet as layers** | **Done, and you click the sheet rather than the list.** Background, Word, Caption, Finishes, with **Sheet** as a row of its own at the foot so the layout picker is always one press away. Clicking the canvas selects what is under the pointer — the word, any of the caption's six marks (named in the rail), or the ground — and Escape backs out one step before it leaves the room. Colour belongs to a layer; the word is an object with corner handles and a knob that **snaps to the square and fifteen-degree angles unless Shift is held**. |
+| **Grounds** | Flat, Screen, Grid, Tooth, or a picture you bring. Wash was cut. Tooth was sub-pixel noise reading as a flat grey veil and is now a banded speckle in the sheet's own caption ink; Screen halved its pitch. |
+| **Effects on a picture** | **Done.** Halftone, Dither, Duotone and Mosaic, on the Background layer and only when a photograph is loaded: they reprint the ground in the sheet's two inks and the word is composited over the result, so the type stays letterforms. In `finish.ts` beside FINISHES, positional uniforms and all. A video backdrop is not built — see the note below. |
 | **Sound + clip** | **Done, behind a Static / Video switch.** Sound exists only in video, so choosing MP4 can never start it. Three named modes — Pulse, Breathe, Shimmer — plus Depth and Speed. The export *is* the take: no separate Record button. **Both layouts can move**; the rail reports the measured rebuild rate when a chain is slow enough to step. |
-| Saved fonts | **A room of its own**, reached from `Saved · N` in the bar, with an empty state. Kept across reloads in `localStorage`. |
+| Saved fonts | **A room of its own**, reached from `Saved · N` in the mark's row, with an empty state. Its cards are drawn when the room opens rather than by the workbench. Kept across reloads in `localStorage`. |
 | Bring your own font | Done, from the font menu. Read in the worker, licence reported, held in memory. |
 | CLI export + verification | Done. `build:font` + `verify:font` (7 checks). |
 | Deployment | **Live** at forfontsake.xyz. Pushes to `main` deploy; HTTPS enforced. |
@@ -195,6 +197,61 @@ every other band is a fork with its options side by side.
 **Twelve picks live on the ballot**, https://claude.ai/code/artifact/a7887920-2679-4a6a-b346-3018145bdcbb,
 saved to its own store as document `picks/ux-round-2`. Read that document before
 starting the build; nothing structural moves in `src/` until it is filled in.
+
+## Speed, September 2026
+
+Hendri's note was that the product felt slow and laggy. It did. Measured on the live site
+before the round, and on the same build after it — headless Brave, `PerformanceObserver`
+on `longtask`, sixty-step sweeps driven one a frame:
+
+| What | Before | After |
+| --- | --- | --- |
+| A dial drag on the bench (Halftone) | 18 long tasks, 1.71 s of blocked main thread, worst 145 ms | none |
+| The word's Turn, per step | 31.7 ms | 16.3 ms — one frame, so it waits on the display |
+| The word's Size, per step | 22.5 ms | 16.3 ms |
+| Dragging the ink swatch, per step | 131.4 ms, 40 long tasks, 4.7 s blocked | 25.9 ms, none |
+| Recolour | 122 ms | 0 |
+| Switching to the character set | 93 ms | 0 |
+| An idle Compose room | 60 frames a second | 0 |
+| Opening Compose · Randomise | 134 · 120 ms | unchanged, and rightly: those are new outlines |
+
+Load was never the problem and was left alone: 374 ms to `load`, 161 KB of JavaScript and
+190 KB of glyph data, both gzipped.
+
+Four mechanisms did all of it. **The grid and the layer thumbnails wait 120 ms for the dials
+to settle** and go pale while they are behind, instead of being re-run between input events
+by `useDeferredValue` — which schedules the work but cannot abandon a `useMemo` part way, so
+every tick paid for all sixty-nine glyphs. **The ladder writes one path into `defs` and
+points seven `<use>` at it**, rather than seven copies of a forty-kilobyte `d`. **Resizing
+and turning the word ride shader uniforms while the hand is down** and bake into the geometry
+on release, the way dragging already did; the room draws on demand rather than at 60 fps.
+And **the treated outlines are cached on exactly what they depend on** — font, chain, seed,
+overrides, word — so a colour, a texture, a size, a layout or a format is string work over
+letters that are already drawn.
+
+### What is left, and where it would start
+
+1. **A render worker.** `src/workers/render.worker.ts` as a thin shell like
+   `buildFont.worker.ts`, jobs in a DOM-free `renderJobs.ts`, a latest-wins client with one
+   pending slot, and a `useWorkerJob` hook replacing the settle timer above. Grid, thumbnails
+   and shelf first; the plate's word second. Not a new job kind on `buildFont.worker.ts` —
+   that one bundles opentype, brotli and jszip and is spawned per job. Vite's `?worker`
+   plugin inlines a new worker into the artifact automatically, at the cost of a second copy
+   of the engine (~250–300 KB) in `out/workbench.html`. This is what would take the remaining
+   134 ms off opening Compose and off Randomise.
+2. **A cross-call glyph cache in `render.ts`.** It must key on `penX` for positional
+   treatments — `extrude.ts` reads it — so `Treatment` needs a `positional` flag first.
+   Typing on a heavy chain is what it buys.
+3. **Poster geometry in the worker**, which DECISIONS has long called the real fix. The
+   geometry/paint split it needs is half done: `sheetGeometry` in `poster.ts` already
+   separates the treated outlines from the strings drawn around them.
+4. **Load polish**, worth doing and worth expecting nothing from: a `preload` for
+   `glyph-data.json` (stripped in `inline-build.ts`), and a non-blocking Google Fonts link.
+   `React.lazy` for Compose is a no — the artifact build inlines only the entry chunk.
+5. **A video backdrop.** The picture effects run on an image texture that arrives inside the
+   ground's SVG. A `<video>` cannot travel that way: it needs its own sampler and a
+   per-frame `texImage2D` in `draw()`. The draw loop already runs while a take is recording,
+   so the loop is not the missing part — the texture path is.
 
 ## Debt, roughly in order of how much it matters
 
