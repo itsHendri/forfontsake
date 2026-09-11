@@ -1106,6 +1106,22 @@ h1 {
   color: var(--mark);
 }
 
+/* The grid treats every glyph in the face, so while a dial is moving it is
+   showing the value before it. Saying so — going pale for as long as it is
+   behind — is honest and costs a frame; holding the page still until sixty-nine
+   glyphs catch up is what made a drag feel like ten frames a second. */
+.glyphs.is-settling {
+  opacity: 0.55;
+}
+.glyphs {
+  transition: opacity 0.15s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .glyphs {
+    transition: none;
+  }
+}
+
 /* Rules are drawn per cell rather than by a coloured surface showing through
    the gaps, or an incomplete last row leaves a bar of rule colour hanging. */
 .glyph-grid {
@@ -1261,11 +1277,14 @@ h1 {
   min-width: 0;
   overflow: hidden;
 }
+/* The rungs point at one path in the carrier above, so the fill has to be set
+   on something the reference inherits from rather than on the path itself. */
 .fall-ink svg {
   display: block;
-}
-.fall-ink path {
   fill: var(--ink);
+}
+.fall-defs {
+  position: absolute;
 }
 
 /* ---------- panel ---------- */

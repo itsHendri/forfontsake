@@ -1,7 +1,10 @@
-import type { WorkbenchState } from '../lib/urlState'
-import type { RenderResult } from '../lib/render'
+import { useMemo } from 'react'
+import { getTreatment } from '../engine/treatments/registry'
+import type { Library } from '../lib/glyphData'
+import { render, type RenderResult } from '../lib/render'
+import { wordFor, type WorkbenchState } from '../lib/urlState'
 
-export interface Kept {
+interface Kept {
   id: number
   state: WorkbenchState
   result: RenderResult
@@ -10,7 +13,9 @@ export interface Kept {
 }
 
 interface Props {
-  kept: Kept[]
+  /** the shelf as stored: states, never outlines — see savedStyles */
+  saved: WorkbenchState[]
+  library: Library
   onRestore: (state: WorkbenchState) => void
   onForget: (id: number) => void
   onClose: () => void
@@ -29,7 +34,45 @@ interface Props {
  * either side of the line, and a close × because it is somewhere you leave
  * rather than somewhere you navigated to.
  */
-export function Saved({ kept, onRestore, onForget, onClose }: Props) {
+export function Saved({ saved, library, onRestore, onForget, onClose }: Props) {
+  /*
+   * The cards are drawn here, on the way in, rather than by the workbench.
+   *
+   * They were a memo in App keyed on the shelf, which meant pressing Save
+   * re-treated up to twelve words on the main thread while you were still at
+   * the bench looking at something else — and again on load, before anyone had
+   * opened this room. Drawing them where they are shown costs the same work
+   * once, at the only moment it is wanted. An entry that throws is dropped
+   * rather than taking the shelf with it.
+   */
+  const kept = useMemo<Kept[]>(
+    () =>
+      saved.flatMap((s, i) => {
+        try {
+          return [
+            {
+              id: i,
+              state: s,
+              result: render({
+                library,
+                fontId: s.fontId,
+                chain: s.chain,
+                text: wordFor(s),
+                seed: s.seed,
+                alternates: s.alternates,
+                overrides: s.overrides,
+              }),
+              treatmentName: s.chain.map((c) => getTreatment(c.id).name).join(' + '),
+              fontLabel: library[s.fontId]?.label ?? s.fontId,
+            },
+          ]
+        } catch {
+          return []
+        }
+      }),
+    [library, saved],
+  )
+
   return (
     <div className="saved-view">
       <header className="saved-bar">

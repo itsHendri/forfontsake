@@ -1,4 +1,12 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import {
   TREATMENTS,
   getTreatment,
@@ -13,8 +21,10 @@ import { loadLibrary, type Library } from './lib/glyphData'
 import { importFont, type Imported } from './lib/importFont'
 import { render, renderGlyphSet } from './lib/render'
 import {
+  autoText,
   decodeState,
   encodeState,
+  wordFor,
   type GlyphOverride,
   type Overrides,
   type WorkbenchState,
@@ -29,21 +39,8 @@ import { Brand, SignOff } from './components/Brand'
 import type { Thumb } from './components/Thumb'
 import { GlyphGrid } from './components/GlyphGrid'
 import { Waterfall } from './components/Waterfall'
-import { Saved, type Kept } from './components/Saved'
+import { Saved } from './components/Saved'
 import { Poster } from './components/Poster'
-
-/**
- * The word the tool writes for itself, named by the top of the stack — that is
- * the treatment last chosen, and the one reading loudest over the others.
- */
-function autoText(chain: Step[]): string {
-  return specimenFor(getTreatment(chain[chain.length - 1].id))
-}
-
-/** What to draw for a state: the word in the field, or ours when it is empty. */
-function wordFor(s: WorkbenchState): string {
-  return s.text.trim() || autoText(s.chain)
-}
 
 /**
  * Whether the word on the page is still ours to change.
@@ -158,6 +155,16 @@ function initialState(library: Library): WorkbenchState {
   return { fontId, seed: 1337, alternates: 3, text: autoText(chain), chain }
 }
 
+/**
+ * How long the dials have to be still before the glyph grid, the layer
+ * thumbnails and the address bar catch up.
+ *
+ * A tenth of a second is under the threshold at which a pause reads as a
+ * pause, and long enough that no tick of a drag is ever paid for twice.
+ */
+const GRID_SETTLE_MS = 120
+const URL_SETTLE_MS = 250
+
 export default function App() {
   const [library, setLibrary] = useState<Library | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -199,15 +206,39 @@ export default function App() {
     if (hydrated.current) saveShelf(saved)
   }, [saved])
 
-  // the address bar mirrors the state rather than driving it, so typing stays
-  // responsive and the link is always current
+  /*
+   * The address bar mirrors the state rather than driving it, so typing stays
+   * responsive and the link is always current.
+   *
+   * Trailing, not immediate. A dial drag produces an event a frame, and Safari
+   * throws SecurityError past a hundred replaceState calls in thirty seconds —
+   * which a drag reaches in ten, and a throw inside an effect takes the tree
+   * with it. The pending hash is flushed when the page is hidden, so a reload
+   * or a copied link is never behind what is on screen.
+   */
+  const pendingHash = useRef<string | null>(null)
+  const flushHash = useCallback(() => {
+    const hash = pendingHash.current
+    pendingHash.current = null
+    if (hash && hash !== window.location.hash) window.history.replaceState(null, '', hash)
+  }, [])
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') flushHash()
+    }
+    window.addEventListener('pagehide', flushHash)
+    document.addEventListener('visibilitychange', onHide)
+    return () => {
+      window.removeEventListener('pagehide', flushHash)
+      document.removeEventListener('visibilitychange', onHide)
+    }
+  }, [flushHash])
   useEffect(() => {
     if (!state) return
-    const hash = `#${encodeState(state)}`
-    if (hash !== window.location.hash) {
-      window.history.replaceState(null, '', hash)
-    }
-  }, [state])
+    pendingHash.current = `#${encodeState(state)}`
+    const t = setTimeout(flushHash, URL_SETTLE_MS)
+    return () => clearTimeout(t)
+  }, [state, flushHash])
 
   // Everything except the stack. The stack goes through patchChain, which is
   // where the word rule lives; typing that out here means a handler cannot
@@ -297,40 +328,6 @@ export default function App() {
     }
   }, [library, state])
 
-  /**
-   * The shelf's thumbnails, drawn from the stored states.
-   *
-   * Rebuilt whenever the shelf changes rather than stored alongside it, so a
-   * thumbnail always shows what those settings produce *now*. An entry that
-   * throws is dropped instead of taking the shelf with it.
-   */
-  const kept = useMemo<Kept[]>(() => {
-    if (!library) return []
-    return saved.flatMap((s, i) => {
-      try {
-        return [
-          {
-            id: i,
-            state: s,
-            result: render({
-              library,
-              fontId: s.fontId,
-              chain: s.chain,
-              text: wordFor(s),
-              seed: s.seed,
-              alternates: s.alternates,
-              overrides: s.overrides,
-            }),
-            treatmentName: s.chain.map((c) => getTreatment(c.id).name).join(' + '),
-            fontLabel: library[s.fontId]?.label ?? s.fontId,
-          },
-        ]
-      } catch {
-        return []
-      }
-    })
-  }, [library, saved])
-
   // The grid treats every glyph in the face, which is far more work than one
   // line — deferring it lets typing and dragging stay smooth while the grid
   // catches up a beat later.
@@ -344,22 +341,37 @@ export default function App() {
         : null,
     [state],
   )
-  const deferredKey = useDeferredValue(gridKey)
-  const deferredFontId = deferredKey?.fontId
+  /*
+   * They wait for the hand to come off the dial.
+   *
+   * useDeferredValue re-ran them *between* input events, and React cannot
+   * abandon a useMemo part way through, so every tick of a drag paid for the
+   * whole sixty-nine-glyph set — 52ms on Halftone, 1.7s on a stack, which is
+   * most of what made a drag feel like ten frames a second. A trailing timer
+   * runs them once, when the value settles, and the grid says it is behind by
+   * going pale rather than holding the page still to stay level.
+   */
+  const [settledKey, setSettledKey] = useState(gridKey)
+  useEffect(() => {
+    const t = setTimeout(() => startTransition(() => setSettledKey(gridKey)), GRID_SETTLE_MS)
+    return () => clearTimeout(t)
+  }, [gridKey])
+  const settling = gridKey !== settledKey
+  const settledFontId = settledKey?.fontId
   const glyphSet = useMemo(() => {
-    if (!library || !deferredKey) return null
+    if (!library || !settledKey) return null
     try {
       return renderGlyphSet(
         library,
-        deferredKey.fontId,
-        deferredKey.chain,
-        deferredKey.seed,
-        deferredKey.overrides,
+        settledKey.fontId,
+        settledKey.chain,
+        settledKey.seed,
+        settledKey.overrides,
       )
     } catch {
       return null // the line above is the one worth surfacing an error for
     }
-  }, [library, deferredKey])
+  }, [library, settledKey])
 
   // the glyphs carrying their own settings — the grid's corner dots
   const overriddenChars = useMemo(
@@ -376,10 +388,10 @@ export default function App() {
    * one selected glyph does to it.
    */
   const layerThumbs = useMemo(() => {
-    if (!library || !deferredKey) return []
-    const key = deferredKey
+    if (!library || !settledKey) return []
+    const key = settledKey
     return key.chain.map((step) => thumbnail(library, key.fontId, step, 'A', key.seed))
-  }, [library, deferredKey])
+  }, [library, settledKey])
 
   /**
    * One picture per preset: the same two letters treated at that preset.
@@ -393,11 +405,42 @@ export default function App() {
   const deferredTreatmentId = useDeferredValue(treatment?.id)
   const presetThumbs = useMemo(() => {
     const t = deferredTreatmentId ? getTreatment(deferredTreatmentId) : null
-    if (!library || !deferredFontId || !t?.presets) return []
+    if (!library || !settledFontId || !t?.presets) return []
     return t.presets.map((preset) =>
-      thumbnail(library, deferredFontId, { id: t.id, params: { ...defaults(t), ...preset.values } }, 'Ag', 1337),
+      thumbnail(library, settledFontId, { id: t.id, params: { ...defaults(t), ...preset.values } }, 'Ag', 1337),
     )
-  }, [library, deferredFontId, deferredTreatmentId])
+  }, [library, settledFontId, deferredTreatmentId])
+
+  /** the specimen's own handler, stable so the plate can skip a render */
+  const onText = useCallback((text: string) => patch({ text }), [patch])
+
+  /**
+   * The word the ladder is set in: what was typed, or ours when the field is
+   * empty.
+   *
+   * Memoised, and above the early returns where the hooks have to live. It was
+   * a bare `render()` in the render body, so it ran a second full treatment of
+   * the word on every render the field was empty for — including renders that
+   * had nothing to do with the word, like selecting a glyph.
+   */
+  const specimenText = state ? wordFor(state) : ''
+  const specimen = useMemo(() => {
+    if (!library || !state || !result) return null
+    if (state.text.trim().length > 0) return result
+    try {
+      return render({
+        library,
+        fontId: state.fontId,
+        chain: state.chain,
+        text: specimenText,
+        seed: state.seed,
+        alternates: state.alternates,
+        overrides: state.overrides,
+      })
+    } catch {
+      return result // the typed line is the one worth surfacing an error for
+    }
+  }, [library, state, result, specimenText])
 
   if (error) {
     return (
@@ -414,20 +457,6 @@ export default function App() {
       </main>
     )
   }
-
-  const specimenText = wordFor(state)
-  const specimen =
-    state.text.trim().length > 0
-      ? result
-      : render({
-          library,
-          fontId: state.fontId,
-          chain: state.chain,
-          text: specimenText,
-          seed: state.seed,
-          alternates: state.alternates,
-          overrides: state.overrides,
-        })
 
   // With glyphs selected, the dials write per-glyph deltas instead of the
   // global chain — the scope switcher. Everything else stays global.
@@ -642,7 +671,8 @@ export default function App() {
   if (view === 'saved') {
     return (
       <Saved
-        kept={kept}
+        saved={saved}
+        library={library}
         onRestore={(s) => {
           setState(s)
           setView('bench')
@@ -685,12 +715,7 @@ export default function App() {
             params={panelParams}
             onPreset={applyPreset}
           />
-          <Plate
-            fontId={state.fontId}
-            text={state.text}
-            result={result}
-            onText={(text) => patch({ text })}
-          />
+          <Plate fontId={state.fontId} text={state.text} result={result} onText={onText} />
           {notice && <p className="notice is-bad">{notice}</p>}
           {licence && state.fontId.startsWith('upload') && (
             <p className={`notice licence-${licence.verdict}`}>
@@ -710,6 +735,7 @@ export default function App() {
               selected={selected}
               overridden={overriddenChars}
               onSelect={setSelected}
+              settling={settling}
             />
           )}
           {/*
@@ -717,7 +743,7 @@ export default function App() {
             the page, so the dials are still on screen while you look at what
             the treatment does to 12px.
           */}
-          <Waterfall result={specimen} text={specimenText} />
+          <Waterfall result={specimen ?? result} text={specimenText} />
         </main>
 
         <Panel

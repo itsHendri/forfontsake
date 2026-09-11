@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { memo, useMemo, useRef } from 'react'
 import type { GlyphSet } from '../lib/render'
 
 interface Props {
@@ -8,6 +8,8 @@ interface Props {
   /** characters carrying their own dial values or a reroll */
   overridden: Set<string>
   onSelect: (next: Set<string>) => void
+  /** the dials have moved and this set is the one before them */
+  settling?: boolean
 }
 
 const CELL_INK = 72 // px of glyph height inside each cell
@@ -59,7 +61,7 @@ function sampleOf(set: GlyphSet, chars: string) {
  * a letter, shift-click for a run of them, and the panel's dials then edit
  * just that selection. A corner dot marks glyphs that carry their own values.
  */
-export function GlyphGrid({ set, selected, overridden, onSelect }: Props) {
+function GlyphGridInner({ set, selected, overridden, onSelect, settling }: Props) {
   const span = set.ascender - set.descender
   const scale = CELL_INK / span
   const lastIndex = useRef<number | null>(null)
@@ -98,7 +100,7 @@ export function GlyphGrid({ set, selected, overridden, onSelect }: Props) {
   }
 
   return (
-    <section className="glyphs">
+    <section className={settling ? 'glyphs is-settling' : 'glyphs'}>
       <div className="glyphs-head">
         <h2 className="head-with-tip">
           Glyphs
@@ -212,3 +214,9 @@ export function GlyphGrid({ set, selected, overridden, onSelect }: Props) {
     </section>
   )
 }
+
+/**
+ * Sixty-nine cells is the most expensive block on the page to reconcile, and
+ * nothing but its own four props can change what it draws.
+ */
+export const GlyphGrid = memo(GlyphGridInner)

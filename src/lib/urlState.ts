@@ -1,4 +1,4 @@
-import { migrateStep } from '../engine/treatments/registry'
+import { getTreatment, migrateStep, specimenFor } from '../engine/treatments/registry'
 import type { GlyphOverride, Overrides, ParamValues, Step } from '../engine/treatments/registry'
 
 // One definition of a stack entry, in the engine, re-exported for the app —
@@ -15,6 +15,24 @@ export interface WorkbenchState {
   chain: Step[]
   /** per-character exceptions to the chain — absent means none */
   overrides?: Overrides
+}
+
+/**
+ * The word the tool writes for itself, named by the top of the stack — that is
+ * the treatment last chosen, and the one reading loudest over the others.
+ */
+export function autoText(chain: Step[]): string {
+  return specimenFor(getTreatment(chain[chain.length - 1].id))
+}
+
+/**
+ * What to draw for a state: the word in the field, or ours when it is empty.
+ *
+ * It lives beside the state rather than in the workbench because the shelf's
+ * cards answer the same question about states nobody is editing.
+ */
+export function wordFor(s: WorkbenchState): string {
+  return s.text.trim() || autoText(s.chain)
 }
 
 /**

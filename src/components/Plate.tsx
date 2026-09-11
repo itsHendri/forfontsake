@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { RenderResult } from '../lib/render'
 
 interface Props {
@@ -19,7 +19,7 @@ interface Props {
  * loaded as a metrics-only subset (`public/fonts/preview/`) and applied here.
  * Treatments preserve advance widths, so the two agree glyph for glyph.
  */
-export function Plate(p: Props) {
+function PlateInner(p: Props) {
   const boxRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const probeRef = useRef<HTMLSpanElement>(null)
@@ -128,3 +128,6 @@ export function Plate(p: Props) {
     </section>
   )
 }
+
+/** the field is the specimen, so it redraws only when one of them changes */
+export const Plate = memo(PlateInner)
