@@ -1,6 +1,14 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { FINISHES, finishDefaults, finishState, getFinish } from './finish'
+import {
+  FINISHES,
+  PICTURE_EFFECTS,
+  finishDefaults,
+  finishState,
+  getFinish,
+  getPictureEffect,
+  pictureState,
+} from './finish'
 
 /**
  * A finish is pixels over the rendered sheet. The rule it carries is that it
@@ -85,5 +93,51 @@ describe('finishes', () => {
     for (const f of FINISHES) {
       expect(Object.keys(finishDefaults(f)).sort()).toEqual(f.params.map((s) => s.key).sort())
     }
+  })
+})
+
+describe('what can be done to a picture', () => {
+  it('runs the three that reprint the picture before the one that reads it coarsely', () => {
+    // Positional uniforms again: this array's order is what assigns each
+    // effect its own vec3 in the shader, so it is a fact rather than a list.
+    expect(PICTURE_EFFECTS.map((f) => f.id)).toEqual(['halftone', 'dither', 'duotone', 'pixelate'])
+  })
+
+  it('gives every one a name, a blurb and at most three dials', () => {
+    for (const f of PICTURE_EFFECTS) {
+      expect(f.name, f.id).toBeTruthy()
+      expect(f.blurb, f.id).toBeTruthy()
+      expect(f.params.length, f.id).toBeGreaterThan(0)
+      // the shader packs each effect's dials into one vec3
+      expect(f.params.length, f.id).toBeLessThanOrEqual(3)
+    }
+  })
+
+  it('starts with all of them off, at their own defaults', () => {
+    const state = pictureState()
+    for (const f of PICTURE_EFFECTS) {
+      expect(state[f.id].on, f.id).toBe(false)
+      expect(state[f.id].params, f.id).toEqual(finishDefaults(f))
+    }
+  })
+
+  it('keeps every default inside the dial it belongs to', () => {
+    for (const f of PICTURE_EFFECTS) {
+      for (const spec of f.params) {
+        expect(spec.default, `${f.id}.${spec.key}`).toBeGreaterThanOrEqual(spec.min)
+        expect(spec.default, `${f.id}.${spec.key}`).toBeLessThanOrEqual(spec.max)
+      }
+    }
+  })
+
+  it('falls through to the first on an unknown id', () => {
+    expect(getPictureEffect('nope')).toBe(PICTURE_EFFECTS[0])
+  })
+
+  it('is a different list from the finishes over the whole sheet', () => {
+    // the two are scoped differently — one is the page, one is the ground —
+    // and sharing an id would mean sharing a switch
+    const sheet = new Set(FINISHES.map((f) => f.id))
+    for (const f of PICTURE_EFFECTS) expect(sheet.has(f.id), f.id).toBe(false)
   })
 })

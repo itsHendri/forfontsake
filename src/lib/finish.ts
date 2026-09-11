@@ -79,6 +79,72 @@ export const FINISHES: Finish[] = [
   },
 ]
 
+/**
+ * What can be done to a picture you brought, as opposed to the sheet.
+ *
+ * A finish is a pass over the whole page — that is what makes it a finish. An
+ * effect here is scoped to the *ground*, and only when the ground is a
+ * photograph: it reprints the picture in the sheet's own two colours before
+ * the word is laid over it, so the type stays crisp letterforms on top of a
+ * screened or dithered photo rather than being screened along with it. That
+ * scope is the whole idea — an effect's reach is where you put it, and this
+ * one is on the Background layer.
+ *
+ * They are print processes rather than filters, which is the same vocabulary
+ * the rest of the tool speaks: a photograph reduced to a dot screen, to two
+ * inks, to an ordered dither, or to a coarse grid of tiles.
+ *
+ * Like FINISHES, the order is fixed and the uniforms are positional, so this
+ * array's order is load-bearing and a test pins it.
+ */
+export const PICTURE_EFFECTS: Finish[] = [
+  {
+    id: 'halftone',
+    name: 'Halftone',
+    blurb: 'The picture reprinted as a dot screen, in the sheet\'s two colours.',
+    params: [
+      { key: 'pitch', label: 'Pitch', min: 4, max: 40, step: 1, default: 12, note: 'how far apart the dots sit' },
+      { key: 'angle', label: 'Angle', min: 0, max: 360, step: 1, default: 45, note: 'which way the screen runs' },
+    ],
+  },
+  {
+    id: 'dither',
+    name: 'Dither',
+    blurb: 'Two inks and no greys — the picture stippled into them.',
+    params: [
+      { key: 'levels', label: 'Levels', min: 2, max: 8, step: 1, default: 2, note: 'how many steps between the inks' },
+      { key: 'bias', label: 'Weight', min: 0, max: 100, step: 1, default: 50, note: 'how much of it goes to ink' },
+    ],
+  },
+  {
+    id: 'duotone',
+    name: 'Duotone',
+    blurb: 'The picture printed in paper and ink rather than in its own colours.',
+    params: [
+      { key: 'mix', label: 'Mix', min: 0, max: 100, step: 1, default: 100, note: 'how far from the original' },
+      { key: 'contrast', label: 'Contrast', min: 0, max: 100, step: 1, default: 50, note: 'how hard the tones separate' },
+    ],
+  },
+  {
+    id: 'pixelate',
+    name: 'Mosaic',
+    blurb: 'The picture read at a coarser grid, one tone to a tile.',
+    params: [
+      { key: 'size', label: 'Tile', min: 2, max: 60, step: 1, default: 14, note: 'how big a tile is' },
+    ],
+  },
+]
+
+export const getPictureEffect = (id: string): Finish =>
+  PICTURE_EFFECTS.find((f) => f.id === id) ?? PICTURE_EFFECTS[0]
+
+/** every picture effect off, at its own defaults */
+export function pictureState(): FinishState {
+  const out: FinishState = {}
+  for (const f of PICTURE_EFFECTS) out[f.id] = { on: false, params: finishDefaults(f) }
+  return out
+}
+
 export const getFinish = (id: string): Finish => FINISHES.find((f) => f.id === id) ?? FINISHES[0]
 
 /** what a finish is switched on with, per finish id */
@@ -142,6 +208,17 @@ uniform vec3 uScan;        // band height · slip · bloom
 uniform vec3 uRiso;        // spread · angle (radians) · second ink
 uniform vec3 uGrain;       // amount · size · unused
 uniform vec2 uPx;          // one pixel, in uv
+// What is being done to the picture underneath, if there is one. Scoped to
+// the ground on purpose: the word is composited after these run, so the type
+// stays letterforms over a screened photograph rather than being screened
+// with it.
+uniform vec4 uPic;         // halftone · dither · duotone · mosaic, 0 or 1
+uniform vec3 uHalf;        // pitch · angle (radians) · unused
+uniform vec3 uDith;        // levels · weight · unused
+uniform vec3 uDuo;         // mix · contrast · unused
+uniform vec3 uMosaic;      // tile · unused · unused
+uniform vec3 uPaper;       // the sheet's two inks, for the effects that reprint in them
+uniform vec3 uInk;
 
 /** the word layer, transparent everywhere it is not the word */
 vec4 wordAt(sampler2D t, vec2 p) {
@@ -163,9 +240,85 @@ vec2 wordUv(vec2 p, vec2 off, vec2 pivot, vec3 t) {
   return pivot + q / uSheet;
 }
 
+float luma(vec3 c) {
+  return dot(c, vec3(0.299, 0.587, 0.114));
+}
+
+/** the 4×4 ordered matrix every dither in print is some version of */
+float bayer(vec2 cell) {
+  const float m[16] = float[16](
+    0.0, 8.0, 2.0, 10.0,
+    12.0, 4.0, 14.0, 6.0,
+    3.0, 11.0, 1.0, 9.0,
+    15.0, 7.0, 13.0, 5.0
+  );
+  int x = int(mod(cell.x, 4.0));
+  int y = int(mod(cell.y, 4.0));
+  return m[y * 4 + x] / 16.0;
+}
+
+/**
+ * The ground, put through whatever the Background layer asks for.
+ *
+ * Read at a point rather than given a colour, because three of the four
+ * effects need to *sample somewhere else*: a mosaic reads the middle of its
+ * tile, a halftone reads the middle of its cell, and a dither reads where it
+ * is but decides by where it is. Only duotone is a pure recolouring.
+ */
+vec3 pictured(sampler2D g, vec2 p) {
+  vec2 at = p;
+  if (uPic.w > 0.5) {
+    // one tone to a tile: snap the read to the middle of the tile it is in
+    vec2 tile = max(uMosaic.x, 1.0) * uPx;
+    at = (floor(p / tile) + 0.5) * tile;
+  }
+
+  if (uPic.x > 0.5) {
+    // A dot screen: the picture is read at the centre of each cell of a
+    // rotated grid, and the cell is filled with a dot whose area is the tone
+    // there. Distance to the cell centre against that radius is the dot.
+    float pitch = max(uHalf.x, 2.0);
+    float c = cos(uHalf.y), sn = sin(uHalf.y);
+    vec2 px = p / uPx;
+    vec2 turned = vec2(c * px.x - sn * px.y, sn * px.x + c * px.y);
+    vec2 cell = floor(turned / pitch) + 0.5;
+    vec2 centre = cell * pitch;
+    vec2 back = vec2(c * centre.x + sn * centre.y, -sn * centre.x + c * centre.y);
+    float tone = 1.0 - luma(texture(g, back * uPx).rgb);
+    float r = sqrt(clamp(tone, 0.0, 1.0)) * 0.5 * pitch;
+    float d = length(turned - centre);
+    // a hair of softness, so the dots are printed rather than aliased
+    float ink = 1.0 - smoothstep(r - 0.7, r + 0.7, d);
+    return mix(uPaper, uInk, ink);
+  }
+
+  vec3 c = texture(g, at).rgb;
+
+  if (uPic.y > 0.5) {
+    // Ordered dither: the tone is pushed to the nearest of a few levels, and
+    // the matrix decides which way each pixel goes, which is what makes a
+    // gradient read as stipple rather than as banding.
+    float levels = max(floor(uDith.x), 2.0) - 1.0;
+    float t = clamp(luma(c) + (uDith.y - 0.5), 0.0, 1.0);
+    float stepped = floor(t * levels + bayer(floor(gl_FragCoord.xy))) / levels;
+    return mix(uInk, uPaper, clamp(stepped, 0.0, 1.0));
+  }
+
+  if (uPic.z > 0.5) {
+    // Two inks: the picture's tones mapped onto the line between them, with
+    // the contrast dial deciding how hard the ends are pulled apart.
+    float t = clamp(luma(c), 0.0, 1.0);
+    float k = mix(1.0, 3.0, uDuo.y);
+    t = clamp((t - 0.5) * k + 0.5, 0.0, 1.0);
+    return mix(c, mix(uInk, uPaper, t), uDuo.x);
+  }
+
+  return c;
+}
+
 /** the sheet as drawn: the word laid over the ground */
 vec3 sheet(sampler2D g, sampler2D w, vec2 off, vec2 pivot, vec3 t, vec2 p) {
-  vec3 base = texture(g, p).rgb;
+  vec3 base = pictured(g, p);
   vec4 word = wordAt(w, wordUv(p, off, pivot, t));
   return mix(base, word.rgb, word.a);
 }
@@ -271,6 +424,12 @@ export interface FinishView {
   setWordTransform(scale: number, rotateDeg: number, pivotX: number, pivotY: number): void
   /** which finishes are on, and at what — any combination, applied in order */
   setFinishes(state: FinishState): void
+  /**
+   * What is being done to the picture on the Background layer, and the two
+   * inks the effects that reprint it use. Ignored when the ground is a drawn
+   * texture rather than a photograph: there is nothing to reprint.
+   */
+  setPicture(state: FinishState, on: boolean, paper: string, ink: string): void
   /** 0 to 1, how much of the previous sheet still shows */
   setFade(fade: number): void
   draw(): void
@@ -339,6 +498,13 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
     riso: u('uRiso'),
     grain: u('uGrain'),
     px: u('uPx'),
+    pic: u('uPic'),
+    half: u('uHalf'),
+    dith: u('uDith'),
+    duo: u('uDuo'),
+    mosaic: u('uMosaic'),
+    paper: u('uPaper'),
+    ink: u('uInk'),
   }
   gl.uniform1i(loc.ground, 0)
   gl.uniform1i(loc.word, 1)
@@ -358,6 +524,11 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
   let prevPivot: [number, number] = [0.5, 0.5]
   let fade = 0
   let finishes: FinishState = finishState()
+  let picture: FinishState = pictureState()
+  /** there is a photograph to reprint; a drawn texture is left alone */
+  let hasPicture = false
+  let paperRgb: [number, number, number] = [1, 1, 1]
+  let inkRgb: [number, number, number] = [0, 0, 0]
   let dead = false
   // the images currently on the GPU, kept so they can become the previous pair
   // on the next rebuild — the fade over them is what turns a rebuild into a morph
@@ -372,14 +543,26 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
     }
   }
 
+  /** #rrggbb as the three floats a shader wants */
+  function rgb(hex: string): [number, number, number] {
+    const n = parseInt(hex.replace('#', ''), 16)
+    if (!Number.isFinite(n)) return [0, 0, 0]
+    return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]
+  }
+
   /** one finish's dials, normalised so the shader never has to know their ranges */
-  function packed(f: Finish): [number, number, number] {
-    const held = finishes[f.id]
+  function packed(f: Finish, from: FinishState = finishes): [number, number, number] {
+    const held = from[f.id]
     const at = (i: number) => {
       const spec = f.params[i]
       if (!spec) return 0
       const v = held?.params[spec.key] ?? spec.default
-      return spec.key === 'angle' ? (v * Math.PI) / 180 : (v - spec.min) / (spec.max - spec.min || 1)
+      // Two of these are lengths on the sheet rather than shares of a range —
+      // a pitch of twelve means twelve pixels, and normalising it would make
+      // the shader guess back at what the dial meant.
+      if (spec.key === 'angle') return (v * Math.PI) / 180
+      if (spec.key === 'pitch' || spec.key === 'size' || spec.key === 'levels') return v
+      return (v - spec.min) / (spec.max - spec.min || 1)
     }
     return [at(0), at(1), at(2)]
   }
@@ -411,6 +594,12 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
     },
     setFinishes(next) {
       finishes = next
+    },
+    setPicture(next, on, paper, ink) {
+      picture = next
+      hasPicture = on
+      paperRgb = rgb(paper)
+      inkRgb = rgb(ink)
     },
     setFade(f) {
       fade = Math.max(0, Math.min(1, f))
@@ -445,6 +634,17 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
       gl.uniform3f(loc.scan, ...packed(scan))
       gl.uniform3f(loc.riso, ...packed(riso))
       gl.uniform3f(loc.grain, ...packed(grain))
+      // the same positional arrangement, for the same reason: one program, one
+      // set of uniforms, and PICTURE_EFFECTS' order is what assigns them
+      const [half, dith, duo, mosaic] = PICTURE_EFFECTS
+      const lit = (f: Finish) => (hasPicture && picture[f.id]?.on ? 1 : 0)
+      gl.uniform4f(loc.pic, lit(half), lit(dith), lit(duo), lit(mosaic))
+      gl.uniform3f(loc.half, ...packed(half, picture))
+      gl.uniform3f(loc.dith, ...packed(dith, picture))
+      gl.uniform3f(loc.duo, ...packed(duo, picture))
+      gl.uniform3f(loc.mosaic, ...packed(mosaic, picture))
+      gl.uniform3f(loc.paper, ...paperRgb)
+      gl.uniform3f(loc.ink, ...inkRgb)
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4)
     },
     destroy() {

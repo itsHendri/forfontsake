@@ -36,8 +36,11 @@ import { createLoopSource, createMicSource } from '../audio/sources'
 import { startSheetRecorder, type SheetRecorder } from '../lib/videoRecorder'
 import {
   FINISHES,
+  PICTURE_EFFECTS,
   createFinishView,
   finishState,
+  pictureState,
+  type Finish,
   type FinishState,
   type FinishView,
 } from '../lib/finish'
@@ -74,6 +77,7 @@ const LAYERS: {
     wordT: WordTransform
     ground: string
     backdrop: string | null
+    picture: FinishState
   }) => string
   /** which colour the row shows a chip of, if any */
   swatch?: 'paper' | 'ink' | 'mark'
@@ -101,8 +105,11 @@ const LAYERS: {
   {
     id: 'background',
     name: () => 'Background',
-    sub: ({ ground, backdrop }) =>
-      backdrop ? 'your picture' : getGround(ground).name.toLowerCase(),
+    sub: ({ ground, backdrop, picture }) => {
+      if (!backdrop) return getGround(ground).name.toLowerCase()
+      const on = PICTURE_EFFECTS.filter((f) => picture[f.id]?.on).map((f) => f.name.toLowerCase())
+      return on.length > 0 ? `your picture · ${on.join(' · ')}` : 'your picture'
+    },
     swatch: 'paper',
   },
 ]
@@ -184,6 +191,87 @@ function Swatch({ label, value, onChange }: { label: string; value: string; onCh
         }}
       />
     </div>
+  )
+}
+
+/**
+ * A stack of switch-gated effects with their dials.
+ *
+ * Dimmed rather than absent when off, which is Ditther's one really good idea
+ * and the reason its rail holds twelve of these where ours held five: you can
+ * see what you are not using and what turning it on would cost. Shared by the
+ * finishes over the whole sheet and the effects on a picture, because two
+ * copies of this would be two things to keep agreeing.
+ */
+function EffectStack({
+  list,
+  state,
+  onChange,
+  idPrefix,
+}: {
+  list: Finish[]
+  state: FinishState
+  onChange: (next: (v: FinishState) => FinishState) => void
+  idPrefix: string
+}) {
+  return (
+    <>
+      {list.map((f) => {
+        const held = state[f.id]
+        const on = !!held?.on
+        return (
+          <div className={on ? 'finish' : 'finish is-off'} key={f.id}>
+            <div className="finish-head">
+              <span className="finish-name">{f.name}</span>
+              <input
+                type="checkbox"
+                role="switch"
+                className="ctl-switch"
+                checked={on}
+                aria-label={f.name}
+                onChange={(e) => onChange((v) => ({ ...v, [f.id]: { ...v[f.id], on: e.target.checked } }))}
+              />
+            </div>
+            <p className="note">{f.blurb}</p>
+            {f.params.map((spec) => {
+              const id = `${idPrefix}-${f.id}-${spec.key}`
+              const at = held?.params[spec.key] ?? spec.default
+              return (
+                <div className="ctl" key={spec.key}>
+                  <div className="ctl-head">
+                    <label htmlFor={id}>{spec.label}</label>
+                    <output htmlFor={id} className={at === spec.default ? 'is-default' : undefined}>
+                      {at}
+                    </output>
+                  </div>
+                  <input
+                    id={id}
+                    type="range"
+                    min={spec.min}
+                    max={spec.max}
+                    step={spec.step}
+                    disabled={!on}
+                    value={at}
+                    onChange={(e) =>
+                      onChange((v) => ({
+                        ...v,
+                        [f.id]: { ...v[f.id], params: { ...v[f.id].params, [spec.key]: Number(e.target.value) } },
+                      }))
+                    }
+                    onDoubleClick={() =>
+                      onChange((v) => ({
+                        ...v,
+                        [f.id]: { ...v[f.id], params: { ...v[f.id].params, [spec.key]: spec.default } },
+                      }))
+                    }
+                  />
+                </div>
+              )
+            })}
+          </div>
+        )
+      })}
+    </>
   )
 }
 
@@ -362,6 +450,16 @@ export function Poster(p: Props) {
   // Any combination can be on: they are passes over a page, and a page can be
   // scanned badly, printed in two inks and still be on toothy paper.
   const [finishes, setFinishes] = useState<FinishState>(finishState)
+  /*
+   * What is being done to a picture you brought, as opposed to the sheet.
+   *
+   * Its own state rather than more finishes, because the scope is the point:
+   * these reprint the *ground* and the word is laid over the result, so the
+   * type stays letterforms on a screened photograph rather than being screened
+   * with it. Kept while a picture is swapped out and back, so changing your
+   * mind about the photograph does not cost you the treatment of it.
+   */
+  const [pictureFx, setPictureFx] = useState<FinishState>(pictureState)
 
   /*
    * Which layer the rail is editing, or null for the sheet's own settings.
@@ -789,10 +887,17 @@ export function Poster(p: Props) {
   }
 
   const anyFinish = FINISHES.some((f) => finishes[f.id]?.on)
+  /** anything the SVG cannot carry, which is all of it: these are pixels */
+  const anyPictureFx = !!backdrop && PICTURE_EFFECTS.some((f) => pictureFx[f.id]?.on)
   useEffect(() => {
     viewRef.current?.setFinishes(finishes)
     requestDraw()
   }, [finishes, requestDraw])
+
+  useEffect(() => {
+    viewRef.current?.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink)
+    requestDraw()
+  }, [pictureFx, backdrop, palette.paper, palette.ink, viewAge, requestDraw])
 
   const finishRecording = async () => {
     const recorder = recorderRef.current
@@ -857,8 +962,12 @@ export function Poster(p: Props) {
    */
   const downloadSvg = async () => {
     await saveFile(new Blob([composed()], { type: 'image/svg+xml;charset=utf-8' }), `${stem}.svg`)
-    if (anyFinish)
-      setExportNote('The SVG carries the letters, not the finish — a finish is pixels.')
+    if (anyFinish || anyPictureFx)
+      setExportNote(
+        anyPictureFx && !anyFinish
+          ? 'The SVG carries the letters, not the picture or what was done to it — both are pixels.'
+          : 'The SVG carries the letters, not the finish — a finish is pixels.',
+      )
   }
 
   // Drawn again at 2× so the sheet holds up posted anywhere that shows it
@@ -871,6 +980,7 @@ export function Poster(p: Props) {
       const shot = createFinishView(2, format.w, format.h)
       try {
         shot.setFinishes(finishes)
+        shot.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink)
         shot.setOffset(wordT.dx, wordT.dy)
         // built from the live transform, not the sheet on screen: a resize
         // still settling would otherwise go out at the size before it
@@ -1497,7 +1607,7 @@ export function Poster(p: Props) {
                     <span className="layer-row-text">
                       <span className="layer-row-name">{l.name(layout)}</span>
                       <span className="layer-row-sub">
-                        {l.sub({ palette, finishes, layout, wordT, ground: groundId, backdrop })}
+                        {l.sub({ palette, finishes, layout, wordT, ground: groundId, backdrop, picture: pictureFx })}
                       </span>
                     </span>
                     {l.swatch && (
@@ -1651,6 +1761,31 @@ export function Poster(p: Props) {
                   </button>
                 </div>
               )}
+              {/*
+                What can be done to a picture, and only to a picture.
+
+                A finish is a pass over the whole page; these are on the
+                Background layer and reach no further than what is printed on
+                it — an effect's scope is where you put it. They are print
+                processes rather than filters, which is the vocabulary the rest
+                of the tool speaks, and they only appear when there is a
+                photograph to put through one.
+              */}
+              {backdrop && (
+                <>
+                  <h2 className="sub">The picture</h2>
+                  <p className="note">
+                    Reprinted in the sheet&rsquo;s own two colours, under the word rather than
+                    over it — so the letters stay letters.
+                  </p>
+                  <EffectStack
+                    list={PICTURE_EFFECTS}
+                    state={pictureFx}
+                    onChange={setPictureFx}
+                    idPrefix="picture"
+                  />
+                </>
+              )}
             </div>
           )}
 
@@ -1753,62 +1888,7 @@ export function Poster(p: Props) {
             <div className="group ruled">
               <h2>Finishes</h2>
               <p className="note">Applied top to bottom.</p>
-              {FINISHES.map((f) => {
-                const held = finishes[f.id]
-                const on = !!held?.on
-                return (
-                  <div className={on ? 'finish' : 'finish is-off'} key={f.id}>
-                    <div className="finish-head">
-                      <span className="finish-name">{f.name}</span>
-                      <input
-                        type="checkbox"
-                        role="switch"
-                        className="ctl-switch"
-                        checked={on}
-                        aria-label={f.name}
-                        onChange={(e) =>
-                          setFinishes((v) => ({ ...v, [f.id]: { ...v[f.id], on: e.target.checked } }))
-                        }
-                      />
-                    </div>
-                    <p className="note">{f.blurb}</p>
-                    {f.params.map((spec) => (
-                      <div className="ctl" key={spec.key}>
-                        <div className="ctl-head">
-                          <label htmlFor={`finish-${f.id}-${spec.key}`}>{spec.label}</label>
-                          <output
-                            htmlFor={`finish-${f.id}-${spec.key}`}
-                            className={(held?.params[spec.key] ?? spec.default) === spec.default ? 'is-default' : undefined}
-                          >
-                            {held?.params[spec.key] ?? spec.default}
-                          </output>
-                        </div>
-                        <input
-                          id={`finish-${f.id}-${spec.key}`}
-                          type="range"
-                          min={spec.min}
-                          max={spec.max}
-                          step={spec.step}
-                          disabled={!on}
-                          value={held?.params[spec.key] ?? spec.default}
-                          onChange={(e) =>
-                            setFinishes((v) => ({
-                              ...v,
-                              [f.id]: { ...v[f.id], params: { ...v[f.id].params, [spec.key]: Number(e.target.value) } },
-                            }))
-                          }
-                          onDoubleClick={() =>
-                            setFinishes((v) => ({
-                              ...v,
-                              [f.id]: { ...v[f.id], params: { ...v[f.id].params, [spec.key]: spec.default } },
-                            }))
-                          }
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
+              <EffectStack list={FINISHES} state={finishes} onChange={setFinishes} idPrefix="finish" />
             </div>
           )}
 

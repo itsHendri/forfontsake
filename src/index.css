@@ -1446,6 +1446,15 @@ h1 {
 .group h2 {
   margin-bottom: 0;
 }
+/* A second heading inside a group, for a block that belongs to the layer but
+   is not the layer: the effects on a picture sit under the picker that put the
+   picture there. Set off by a rule rather than by size, so it does not compete
+   with the group's own name. */
+.group h2.sub {
+  margin-top: 22px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+}
 
 /*
  * A run of dials under its own heading. The hairline does the separating and
