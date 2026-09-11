@@ -8,7 +8,10 @@ import {
   GROUNDS,
   getGround,
   liveBox,
+  PART_NAMES,
   sheetGeometry,
+  sheetParts,
+  snapAngle,
   snapLines,
   settingsLine,
   chainName,
@@ -335,6 +338,50 @@ describe('what the sheet is printed on', () => {
     expect(new Set(drawn).size).toBe(GROUNDS.length)
   })
 
+  it('offers flat, screen, grid and tooth — wash is gone', () => {
+    // it was a vertical gradient, which is the one thing on the list that is
+    // not something paper does
+    expect(GROUNDS.map((g) => g.id)).toEqual(['flat', 'screen', 'grid', 'tooth'])
+  })
+
+  it('draws every texture in the sheet\'s own ink, tooth included', () => {
+    // Tooth used to ignore the palette entirely: it was a grey veil over the
+    // paper, so it was the one ground that did not recolour with the sheet.
+    const ink = palette.caption ?? palette.ink
+    for (const g of GROUNDS.filter((g) => g.id !== 'flat')) {
+      expect(g.draw(1080, 1350, palette), g.id).toContain(ink)
+    }
+  })
+
+  it('keeps the tooth coarse enough to be seen at the size a sheet is shown', () => {
+    // At 0.85 the noise had a period of 1.2 sheet units, which is under a
+    // device pixel once a 1080 sheet is drawn at the 850-odd it is shown at —
+    // so it averaged out to flat paper very slightly darker. A period of three
+    // units or more survives that downscale and reads as grain.
+    const svg = GROUNDS.find((g) => g.id === 'tooth')!.draw(1080, 1350, palette)
+    const freq = Number(/baseFrequency="([\d.]+)"/.exec(svg)?.[1])
+    expect(freq).toBeGreaterThan(0)
+    expect(1 / freq).toBeGreaterThanOrEqual(3)
+  })
+
+  it('speckles the tooth rather than veiling the sheet with it', () => {
+    // The old one put a blanket opacity over a rect: feTurbulence writes a
+    // random alpha averaging about a half, saturate does not touch alpha, so
+    // every pixel got the same faint wash. Banding the alpha is what makes
+    // most of the sheet stay paper and the rest take ink.
+    const svg = GROUNDS.find((g) => g.id === 'tooth')!.draw(1080, 1350, palette)
+    expect(svg).toContain('feFuncA')
+    expect(svg).not.toMatch(/opacity="[\d.]+"/)
+  })
+
+  it('screens at a pitch that reads as a screen rather than as spots', () => {
+    const svg = GROUNDS.find((g) => g.id === 'screen')!.draw(1080, 1350, palette)
+    const tile = Number(/pattern id="ffs-screen" width="([\d.]+)"/.exec(svg)?.[1])
+    // a 1080 sheet is shown about 850 wide, so a tile over 12 units is a
+    // visible dot rather than a tone
+    expect(tile).toBeLessThanOrEqual(12)
+  })
+
   it('falls through to flat on an unknown id', () => {
     expect(getGround('nope')).toBe(GROUNDS[0])
     expect(getGround()).toBe(GROUNDS[0])
@@ -496,6 +543,90 @@ describe('what the word snaps to', () => {
     for (const y of snapLines('post').y) {
       if (y === FORMATS[0].h / 2) continue
       expect(svg, String(y)).toContain(`y1="${y}"`)
+    }
+  })
+})
+
+describe('what the sheet is made of', () => {
+  const parts = sheetParts(req('word'))
+
+  it('names all six marks of the caption', () => {
+    expect(parts.map((p) => p.id)).toEqual([
+      'head-rule',
+      'head-label',
+      'number',
+      'foot-rule',
+      'foot-caption',
+      'address',
+    ])
+    expect(parts.every((p) => p.layer === 'caption')).toBe(true)
+    expect(Object.keys(PART_NAMES).sort()).toEqual(parts.map((p) => p.id).sort())
+  })
+
+  it('keeps every one of them on the sheet, at every format', () => {
+    for (const f of FORMATS) {
+      const { w, h } = getFormat(f.id)
+      for (const part of sheetParts({ ...req('word'), format: f.id })) {
+        expect(part.x).toBeGreaterThanOrEqual(0)
+        expect(part.y).toBeGreaterThanOrEqual(0)
+        expect(part.x + part.w).toBeLessThanOrEqual(w)
+        expect(part.y + part.h).toBeLessThanOrEqual(h)
+        expect(part.w).toBeGreaterThan(0)
+        expect(part.h).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('puts the head rule where the word snaps to it', () => {
+    // the two have to be the same line, or clicking the rule selects nothing
+    // where the word says it is landing
+    const rule = parts.find((p) => p.id === 'head-rule')!
+    expect(rule.y + rule.h / 2).toBeCloseTo(snapLines().y[0], 6)
+  })
+
+  it('ends the right-hand marks at the margin the sheet draws them to', () => {
+    const right = SHEET_W - 76
+    for (const id of ['number', 'address'] as const) {
+      const part = parts.find((p) => p.id === id)!
+      expect(part.x + part.w).toBeCloseTo(right, 6)
+    }
+  })
+
+  it('grows the number as the sheet counts past ninety-nine', () => {
+    const small = sheetParts({ ...req('word'), number: 7 }).find((p) => p.id === 'number')!
+    const large = sheetParts({ ...req('word'), number: 999 }).find((p) => p.id === 'number')!
+    // padded to three digits either way, so the box does not move under it
+    expect(large.w).toBeCloseTo(small.w, 6)
+  })
+})
+
+describe('where a turn settles', () => {
+  it('leaves a turn nobody was aiming at alone', () => {
+    expect(snapAngle(37)).toBe(37)
+    expect(snapAngle(52)).toBe(52)
+  })
+
+  it('pulls a near miss onto the fifteen', () => {
+    expect(snapAngle(43)).toBe(45)
+    expect(snapAngle(31.5)).toBe(30)
+  })
+
+  it('pulls harder towards upright, sideways and upside down', () => {
+    expect(snapAngle(85)).toBe(90)
+    expect(snapAngle(355)).toBe(0)
+    expect(snapAngle(184)).toBe(180)
+  })
+
+  it('lets go when Shift is down', () => {
+    expect(snapAngle(89, true)).toBe(89)
+    expect(snapAngle(43, true)).toBe(43)
+  })
+
+  it('always answers inside one turn of the circle', () => {
+    for (const deg of [-10, 0, 359.6, 400, 720]) {
+      const at = snapAngle(deg)
+      expect(at).toBeGreaterThanOrEqual(0)
+      expect(at).toBeLessThan(360)
     }
   })
 })

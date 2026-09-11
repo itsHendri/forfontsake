@@ -1323,6 +1323,53 @@ h1 {
   position: absolute;
 }
 
+/* ---------- what the sheet says is clickable ---------- */
+
+/* The canvas has nothing in it to outline, so a selection is an overlay in
+   percentages of the sheet — the same trick the word's frame uses, and for the
+   same reason: it stays on the mark at whatever size the sheet is drawn. */
+.part-frames {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.part-box {
+  position: absolute;
+  border: 1px solid var(--frame);
+  opacity: 0.45;
+}
+.part-box.is-over {
+  opacity: 1;
+}
+.sheet-stage.is-over-part {
+  cursor: pointer;
+}
+
+/* The angle, beside the knob turning it. Only while a turn is in flight: a
+   permanent readout of a value that is almost always zero is furniture, and
+   the rail carries the number you can type. */
+.spin-badge {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 34px);
+  transform: translateX(-50%);
+  padding: 3px 7px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--paper);
+  background: var(--frame);
+  border-radius: 3px;
+  white-space: nowrap;
+}
+
+/* The sheet row closes the list it belongs to: it is what everything above is
+   drawn on, so it reads as the ground rather than as a fifth layer. */
+.layer-row.is-sheet {
+  margin-top: 6px;
+  border-style: dashed;
+}
+
 /* ---------- the menu a verb opens ---------- */
 
 /* Anchored to the button rather than to the bar, and right-aligned because the

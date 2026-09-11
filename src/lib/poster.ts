@@ -79,23 +79,16 @@ const TOOTH_ID = 'ffs-tooth'
 export const GROUNDS: Ground[] = [
   { id: 'flat', name: 'Flat', draw: (w, h, p) => `<rect width="${w}" height="${h}" fill="${p.paper}"/>` },
   {
-    id: 'wash',
-    name: 'Wash',
-    draw: (w, h, p) =>
-      `<defs><linearGradient id="ffs-wash" x1="0" y1="0" x2="0" y2="1">` +
-      `<stop offset="0" stop-color="${p.paper}"/>` +
-      `<stop offset="1" stop-color="${p.caption ?? p.ink}" stop-opacity="0.22"/>` +
-      `</linearGradient></defs>` +
-      `<rect width="${w}" height="${h}" fill="${p.paper}"/>` +
-      `<rect width="${w}" height="${h}" fill="url(#ffs-wash)"/>`,
-  },
-  {
     id: 'screen',
     name: 'Screen',
     draw: (w, h, p) =>
-      `<defs><pattern id="ffs-screen" width="18" height="18" patternUnits="userSpaceOnUse">` +
-      `<circle cx="4.5" cy="4.5" r="2.4" fill="${p.caption ?? p.ink}" fill-opacity="0.18"/>` +
-      `<circle cx="13.5" cy="13.5" r="2.4" fill="${p.caption ?? p.ink}" fill-opacity="0.18"/>` +
+      // Half the pitch it had. At 18 units a dot was nearly 4px on a sheet
+      // shown at 852, which reads as spots on the paper rather than as a
+      // screen; finer dots also carry more ink for the same weight, so the
+      // opacity comes up as the radius comes down.
+      `<defs><pattern id="ffs-screen" width="9" height="9" patternUnits="userSpaceOnUse">` +
+      `<circle cx="2.25" cy="2.25" r="1.15" fill="${p.caption ?? p.ink}" fill-opacity="0.22"/>` +
+      `<circle cx="6.75" cy="6.75" r="1.15" fill="${p.caption ?? p.ink}" fill-opacity="0.22"/>` +
       `</pattern></defs>` +
       `<rect width="${w}" height="${h}" fill="${p.paper}"/>` +
       `<rect width="${w}" height="${h}" fill="url(#ffs-screen)"/>`,
@@ -111,15 +104,37 @@ export const GROUNDS: Ground[] = [
       `<rect width="${w}" height="${h}" fill="url(#ffs-grid)"/>`,
   },
   {
+    /*
+     * Paper with a grain in it, which is what it always claimed to be.
+     *
+     * What it drew before was flat paper very slightly darker, for three
+     * reasons at once. The frequency was 0.85, a period of about a pixel and a
+     * fifth on a 1080 sheet, so it averaged to grey at any size anyone looks at
+     * it. feTurbulence also writes a random *alpha*, and saturate does not
+     * touch alpha, so the whole thing came out as a uniform half-opaque veil at
+     * 14% — a dimmer, not a texture. And it never took the palette, so it was
+     * the one ground that did not recolour with the sheet.
+     *
+     * Now: a coarse fractal noise, its alpha pushed into a narrow band so most
+     * of the sheet stays paper and the grain is a sparse speckle rather than
+     * fog — only the tail of the noise takes any ink at all — and the speckle
+     * is flooded with the caption ink so the tooth belongs to the sheet's own
+     * colours.
+     */
     id: 'tooth',
     name: 'Tooth',
     draw: (w, h, p) =>
       `<defs><filter id="${TOOTH_ID}" x="0" y="0" width="100%" height="100%">` +
-      `<feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3" stitchTiles="stitch"/>` +
-      `<feColorMatrix type="saturate" values="0"/>` +
+      `<feTurbulence type="fractalNoise" baseFrequency="0.22" numOctaves="3" seed="7" stitchTiles="stitch" result="n"/>` +
+      `<feColorMatrix in="n" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0" result="a"/>` +
+      `<feComponentTransfer in="a" result="band">` +
+      `<feFuncA type="table" tableValues="0.6 0.12 0 0 0"/>` +
+      `</feComponentTransfer>` +
+      `<feFlood flood-color="${p.caption ?? p.ink}" result="ink"/>` +
+      `<feComposite in="ink" in2="band" operator="in"/>` +
       `</filter></defs>` +
       `<rect width="${w}" height="${h}" fill="${p.paper}"/>` +
-      `<rect width="${w}" height="${h}" filter="url(#${TOOTH_ID})" opacity="0.14"/>`,
+      `<rect width="${w}" height="${h}" fill="none" filter="url(#${TOOTH_ID})"/>`,
   },
 ]
 
@@ -424,6 +439,89 @@ export const LAYOUTS: PosterLayout[] = [
 const mono = "'Roboto Mono', ui-monospace, monospace"
 
 const esc2 = esc
+
+/**
+ * Where a turn settles.
+ *
+ * Snapping is on by default here, which is the opposite of Figma and Canva:
+ * they turn freely and hold Shift to snap. This sheet is one word on a page
+ * with two rules on it, and a word that is a degree and a half off level is a
+ * mistake rather than a choice, so the tool should be the one holding it
+ * straight. Shift lets go, for the turn somebody actually means.
+ *
+ * Konva's transformer is the model for the shape of it: a snap is a pull
+ * towards a value when you are already near it, not a coarser scale — so a
+ * turn passing 43° lands on 45 and one at 37 stays where it is.
+ *
+ * The square angles get a wider pull than the fifteens, because upright,
+ * sideways and upside down are the ones worth landing exactly on.
+ */
+export function snapAngle(deg: number, free = false): number {
+  const at = ((deg % 360) + 360) % 360
+  if (free) return at
+  const square = Math.round(at / 90) * 90
+  if (Math.abs(at - square) <= 6) return square % 360
+  const step = Math.round(at / 15) * 15
+  return Math.abs(at - step) <= 4 ? step % 360 : at
+}
+
+/**
+ * The six marks the caption is made of, as rectangles on the sheet.
+ *
+ * The sheet is a canvas, so there is nothing in the document to click: a part
+ * is found by asking which of these the pointer is inside. They are derived
+ * from the same numbers `chrome` draws with — one `bandOf` between them — so
+ * the thing you click and the thing you see cannot drift apart.
+ *
+ * The mono face the captions are set in is 0.6em wide per character, near
+ * enough for a hit box, and the letter-spacing is added because it is a fifth
+ * of the width again over a long line.
+ */
+export interface SheetPart {
+  id: 'head-rule' | 'head-label' | 'number' | 'foot-rule' | 'foot-caption' | 'address'
+  /** which layer owns it, and therefore which rail a click opens */
+  layer: 'caption'
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+/** what a run of the caption's mono face measures, near enough to click */
+function monoBox(text: string, size: number) {
+  return { w: text.length * (size * 0.6 + 2.4), h: size * 1.25 }
+}
+
+export function sheetParts(req: Pick<PosterRequest, 'format' | 'number' | 'chain' | 'font' | 'seed'>): SheetPart[] {
+  const { w, h } = getFormat(req.format)
+  const { footTop, bandTop, headRule } = bandOf(h)
+  const right = w - MARGIN
+  // a rule is two units tall and impossible to hit, so it is clickable over a
+  // band around itself — the same allowance a hairline gets in any editor
+  const RULE_GRAB = 12
+  const label = monoBox("For Font's Sake", 17)
+  const number = monoBox(`No. ${String(req.number).padStart(3, '0')}`, 17)
+  const caption = monoBox(`${chainName(req.chain)} on ${req.font.label} · Seed ${req.seed}`, 15)
+  const address = monoBox('forfontsake.xyz', 15)
+  return [
+    { id: 'head-rule', layer: 'caption', x: MARGIN, y: headRule - RULE_GRAB / 2, w: right - MARGIN, h: RULE_GRAB },
+    { id: 'head-label', layer: 'caption', x: MARGIN, y: bandTop - 80 - label.h, w: label.w, h: label.h },
+    { id: 'number', layer: 'caption', x: right - number.w, y: bandTop - 80 - number.h, w: number.w, h: number.h },
+    { id: 'foot-rule', layer: 'caption', x: MARGIN, y: footTop - RULE_GRAB / 2, w: right - MARGIN, h: RULE_GRAB },
+    { id: 'foot-caption', layer: 'caption', x: MARGIN, y: footTop + 38 - caption.h, w: Math.min(caption.w, right - MARGIN), h: caption.h },
+    { id: 'address', layer: 'caption', x: right - address.w, y: footTop + 38 - address.h, w: address.w, h: address.h },
+  ]
+}
+
+/** what the rail calls the part you just clicked */
+export const PART_NAMES: Record<SheetPart['id'], string> = {
+  'head-rule': 'the head rule',
+  'head-label': 'the name',
+  number: 'the number',
+  'foot-rule': 'the foot rule',
+  'foot-caption': 'the chain',
+  address: 'the address',
+}
 
 /**
  * The marks every sheet carries, whatever is set in the band.

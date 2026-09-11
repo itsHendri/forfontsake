@@ -9,7 +9,11 @@ import {
   GROUNDS,
   LAYOUTS,
   liveBox,
+  PART_NAMES,
+  sheetParts,
+  snapAngle,
   snapLines,
+  type SheetPart,
   POSTER_PALETTES,
   type PosterLayout,
   type PosterPalette,
@@ -105,8 +109,17 @@ const LAYERS: {
 
 /** a ground drawn small, for the picker — the same function that draws the sheet */
 function groundArt(id: string, palette: PosterPalette): string {
-  return `<svg viewBox="0 0 88 58" width="100%" height="100%" preserveAspectRatio="none">${
-    (GROUNDS.find((g) => g.id === id) ?? GROUNDS[0]).draw(88, 58, palette)
+  /*
+   * Drawn at a slice of the sheet's own scale rather than at the chip's size.
+   *
+   * The textures are patterns in user space, so drawing one into an 88×58 box
+   * put an eighteen-unit tile across a third of the chip: the picker showed a
+   * coarser texture than the sheet does, which is a picture of a different
+   * ground. A viewBox at sheet proportions shows the same tile at the same
+   * relative size, which is what a swatch is for.
+   */
+  return `<svg viewBox="0 0 360 240" width="100%" height="100%" preserveAspectRatio="none">${
+    (GROUNDS.find((g) => g.id === id) ?? GROUNDS[0]).draw(360, 240, palette)
   }</svg>`
 }
 
@@ -292,6 +305,10 @@ export function Poster(p: Props) {
   } | null>(null)
   /** the word is an object you select, so it has a selected state to be in */
   const [framed, setFramed] = useState(false)
+  /** which of the caption's six marks was clicked, so the rail can name it */
+  const [part, setPart] = useState<SheetPart['id'] | null>(null)
+  /** what the pointer is over: a mark's id, the word, or nothing */
+  const [hover, setHover] = useState<SheetPart['id'] | 'word' | null>(null)
   /** which snap lines are lit, in sheet units, while a move is in flight */
   const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] })
   // where the move got to, so the release commits the snapped value rather
@@ -370,9 +387,24 @@ export function Poster(p: Props) {
   // from a performance it returns the rail rather than throwing away the sheet
   // and whatever was playing.
   const closeRef = useRef<() => void>(p.onClose)
+  /*
+   * Escape backs out of one thing at a time.
+   *
+   * It used to leave the room whatever you were doing, so the reflex for
+   * "close this panel" threw away the sheet instead. A layer selected is a
+   * thing to back out of, and once there is nothing selected the next press
+   * leaves.
+   */
+  const selectedRef = useRef<string | null>(null)
+  const deselectRef = useRef<() => void>(() => {})
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeRef.current()
+      if (e.key !== 'Escape') return
+      if (selectedRef.current !== null) {
+        deselectRef.current()
+        return
+      }
+      closeRef.current()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -786,6 +818,12 @@ export function Poster(p: Props) {
   useEffect(() => {
     finishRecordingRef.current = finishRecording
     closeRef.current = handleClose
+    selectedRef.current = selected
+    deselectRef.current = () => {
+      setSelected(null)
+      setPart(null)
+      setFramed(false)
+    }
   })
 
   const startRecording = () => {
@@ -859,6 +897,12 @@ export function Poster(p: Props) {
     const el = viewRef.current?.canvas
     return el && el.clientWidth ? px * (format.w / el.clientWidth) : px
   }
+
+  /** the caption's marks as rectangles, from the numbers the sheet draws with */
+  const parts = useMemo(
+    () => sheetParts({ format: format.id, number, chain: p.chain, font: p.font, seed: sheetSeed }),
+    [format.id, number, p.chain, p.font, sheetSeed],
+  )
 
   /**
    * The word's rectangle on the sheet, drag included — what the frame draws on.
@@ -979,15 +1023,74 @@ export function Poster(p: Props) {
     setFramed(true)
   }
 
+  /**
+   * Which of the caption's marks is under the pointer, if any.
+   *
+   * The sheet is a canvas, so selection has to be arithmetic: the parts come
+   * from the same numbers the sheet is drawn with, and the first one the point
+   * falls inside wins. Small boxes first would be the usual rule, but these do
+   * not overlap — the two rules run between the marks rather than through them.
+   */
+  const partAt = (clientX: number, clientY: number): SheetPart | null => {
+    const at = toPoint(clientX, clientY)
+    if (!at) return null
+    return (
+      parts.find((r) => at.x >= r.x && at.x <= r.x + r.w && at.y >= r.y && at.y <= r.y + r.h) ?? null
+    )
+  }
+
+  /*
+   * Clicking the sheet selects what you clicked.
+   *
+   * The rail used to be the only way in: to change the caption's colour you
+   * picked a layer called Caption, having first worked out that the number in
+   * the corner was part of something called the caption. Every canvas tool in
+   * the category — Framer, Jitter, Rive, Penpot, Ditther — lets the artwork be
+   * the way in and keeps the list as the second one. So: the word, then the
+   * caption's marks, then the ground, which is also how they are stacked.
+   */
   const onStagePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (layout.id !== 'word' || !onWord(e.clientX, e.clientY)) {
-      // a click on the ground puts the word down
-      setFramed(false)
+    if (layout.id === 'word' && onWord(e.clientX, e.clientY)) {
+      setSelected('type')
+      startGesture('move', e)
       return
     }
-    setSelected('type')
-    startGesture('move', e)
+    setFramed(false)
+    const part = partAt(e.clientX, e.clientY)
+    if (part) {
+      setPart(part.id)
+      setSelected(part.layer)
+      return
+    }
+    // the ground is the last thing under everything, and the sheet's own
+    // margin is not a layer — a press on nothing goes back to the sheet
+    setPart(null)
+    const at = toPoint(e.clientX, e.clientY)
+    setSelected(at ? 'background' : null)
   }
+
+  /*
+   * What the pointer is over, for the outline that says it can be clicked.
+   * Coalesced to a frame: it is a handful of rectangle tests, but it runs on
+   * every pointermove across the sheet.
+   */
+  const hoverFrame = useRef<number | null>(null)
+  const trackHover = (clientX: number, clientY: number) => {
+    if (hoverFrame.current !== null) return
+    hoverFrame.current = requestAnimationFrame(() => {
+      hoverFrame.current = null
+      if (dragRef.current) return
+      const over =
+        layout.id === 'word' && onWord(clientX, clientY) ? 'word' : (partAt(clientX, clientY)?.id ?? null)
+      setHover((h) => (h === over ? h : over))
+    })
+  }
+  useEffect(
+    () => () => {
+      if (hoverFrame.current !== null) cancelAnimationFrame(hoverFrame.current)
+    },
+    [],
+  )
 
   /** what a gesture makes of the pointer where it is now */
   const gestureAt = (clientX: number, clientY: number): WordTransform | null => {
@@ -1014,7 +1117,10 @@ export function Poster(p: Props) {
 
   const onStagePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current
-    if (!drag) return
+    if (!drag) {
+      trackHover(e.clientX, e.clientY)
+      return
+    }
     const next = gestureAt(e.clientX, e.clientY)
     if (!next) return
     if (drag.kind === 'move') {
@@ -1024,10 +1130,12 @@ export function Poster(p: Props) {
       setGuides(settle(drag.base.dx + toSheet(e.clientX - drag.startX), drag.base.dy + toSheet(e.clientY - drag.startY)).lit)
       moveRef.current = next
     } else {
-      // Shift holds a turn to fifteen degrees, the step every tool uses
+      // The turn settles on the angles worth landing on unless Shift says
+      // otherwise — the opposite way round from Figma, because a word a degree
+      // off level on a sheet with two rules on it is a mistake, not a choice.
       const snapped =
-        drag.kind === 'rotate' && e.shiftKey
-          ? { ...next, rotate: Math.round((next.rotate ?? 0) / 15) * 15 }
+        drag.kind === 'rotate'
+          ? { ...next, rotate: snapAngle(next.rotate ?? 0, e.shiftKey) }
           : next
       // free while the hand is down: the sheet is resampled on the GPU and the
       // outlines are rebuilt once, on release
@@ -1212,7 +1320,13 @@ export function Poster(p: Props) {
 
       <div className="sheet-body">
         <div
-          className={inVideo && soundSource ? 'sheet-stage has-transport' : 'sheet-stage'}
+          className={[
+            'sheet-stage',
+            inVideo && soundSource ? 'has-transport' : '',
+            hover ? 'is-over-part' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
           ref={sheetRef}
           onPointerDown={onStagePointerDown}
           onPointerMove={onStagePointerMove}
@@ -1242,6 +1356,31 @@ export function Poster(p: Props) {
               when the window moves. It is `pointer-events: none` except on the
               handles, so the drag underneath still reaches the stage.
             */}
+            {/*
+              What is selected, and what would be if you pressed.
+
+              Drawn as overlays in percentages of the sheet, the same trick the
+              word's frame uses: the canvas has nothing in it to outline, and a
+              percentage stays on the mark at whatever size the sheet is shown.
+            */}
+            <div className="part-frames" aria-hidden="true">
+              {parts.map((r) => {
+                const lit = selected === 'caption' || hover === r.id
+                if (!lit) return null
+                return (
+                  <span
+                    key={r.id}
+                    className={hover === r.id ? 'part-box is-over' : 'part-box'}
+                    style={{
+                      left: pct(r.x, format.w),
+                      top: pct(r.y, format.h),
+                      width: pct(r.w, format.w),
+                      height: pct(r.h, format.h),
+                    }}
+                  />
+                )
+              })}
+            </div>
             {layout.id === 'word' && framedBox && (
               <div className="word-frame" aria-hidden="true">
                 {guides.x.map((x) => (
@@ -1272,9 +1411,12 @@ export function Poster(p: Props) {
                     {/* the turn, on a stalk under the box — unmissable, which
                         is the whole argument for it over an invisible hit area */}
                     <span className="word-stalk" />
+                    {dragRef.current?.kind === 'rotate' && (
+                      <span className="spin-badge">{Math.round(wordT.rotate ?? 0)}°</span>
+                    )}
                     <span
                       className="word-spin"
-                      title="Drag to turn · hold Shift for 15°"
+                      title="Drag to turn · it settles on the square and fifteen-degree angles · hold Shift to turn freely"
                       onPointerDown={(e) => startGesture('rotate', e)}
                     />
                   </div>
@@ -1350,7 +1492,7 @@ export function Poster(p: Props) {
                     key={l.id}
                     className={on ? 'layer-row is-on' : 'layer-row'}
                     aria-pressed={on}
-                    onClick={() => setSelected(on ? null : l.id)}
+                    onClick={() => setSelected(l.id)}
                   >
                     <span className="layer-row-text">
                       <span className="layer-row-name">{l.name(layout)}</span>
@@ -1364,11 +1506,33 @@ export function Poster(p: Props) {
                   </button>
                 )
               })}
+              {/*
+                The sheet itself, at the foot of its own layers.
+
+                It was the state of having nothing selected, and the only way
+                back to it was clicking the highlighted row a second time —
+                which nothing said, so the layout picker and the two rolls read
+                as gone the moment you touched a layer. A row you can see is a
+                row you can press.
+              */}
+              <button
+                type="button"
+                className={selected === null ? 'layer-row is-sheet is-on' : 'layer-row is-sheet'}
+                aria-pressed={selected === null}
+                onClick={() => setSelected(null)}
+              >
+                <span className="layer-row-text">
+                  <span className="layer-row-name">Sheet</span>
+                  <span className="layer-row-sub">
+                    {layout.name.toLowerCase()} · {format.name.toLowerCase()} · seed {sheetSeed}
+                  </span>
+                </span>
+              </button>
             </div>
           </div>
 
-          {/* Nothing selected shows what the sheet itself is: how it is laid
-              out, and the two rolls that move everything at once. */}
+          {/* The sheet itself: how it is laid out, and the two rolls that move
+              everything at once. */}
           {selected === null && (
             <div className="group ruled">
               <h2>Sheet</h2>
@@ -1512,30 +1676,36 @@ export function Poster(p: Props) {
                     onChange={(e) => setWordT((t) => ({ ...t, scale: Number(e.target.value) }))}
                     onDoubleClick={() => setWordT((t) => ({ ...t, scale: 1 }))}
                   />
-                  <div className="ctl">
-                    <div className="ctl-head">
-                      <label htmlFor="word-spin">Turn</label>
-                      <output
-                        htmlFor="word-spin"
-                        className={(wordT.rotate ?? 0) === 0 ? 'is-default' : undefined}
-                      >
-                        {Math.round(wordT.rotate ?? 0)}°
-                      </output>
-                    </div>
-                    <input
-                      id="word-spin"
-                      type="range"
-                      min={0}
-                      max={359}
-                      step={1}
-                      value={Math.round(wordT.rotate ?? 0)}
-                      onChange={(e) => setWordT((t) => ({ ...t, rotate: Number(e.target.value) }))}
-                      onDoubleClick={() => setWordT((t) => ({ ...t, rotate: 0 }))}
-                    />
+                  {/*
+                    A turn is something you do to the word, not a value you set
+                    on a track — Figma, Canva and tldraw all turn from a handle
+                    and keep a number beside it for the one you can name. So
+                    this is the number, and the knob on the sheet is the verb.
+                  */}
+                  <div className="ctl-head">
+                    <label htmlFor="word-spin">Turn</label>
+                    <span className="stepper">
+                      <input
+                        id="word-spin"
+                        type="number"
+                        min={0}
+                        max={359}
+                        step={15}
+                        value={Math.round(wordT.rotate ?? 0)}
+                        onChange={(e) =>
+                          setWordT((t) => ({
+                            ...t,
+                            rotate: ((Math.round(Number(e.target.value)) % 360) + 360) % 360,
+                          }))
+                        }
+                      />
+                      <span className="stepper-unit">°</span>
+                    </span>
                   </div>
                   <p className="note">
                     Click the word to take hold of it: drag to move, a corner to resize, the knob
-                    to turn. Hold Shift while turning for fifteen degrees at a time.
+                    to turn. A turn settles on the square and fifteen-degree angles; hold Shift to
+                    put it anywhere.
                     {moved && ' · '}
                     {moved && (
                       <button type="button" className="linkish" onClick={() => setWordT(IDENTITY)}>
@@ -1565,6 +1735,9 @@ export function Poster(p: Props) {
               <p className="note">
                 What the sheet says about itself: the two rules, the name, the number, the chain and
                 the address. It travels with the sheet — it is not in the font.
+                {part && ` You picked ${PART_NAMES[part]}, which takes its colour from ${
+                  part === 'number' || part === 'address' ? 'Accent' : 'Rules and labels'
+                }.`}
               </p>
             </div>
           )}
