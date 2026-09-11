@@ -119,11 +119,56 @@ function groundArt(id: string, palette: PosterPalette): string {
  */
 function Swatch({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   const id = `swatch-${label.replace(/\W+/g, '-').toLowerCase()}`
+  /*
+   * One colour a frame, latest wins.
+   *
+   * Dragging across the picker's spectrum fires an event a pixel, and every
+   * one of them repaints the sheet and re-uploads two textures. Nobody can see
+   * more than one colour a frame, so the ones in between are work for a
+   * picture that is never shown.
+   */
+  // What the picker is showing. It has to be this component's own state and
+  // it has to move on the event: a controlled input whose value prop is a
+  // frame behind gets snapped back to the old colour by the render in between,
+  // and the swatch fights the hand dragging it.
+  const [shown, setShown] = useState(value)
+  useEffect(() => {
+    setShown(value)
+  }, [value])
+  const pending = useRef<string | null>(null)
+  const frame = useRef<number | null>(null)
+  const latest = useRef(onChange)
+  latest.current = onChange
+  useEffect(
+    () => () => {
+      if (frame.current !== null) cancelAnimationFrame(frame.current)
+    },
+    [],
+  )
+  const take = (v: string) => {
+    pending.current = v
+    if (frame.current !== null) return
+    frame.current = requestAnimationFrame(() => {
+      frame.current = null
+      const next = pending.current
+      pending.current = null
+      if (next !== null) latest.current(next)
+    })
+  }
   return (
     <div className="swatch-row">
       <label htmlFor={id}>{label}</label>
-      <span className="swatch-value">{value.toUpperCase()}</span>
-      <input id={id} type="color" className="swatch" value={value} onChange={(e) => onChange(e.target.value)} />
+      <span className="swatch-value">{shown.toUpperCase()}</span>
+      <input
+        id={id}
+        type="color"
+        className="swatch"
+        value={shown}
+        onChange={(e) => {
+          setShown(e.target.value)
+          take(e.target.value)
+        }}
+      />
     </div>
   )
 }

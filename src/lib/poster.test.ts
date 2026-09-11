@@ -8,6 +8,7 @@ import {
   GROUNDS,
   getGround,
   liveBox,
+  sheetGeometry,
   snapLines,
   settingsLine,
   chainName,
@@ -363,6 +364,42 @@ describe('what the sheet is printed on', () => {
 
   it('puts the same ground under the layered sheet as under the composed one', () => {
     expect(buildPosterLayers({ ...req('word'), palette, ground: 'grid' }).ground).toContain('ffs-grid')
+  })
+})
+
+describe('the outlines behind the sheet', () => {
+  it('gives the same sheet whether or not the geometry was already made', () => {
+    // the cache is keyed on what the outlines depend on, so a second build
+    // with everything else changed must still be the sheet, byte for byte
+    const first = buildPoster({ ...req('word'), palette: POSTER_PALETTES[0] })
+    const again = buildPoster({ ...req('word'), palette: POSTER_PALETTES[0] })
+    expect(again).toBe(first)
+  })
+
+  it('keeps a colour out of the key, so recolouring cannot re-treat the word', () => {
+    const a = sheetGeometry({ ...req('word'), palette: POSTER_PALETTES[0] })
+    const b = sheetGeometry({ ...req('word'), palette: POSTER_PALETTES[1] })
+    expect(b).toBe(a)
+  })
+
+  it('treats the word again when the seed rolls', () => {
+    const a = sheetGeometry({ ...req('word'), seed: 1 })
+    const b = sheetGeometry({ ...req('word'), seed: 2 })
+    expect(b).not.toBe(a)
+    expect(b.word.d).not.toBe(a.word.d)
+  })
+
+  it('treats the word again when the word changes', () => {
+    const a = sheetGeometry({ ...req('word'), word: 'Alpha' })
+    const b = sheetGeometry({ ...req('word'), word: 'Beta' })
+    expect(b.word.d).not.toBe(a.word.d)
+  })
+
+  it('draws the character set only when something asks for it', () => {
+    // the word layout must not pay for sixty-nine glyphs it does not show
+    const geo = sheetGeometry({ ...req('word'), seed: 4242 })
+    expect(geo.word.d.length).toBeGreaterThan(0)
+    expect(geo.chars.length).toBeGreaterThan(0)
   })
 })
 

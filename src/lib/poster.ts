@@ -261,7 +261,7 @@ export function settingsLine(chain: Step[]): string {
  * letter differently each time would be showing off the randomness rather than
  * the treatment.
  */
-function drawWord(req: PosterRequest) {
+function treatWord(req: PosterRequest) {
   const data = req.font
   // grown advances, as the exported font sets them — see render.ts
   const grow = letterGrowth(data, req.chain, req.seed)
@@ -293,7 +293,7 @@ function drawWord(req: PosterRequest) {
  * Separate from drawWord because a grid needs each letter's own box to centre
  * it in, which a single run of path data cannot give back.
  */
-function drawGlyphs(req: PosterRequest, chars: string) {
+function treatGlyphs(req: PosterRequest, chars: string) {
   const data = req.font
   const grow = letterGrowth(data, req.chain, req.seed)
   const out: { ch: string; d: string; adv: number }[] = []
@@ -312,6 +312,65 @@ function drawGlyphs(req: PosterRequest, chars: string) {
     out.push({ ch, d: ringsToPathD(applyChain(toRings(g.rings), rchain, ctx), 0, 0), adv: g.adv + gGrow })
   }
   return out
+}
+
+/** the character set the second layout shows, in the order it shows them */
+const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?&'-"
+
+/** the outlines a sheet is made of, before anything has been said about colour */
+export interface SheetGeometry {
+  readonly word: ReturnType<typeof treatWord>
+  readonly chars: ReturnType<typeof treatGlyphs>
+}
+
+/**
+ * The treated outlines, kept for as long as the things they are made of stay
+ * the same.
+ *
+ * Everything expensive about a sheet is here — the chain runs over every
+ * letter — and almost nothing that changes about a sheet touches it. Picking a
+ * colour, a texture, a size or a layout re-runs `buildPoster`, which without
+ * this re-treated the word and, through the layout thumbnails, all sixty-nine
+ * glyphs of the character set: on a stacked chain that is over a second, for a
+ * change that alters some strings. The key is exactly what the geometry
+ * depends on, so anything not in it is free.
+ *
+ * `chars` is a getter, so the character set is treated only if something
+ * actually asks to see it — which the word layout never does until its
+ * thumbnail is on screen.
+ */
+const geoCache = new Map<string, SheetGeometry>()
+/** four is a layout switch, a seed roll and a step back, without holding much */
+const GEO_KEPT = 4
+
+export function sheetGeometry(req: PosterRequest): SheetGeometry {
+  const key = [
+    req.fontId,
+    req.seed,
+    req.word,
+    JSON.stringify(req.chain),
+    JSON.stringify(req.overrides ?? null),
+  ].join('|')
+  const hit = geoCache.get(key)
+  if (hit) {
+    // touched, so the least recently wanted is the one that goes
+    geoCache.delete(key)
+    geoCache.set(key, hit)
+    return hit
+  }
+  let word: SheetGeometry['word'] | null = null
+  let chars: SheetGeometry['chars'] | null = null
+  const geo: SheetGeometry = {
+    get word() {
+      return (word ??= treatWord(req))
+    },
+    get chars() {
+      return (chars ??= treatGlyphs(req, CHARS))
+    },
+  }
+  geoCache.set(key, geo)
+  if (geoCache.size > GEO_KEPT) geoCache.delete(geoCache.keys().next().value!)
+  return geo
 }
 
 /**
@@ -423,7 +482,7 @@ export function liveBox(box: WordBox, ratio: number): WordBox {
 }
 
 function placeWord(req: PosterRequest, bandTop: number, bandBottom: number) {
-  const word = drawWord(req)
+  const word = sheetGeometry(req).word
   const { w: sheetW } = getFormat(req.format)
 
   // The type is set to the sheet rather than the sheet to the type. Fitting to
@@ -491,8 +550,7 @@ const bandWord = (req: PosterRequest, bandTop: number, bandBottom: number) =>
  * the band rather than fixed, so a face with fewer glyphs still fills the sheet.
  */
 function bandChars(req: PosterRequest, bandTop: number, bandBottom: number) {
-  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?&'-"
-  const glyphs = drawGlyphs(req, chars)
+  const glyphs = sheetGeometry(req).chars
   if (glyphs.length === 0) return ''
 
   const measure = getFormat(req.format).w - MARGIN * 2
@@ -577,7 +635,9 @@ export function buildPoster(req: PosterRequest): string {
  * rebuild — and a rebuild re-runs the whole treatment chain, which is tens of
  * milliseconds on the heavy ones. The word layer is drawn with its placement
  * *offset removed* for exactly that reason: the offset becomes the uniform.
- * Scale stays baked, because resizing is debounced and can afford a rebuild.
+ * Scale and rotation stay baked, because a resampled word is a picture of
+ * letters rather than letters — but they ride a uniform while the hand is
+ * down and bake when it lets go, so a gesture costs one rebuild, not sixty.
  *
  * `buildPoster` remains the one composed sheet, and is still what the SVG
  * download and the clipboard hand over. A test pins the two against each
