@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Menu } from './Menu'
 import { buildFont, nameProblem, save, suggestName, type ExportResult } from '../lib/exportFont'
 import { WEB_FONT_FORMATS, type WebFontFormat } from '../engine/webfont'
 import type { FontData, Library } from '../lib/glyphData'
@@ -25,11 +26,47 @@ interface Props {
   onUpload: (file: File) => void
   /** set while a dropped font is being read, so the control can say so */
   importing: boolean
-  /** how many fonts are on the shelf, so the way in can say so */
-  savedCount: number
-  onSave: () => void
+  /** whether this exact font is one of the kept ones */
+  kept: boolean
+  onToggleKeep: () => void
   onCompose: () => void
-  onOpenSaved: () => void
+}
+
+/**
+ * Keeping a font, as a mark on the thing being kept.
+ *
+ * It was a `Save font` button in the row of ways out, beside Compose and
+ * Download, which put it among the verbs that hand you a file — and it does
+ * not hand you anything. Every tool that has both keeps them apart: Canva,
+ * Jitter and Framer all put the favourite beside the file's name and the
+ * outputs at the other end of the bar, because a favourite is a property of
+ * the thing you have named.
+ *
+ * Filled means kept, and pressing it again forgets — which the row of verbs
+ * could not say at all. It is the first icon in this project, so it is one
+ * path, drawn at the weight of the rules around it.
+ */
+function Heart({ kept, onToggle }: { kept: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      className={kept ? 'keep is-kept' : 'keep'}
+      aria-pressed={kept}
+      aria-label={kept ? 'Kept — press to forget this font' : 'Keep this font'}
+      title={kept ? 'Kept — press to forget' : 'Keep this font'}
+      onClick={onToggle}
+    >
+      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+        <path
+          d="M12 20.4 3.9 12.6a5 5 0 0 1 7.1-7l1 1 1-1a5 5 0 1 1 7.1 7Z"
+          fill={kept ? 'currentColor' : 'none'}
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  )
 }
 
 /** the font select's last entry — a verb among the nouns */
@@ -100,8 +137,6 @@ export function TopBar(p: Props) {
   const [name, setName] = useState(() => suggestName(p.font, p.chainName))
   const [touched, setTouched] = useState(false)
   const [state, setState] = useState<State>({ phase: 'idle' })
-  const [choiceId, setChoiceId] = useState('ttf')
-  const choice = CHOICES.find((c) => c.id === choiceId) ?? CHOICES[0]
   const live = useRef(true)
   const bar = useRef<HTMLElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -144,14 +179,15 @@ export function TopBar(p: Props) {
   // build stale, and "Download again" would otherwise hand over the old one
   useEffect(() => {
     setState((s) => (s.phase === 'done' || s.phase === 'failed' ? { phase: 'idle' } : s))
-  }, [p.fontId, p.chain, p.seed, p.alternates, p.overrides, choiceId])
+  }, [p.fontId, p.chain, p.seed, p.alternates, p.overrides])
 
   const problem = nameProblem(name, p.font)
   const busy = state.phase === 'building'
   // alternates only mean something if some step in the stack is random
   const varies = hasRandomness(p.chain)
 
-  const run = async () => {
+  const run = async (choiceId: string) => {
+    const choice = CHOICES.find((c) => c.id === choiceId) ?? CHOICES[0]
     if (problem) return
     setState({ phase: 'building', progress: 0 })
     try {
@@ -180,13 +216,15 @@ export function TopBar(p: Props) {
     }
   }
 
-  const label = !busy
-    ? state.phase === 'done' && !state.saved
-      ? 'Download again'
-      : `Download ${choice.label}`
-    : state.progress < 1
+  // The verb is constant now: what is in the file is said by the row you
+  // press, not by the button before you have pressed anything.
+  const busyLabel = busy
+    ? state.progress < 1
       ? `Treating… ${Math.round(state.progress * 100)}%`
       : 'Assembling…'
+    : state.phase === 'done' && !state.saved
+      ? 'Download again'
+      : null
 
   return (
     <header className="topbar" ref={bar}>
@@ -194,21 +232,24 @@ export function TopBar(p: Props) {
         <label className="visually-hidden" htmlFor="family">
           Font name
         </label>
-        <input
-          id="family"
-          className="name-field"
-          type="text"
-          value={name}
-          onChange={(e) => {
-            setTouched(true)
-            setName(e.target.value)
-          }}
-          spellCheck={false}
-          autoComplete="off"
-          size={Math.max(4, name.length)}
-          aria-invalid={problem ? true : undefined}
-          aria-describedby={problem ? 'name-problem' : 'font-meta'}
-        />
+        <div className="name-row">
+          <input
+            id="family"
+            className="name-field"
+            type="text"
+            value={name}
+            onChange={(e) => {
+              setTouched(true)
+              setName(e.target.value)
+            }}
+            spellCheck={false}
+            autoComplete="off"
+            size={Math.max(4, name.length)}
+            aria-invalid={problem ? true : undefined}
+            aria-describedby={problem ? 'name-problem' : 'font-meta'}
+          />
+          <Heart kept={p.kept} onToggle={p.onToggleKeep} />
+        </div>
         {/*
           What the font is made of, said once and beside the name it is made
           into. These two sat unlabelled in the plate's own bar, where they
@@ -296,53 +337,32 @@ export function TopBar(p: Props) {
       </div>
 
       <div className="topbar-actions">
-        <button type="button" onClick={p.onSave}>
-          Save font
-        </button>
-        {/* The way back to what you kept. It counts, because a door with a
-            number on it is the difference between a feature you remember
-            having and one you have to go looking for. */}
-        <button type="button" onClick={p.onOpenSaved} disabled={p.savedCount === 0}>
-          Saved{p.savedCount > 0 && ` · ${p.savedCount}`}
-        </button>
         {/* Compose, not Share. Share is what you do once the thing exists;
             this is the room where it gets made. */}
         <button type="button" onClick={p.onCompose}>
           Compose
         </button>
         {/*
-          The web formats are the same font in a smaller container — the tables
-          inside are byte for byte the ones the sanitiser accepted — so this is
-          a choice of wrapper, not of build.
+          One verb, and the choice underneath it. The web formats are the same
+          font in a smaller container — the tables inside are byte for byte the
+          ones the sanitiser accepted — so this is a choice of wrapper, not of
+          build, and it is only a question for somebody who has already decided
+          to leave with one.
         */}
-        <label className="visually-hidden" htmlFor="font-format">
-          File format
-        </label>
-        <select
-          id="font-format"
-          className="format-pick"
-          value={choiceId}
-          onChange={(e) => setChoiceId(e.target.value)}
-        >
-          {CHOICES.map((c) => (
-            <option key={c.id} value={c.id} title={c.note}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-        {/* the tooltip is the meta line, hung off the control it describes */}
-        <span className="with-tip">
-          <button type="button" className="save" onClick={run} disabled={busy || !!problem}>
-            {label}
-          </button>
-          <span className="tip" role="tooltip">
-            {choice.note}
-            <br />
-            {p.font.label} · {p.chainName} ·{' '}
-            {varies ? `${p.alternates} cuts on the Latin letters` : 'one cut per letter'} from{' '}
-            {p.font.sourceGlyphs.toLocaleString()} glyphs · OFL
-          </span>
-        </span>
+        <Menu
+          label="Download"
+          busyLabel={busyLabel}
+          disabled={busy || !!problem}
+          items={CHOICES.map((c) => ({ id: c.id, label: c.label, note: c.note }))}
+          onPick={run}
+          foot={
+            <>
+              {p.font.label} · {p.chainName} ·{' '}
+              {varies ? `${p.alternates} cuts on the Latin letters` : 'one cut per letter'} from{' '}
+              {p.font.sourceGlyphs.toLocaleString()} glyphs · OFL
+            </>
+          }
+        />
       </div>
 
       {problem && (

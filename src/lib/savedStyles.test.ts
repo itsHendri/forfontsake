@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import { loadShelf, saveShelf, SHELF_LIMIT } from './savedStyles'
+import { isKept, loadShelf, saveShelf, SHELF_LIMIT, toggleKept } from './savedStyles'
 import type { WorkbenchState } from './urlState'
 
 const state = (seed: number): WorkbenchState => ({
@@ -86,5 +86,35 @@ describe('savedStyles', () => {
     install(fakeStorage())
     saveShelf(Array.from({ length: SHELF_LIMIT + 8 }, (_, i) => state(i)))
     expect(loadShelf()).toHaveLength(SHELF_LIMIT)
+  })
+})
+
+describe('keeping and forgetting', () => {
+  const one: WorkbenchState = { fontId: 'pirataone', seed: 1, alternates: 3, text: 'One', chain: [{ id: 'halftone', params: {} }] }
+  const two: WorkbenchState = { ...one, text: 'Two' }
+
+  it('says nothing is kept on an empty shelf', () => {
+    expect(isKept([], one)).toBe(false)
+  })
+
+  it('knows the font in front of you by the same encoding the URL uses', () => {
+    expect(isKept([one], { ...one })).toBe(true)
+    expect(isKept([one], two)).toBe(false)
+  })
+
+  it('keeps what is not kept, newest first', () => {
+    expect(toggleKept([two], one)).toEqual([one, two])
+  })
+
+  it('forgets what is, which the old Save font could not do', () => {
+    expect(toggleKept([one, two], one)).toEqual([two])
+  })
+
+  it('drops the oldest rather than growing past the cap', () => {
+    const many = Array.from({ length: SHELF_LIMIT }, (_, i) => ({ ...one, text: `w${i}` }))
+    const next = toggleKept(many, one)
+    expect(next).toHaveLength(SHELF_LIMIT)
+    expect(next[0]).toEqual(one)
+    expect(next).not.toContainEqual(many[SHELF_LIMIT - 1])
   })
 })

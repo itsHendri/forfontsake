@@ -16,6 +16,7 @@ import {
   type WordTransform,
 } from '../lib/poster'
 import { saveFile } from '../lib/exportFont'
+import { Menu } from './Menu'
 import { getTreatment } from '../engine/treatments/registry'
 import {
   DEFAULT_DEPTH,
@@ -248,7 +249,6 @@ export function Poster(p: Props) {
   // in this category splits them that way; the download stays type and scale.
   const [formatId, setFormatId] = useState(FORMATS[0].id)
   const [soundModeId, setSoundModeId] = useState(DEFAULT_MODE.id)
-  const [stillType, setStillType] = useState<'png' | 'svg'>('png')
   const [busy, setBusy] = useState(false)
   /*
    * Two notes, because they had two causes and one place to appear.
@@ -1101,7 +1101,7 @@ export function Poster(p: Props) {
   // three rebuilds before it is allowed an opinion; one is just the cold one
   const steppy = samples >= 3 && framesPerSecond !== null && framesPerSecond < 6
 
-  const download = () => (stillType === 'svg' ? void downloadSvg() : void downloadPng())
+  const download = (type: 'png' | 'svg') => (type === 'svg' ? void downloadSvg() : void downloadPng())
 
   return (
     <div className="sheet-view">
@@ -1175,29 +1175,24 @@ export function Poster(p: Props) {
               </span>
             </>
           ) : (
-            <>
-              <label className="visually-hidden" htmlFor="still-type">
-                File type
-              </label>
-              <select
-                id="still-type"
-                value={stillType}
-                onChange={(e) => setStillType(e.target.value as 'png' | 'svg')}
-              >
-                <option value="png">PNG · 2×</option>
-                <option value="svg">SVG</option>
-              </select>
-              <span className="with-tip">
-                <button type="button" className="save" onClick={download} disabled={busy}>
-                  {busy ? 'Rendering…' : 'Download'}
-                </button>
-                <span className="tip" role="tooltip">
-                  {stillType === 'svg'
-                    ? 'Letterforms only — a finish is pixels, so it cannot travel in a vector file.'
-                    : `${format.w} × ${format.h}, drawn again at 2× so it holds up posted large.`}
-                </span>
-              </span>
-            </>
+            <Menu
+              label="Download"
+              busyLabel={busy ? 'Rendering…' : null}
+              disabled={busy}
+              items={[
+                {
+                  id: 'png',
+                  label: 'PNG · 2×',
+                  note: `${format.w} × ${format.h}, drawn again at 2× so it holds up posted large.`,
+                },
+                {
+                  id: 'svg',
+                  label: 'SVG',
+                  note: 'Letterforms only — a finish is pixels, so it cannot travel in a vector file.',
+                },
+              ]}
+              onPick={(id) => download(id as 'png' | 'svg')}
+            />
           )}
         </div>
 

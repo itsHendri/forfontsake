@@ -30,7 +30,7 @@ import {
   type WorkbenchState,
   type Step,
 } from './lib/urlState'
-import { loadShelf, saveShelf, SHELF_LIMIT } from './lib/savedStyles'
+import { isKept, loadShelf, saveShelf, toggleKept } from './lib/savedStyles'
 import { Panel } from './components/Panel'
 import { Plate } from './components/Plate'
 import { Presets } from './components/Presets'
@@ -411,6 +411,9 @@ export default function App() {
     )
   }, [library, settledFontId, deferredTreatmentId])
 
+  /** whether the font on the bench is one of the kept ones */
+  const kept = useMemo(() => (state ? isKept(saved, state) : false), [saved, state])
+
   /** the specimen's own handler, stable so the plate can skip a render */
   const onText = useCallback((text: string) => patch({ text }), [patch])
 
@@ -633,13 +636,10 @@ export default function App() {
     }
   }
 
-  const save = () => {
-    // Saving the same settings twice is a slip, not an intent, and on a shelf
-    // that now outlives the session the duplicates would accumulate. The
-    // existing copy moves to the front rather than a second one appearing.
-    const key = encodeState(state)
-    setSaved((list) => [state, ...list.filter((s) => encodeState(s) !== key)].slice(0, SHELF_LIMIT))
-  }
+  // Keeping a font is a mark on the font, so it can come off again: the heart
+  // in the bar is filled when this exact state is on the shelf, and pressing
+  // it then takes it back off.
+  const keep = () => setSaved((list) => toggleKept(list, state))
 
   /*
    * The sheet is a room, not a dialog.
@@ -685,7 +685,23 @@ export default function App() {
 
   return (
     <div className="wrap">
-      <Brand />
+      {/*
+        The way back to what you kept, in the mark's row rather than in the
+        bar. It is navigation, not an output: the bar carries the things that
+        hand you a file, and the heart beside the name is what you reach for
+        while you are working. The count stays, because a door with a number
+        on it is the difference between a feature you remember having and one
+        you have to go looking for.
+      */}
+      <Brand
+        door={
+          saved.length > 0 ? (
+            <button type="button" className="saved-door" onClick={() => setView('saved')}>
+              Saved · {saved.length}
+            </button>
+          ) : null
+        }
+      />
       <TopBar
         font={library[state.fontId]}
         fontId={state.fontId}
@@ -701,10 +717,9 @@ export default function App() {
         onTreatment={changeTreatment}
         onUpload={onUpload}
         importing={importing}
-        savedCount={saved.length}
-        onSave={save}
+        kept={kept}
+        onToggleKeep={keep}
         onCompose={() => setView('compose')}
-        onOpenSaved={() => setView('saved')}
       />
 
       <div className="layout">

@@ -141,6 +141,48 @@ body {
   min-width: 0;
   margin-right: auto;
 }
+/* The heart sits on the name's own line, level with it: it is a mark on the
+   thing being named, not one of the ways out. */
+.name-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.keep {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.12s ease-out, transform 0.12s ease-out;
+}
+.keep:hover {
+  color: var(--mark);
+}
+.keep.is-kept {
+  color: var(--mark);
+}
+.keep:active {
+  transform: scale(0.88);
+}
+.keep:focus-visible {
+  outline: 2px solid var(--mark);
+  outline-offset: 2px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .keep {
+    transition: none;
+  }
+  .keep:active {
+    transform: none;
+  }
+}
 /* The dashes are always there. A field that only admits to being a field once
    the pointer is over it is a field nobody finds: the name is the first thing
    on the page and the first act of making a font, so it says so at rest and
@@ -214,12 +256,6 @@ body {
   gap: 8px;
 }
 /* the wrapper, next to the button that hands it over */
-.format-pick {
-  width: auto;
-  flex: none;
-  padding: 7px 8px;
-  font-size: 13px;
-}
 .export-problem {
   margin: 8px 0 0;
   font-size: 12px;
@@ -1287,6 +1323,64 @@ h1 {
   position: absolute;
 }
 
+/* ---------- the menu a verb opens ---------- */
+
+/* Anchored to the button rather than to the bar, and right-aligned because the
+   button is at the right end of it — a panel that opens leftwards off the edge
+   of the window is the one failure this has to avoid. */
+.menu {
+  position: relative;
+  display: inline-flex;
+}
+.menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  min-width: 260px;
+  max-width: 320px;
+  padding: 6px;
+  background: var(--paper);
+  border: 1px solid var(--ink);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.12);
+  text-align: left;
+}
+.menu-item {
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-item:hover,
+.menu-item:focus-visible {
+  background: var(--plate);
+  outline: none;
+}
+.menu-item-label {
+  display: block;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 13px;
+  color: var(--ink);
+}
+.menu-item-note {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+}
+.menu-foot {
+  margin: 6px 0 2px;
+  padding: 8px 10px 0;
+  border-top: 1px solid var(--rule);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
 /* ---------- panel ---------- */
 
 .panel {
@@ -1938,6 +2032,26 @@ select:focus-visible {
   display: flex;
   align-items: center;
   padding: 34px 0 26px;
+}
+/* The door to the saved fonts, at the mark's level rather than the bar's.
+   Hidden rather than disabled when there is nothing behind it: a dead button
+   in the row above the bar is furniture. */
+.saved-door {
+  margin-left: auto;
+  padding: 7px 12px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.saved-door:hover {
+  color: var(--ink);
+  border-color: var(--ink);
 }
 .brand-mark {
   display: block;

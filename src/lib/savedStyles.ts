@@ -23,6 +23,27 @@ const KEY = 'ffs:shelf:v1'
 /** Matches the in-memory cap in App, so a long session cannot fill storage. */
 export const SHELF_LIMIT = 12
 
+/** Is this exact font one of the kept ones? Encoded, so it is the shelf's own idea of same. */
+export function isKept(list: WorkbenchState[], state: WorkbenchState): boolean {
+  const key = encodeState(state)
+  return list.some((s) => encodeState(s) === key)
+}
+
+/**
+ * Keep it, or forget it.
+ *
+ * The bar used to only add: `Save font` twice on unchanged settings was a slip
+ * rather than an intent, so the second press quietly moved the existing entry
+ * to the front and there was no way to take one back off without going into
+ * the room. A mark that can be turned on has to be able to turn off, so the
+ * same press does both — and the shelf stays newest-first either way.
+ */
+export function toggleKept(list: WorkbenchState[], state: WorkbenchState): WorkbenchState[] {
+  const key = encodeState(state)
+  const without = list.filter((s) => encodeState(s) !== key)
+  return without.length < list.length ? without : [state, ...without].slice(0, SHELF_LIMIT)
+}
+
 /**
  * Every access is guarded. `localStorage` is not merely empty in a private
  * window or with site data blocked — reading it *throws*, and an exception here

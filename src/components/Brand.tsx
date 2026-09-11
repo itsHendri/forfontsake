@@ -40,10 +40,11 @@ function Wordmark({ label }: { label?: string }) {
  * carries the name of the font and the way out with it, which are wanted at
  * any depth on the page.
  */
-export function Brand() {
+export function Brand({ door }: { door?: React.ReactNode }) {
   return (
     <div className="brand">
       <Wordmark label="For Font's Sake" />
+      {door}
     </div>
   )
 }
