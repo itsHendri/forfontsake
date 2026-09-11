@@ -1551,11 +1551,20 @@ tool that has both puts the favourite beside the file's name and the outputs at 
 of the bar — Canva, Jitter and Framer all do, and it is the same reasoning as the name field
 being the page title.
 
-So it is a heart on the name's own line. Outline when the font is not kept, filled when it
-is, and pressing it again forgets — which the button could not express at all, and which
-meant there was no way to take a font off the shelf without going into the room. (Pressing
-`Save font` twice quietly moved the entry to the front, because a duplicate would have been
-worse. A mark that can be turned on can be turned off.)
+So it moves to the name's own line, and it stays the same button Compose is — because it is
+the same kind of thing to press. It keeps the toggle the old one could not express: pressing
+it again forgets, where before there was no way to take a font off the shelf without going
+into the room. (Pressing `Save font` twice quietly moved the entry to the front, because a
+duplicate would have been worse. A mark that can be turned on can be turned off.)
+
+**It was a bare heart for one round, and that was a mistake worth recording.** The argument
+held — a favourite belongs to the thing you have named — but an unlabelled icon asks the
+reader to guess, and Hendri's note was that it is "not so obvious". A heart also guesses
+back: it says *liked*, which is what you do to somebody else's work, where this is keeping
+your own. The words came back, and the mark became a **bookmark** — the one every tool that
+keeps things for later uses, meaning "put this where I can find it again", and legible at
+fourteen pixels where a floppy disk is not. Filled and accented reads Saved; outline reads
+Save font.
 
 `Saved · N` goes up a level into the mark's row. It is navigation rather than an action, and
 the heart is what the hand wants while working. The count stays — a door with a number on it

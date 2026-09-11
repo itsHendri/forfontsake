@@ -141,47 +141,32 @@ body {
   min-width: 0;
   margin-right: auto;
 }
-/* The heart sits on the name's own line, level with it: it is a mark on the
-   thing being named, not one of the ways out. */
+/* It sits on the name's own line, level with it: keeping a font is a mark on
+   the thing being named rather than one of the ways out of the page. Same
+   button as Compose, because it is the same kind of thing to press. */
 .name-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 .keep {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: none;
+  gap: 7px;
+}
+/* the mark is quieter than the word until the font is actually kept */
+.keep:not(.is-kept) svg {
   color: var(--muted);
-  cursor: pointer;
-  transition: color 0.12s ease-out, transform 0.12s ease-out;
 }
-.keep:hover {
-  color: var(--mark);
+.keep svg {
+  /* the mark stays put when the word beside it changes length */
+  flex: none;
 }
+/* Kept is a state, so it is stated in the accent the rest of the page keeps
+   for things that are on. */
 .keep.is-kept {
   color: var(--mark);
-}
-.keep:active {
-  transform: scale(0.88);
-}
-.keep:focus-visible {
-  outline: 2px solid var(--mark);
-  outline-offset: 2px;
-}
-@media (prefers-reduced-motion: reduce) {
-  .keep {
-    transition: none;
-  }
-  .keep:active {
-    transform: none;
-  }
+  border-color: var(--mark);
 }
 /* The dashes are always there. A field that only admits to being a field once
    the pointer is over it is a field nobody finds: the name is the first thing

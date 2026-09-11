@@ -33,38 +33,39 @@ interface Props {
 }
 
 /**
- * Keeping a font, as a mark on the thing being kept.
+ * Keeping a font.
  *
- * It was a `Save font` button in the row of ways out, beside Compose and
- * Download, which put it among the verbs that hand you a file — and it does
- * not hand you anything. Every tool that has both keeps them apart: Canva,
- * Jitter and Framer all put the favourite beside the file's name and the
- * outputs at the other end of the bar, because a favourite is a property of
- * the thing you have named.
+ * It was a bare heart for one round, on the argument that a favourite is a
+ * property of the thing you have named. The argument holds; the drawing did
+ * not. An unlabelled icon asks the reader to guess, and a heart guesses back —
+ * it says *liked*, which is a thing you do to somebody else's work, where this
+ * is keeping your own. So the words are back and the button is the same one
+ * Compose is, sitting on the name's line where it belongs.
  *
- * Filled means kept, and pressing it again forgets — which the row of verbs
- * could not say at all. It is the first icon in this project, so it is one
- * path, drawn at the weight of the rules around it.
+ * A bookmark rather than a heart or a disk: it is the mark every tool that
+ * keeps things for later uses, it means "put this where I can find it again",
+ * and it survives being drawn at fourteen pixels. Filled means kept, and the
+ * label says Saved, which is also the press that forgets.
  */
-function Heart({ kept, onToggle }: { kept: boolean; onToggle: () => void }) {
+function Keep({ kept, onToggle }: { kept: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
       className={kept ? 'keep is-kept' : 'keep'}
       aria-pressed={kept}
-      aria-label={kept ? 'Kept — press to forget this font' : 'Keep this font'}
-      title={kept ? 'Kept — press to forget' : 'Keep this font'}
+      title={kept ? 'Kept — press to forget this font' : 'Keep this font'}
       onClick={onToggle}
     >
-      <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
+      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
         <path
-          d="M12 20.4 3.9 12.6a5 5 0 0 1 7.1-7l1 1 1-1a5 5 0 1 1 7.1 7Z"
+          d="M6 3.6h12v17.2l-6-4.6-6 4.6Z"
           fill={kept ? 'currentColor' : 'none'}
           stroke="currentColor"
-          strokeWidth="1.6"
+          strokeWidth="1.8"
           strokeLinejoin="round"
         />
       </svg>
+      {kept ? 'Saved' : 'Save font'}
     </button>
   )
 }
@@ -248,7 +249,7 @@ export function TopBar(p: Props) {
             aria-invalid={problem ? true : undefined}
             aria-describedby={problem ? 'name-problem' : 'font-meta'}
           />
-          <Heart kept={p.kept} onToggle={p.onToggleKeep} />
+          <Keep kept={p.kept} onToggle={p.onToggleKeep} />
         </div>
         {/*
           What the font is made of, said once and beside the name it is made
