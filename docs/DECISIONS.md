@@ -1690,6 +1690,11 @@ instead of wherever the name happens to end.
 **Base font and Style became one divided control** — the stepper's rectangle at a larger
 size, a label inside each half. The labels sitting above the menus were the second of the
 four rows, so moving them inside the box is most of what brought the bar down to one line.
+It shipped that way and came apart the same day: joined, the two read as one control with
+two settings, and Hendri asked for them **separated, with a gap**, and for room after each
+chevron — the select draws its arrow flush against its own edge, so the box's padding is
+what supplies it. **"Base font" became "Font"**: beside a menu of font names the word is
+enough, and the shorter label keeps the two boxes the same weight.
 
 **The glyphs-and-licence line went into the Download menu's foot**, which already said it.
 The line had one other job: after a download it reported the file name, the size and the

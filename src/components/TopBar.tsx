@@ -217,15 +217,18 @@ export function TopBar(p: Props) {
       </div>
 
       {/*
-        What the font is made of, as one control with two halves — the
-        stepper's divided rectangle, at a larger size. The labels sit inside
-        the box rather than above it, which is what let the bar come down to
-        one line: they were the second of the four rows.
+        What the font is made of: two menus, side by side with a gap, each
+        with its label inside its own box. The labels sat above the menus
+        before, as the second of the four rows; inside the box is what let
+        the bar come down to one line.
       */}
       <div className="setup" role="group" aria-label="What the font is made of">
         <span className="setup-half">
+          {/* "Font", not "Base font": beside a menu of font names the word
+              is enough, and the shorter label is what keeps the two boxes
+              the same weight */}
           <label className="setup-label" htmlFor="font">
-            Base font
+            Font
           </label>
           {/*
             Uploading lives inside the font menu — it is one of the answers to
