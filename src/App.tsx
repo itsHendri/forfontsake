@@ -703,7 +703,7 @@ export default function App() {
             <Keep kept={kept} onToggle={keep} />
             {saved.length > 0 && (
               <button type="button" className="saved-door" onClick={() => setView('saved')}>
-                Saved · {saved.length}
+                Saved fonts · {saved.length}
               </button>
             )}
           </>

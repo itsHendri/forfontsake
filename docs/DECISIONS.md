@@ -1703,7 +1703,10 @@ the collection belongs by the mark. It was drawn two ways: in the masthead (scro
 in the sticky bar (always on screen). He chose the masthead, knowing it scrolls away, and
 asked for the two to be **separate buttons** where the drawing had joined them: joined, they
 read as one thing with two labels, and one is a verb while the other is a place. The count
-keeps its mono uppercase so it reads as the shelf rather than as a second Save.
+keeps its mono uppercase so it reads as the shelf rather than as a second Save, and
+it says **Saved fonts · N** rather than Saved · N: with this font kept, the two buttons
+read “Saved” and “Saved · 1” side by side, one a state and the other a place, and only
+the name of the room tells them apart.
 
 The bar is **70 px** at 1440. It holds one line down to about 700 px wide; under that the name
 takes a line to itself — it is the one being edited, so it gets the room — and on a phone
