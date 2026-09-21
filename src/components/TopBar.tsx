@@ -26,48 +26,7 @@ interface Props {
   onUpload: (file: File) => void
   /** set while a dropped font is being read, so the control can say so */
   importing: boolean
-  /** whether this exact font is one of the kept ones */
-  kept: boolean
-  onToggleKeep: () => void
   onCompose: () => void
-}
-
-/**
- * Keeping a font.
- *
- * It was a bare heart for one round, on the argument that a favourite is a
- * property of the thing you have named. The argument holds; the drawing did
- * not. An unlabelled icon asks the reader to guess, and a heart guesses back —
- * it says *liked*, which is a thing you do to somebody else's work, where this
- * is keeping your own. So the words are back and the button is the same one
- * Compose is, sitting on the name's line where it belongs.
- *
- * A bookmark rather than a heart or a disk: it is the mark every tool that
- * keeps things for later uses, it means "put this where I can find it again",
- * and it survives being drawn at fourteen pixels. Filled means kept, and the
- * label says Saved, which is also the press that forgets.
- */
-function Keep({ kept, onToggle }: { kept: boolean; onToggle: () => void }) {
-  return (
-    <button
-      type="button"
-      className={kept ? 'keep is-kept' : 'keep'}
-      aria-pressed={kept}
-      title={kept ? 'Kept — press to forget this font' : 'Keep this font'}
-      onClick={onToggle}
-    >
-      <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false">
-        <path
-          d="M6 3.6h12v17.2l-6-4.6-6 4.6Z"
-          fill={kept ? 'currentColor' : 'none'}
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinejoin="round"
-        />
-      </svg>
-      {kept ? 'Saved' : 'Save font'}
-    </button>
-  )
 }
 
 /** the font select's last entry — a verb among the nouns */
@@ -229,112 +188,100 @@ export function TopBar(p: Props) {
 
   return (
     <header className="topbar" ref={bar}>
+      {/*
+        Three zones, the way every tool in the category sets its top bar: the
+        thing you are making on the left, what it is made of in the middle, and
+        the ways out on the right. It was four rows stacked on the left against
+        two buttons on the right, and the whole 151 px of it stuck to the top
+        of the screen all the way down the page. On one line it is 67.
+      */}
       <div className="topbar-name">
         <label className="visually-hidden" htmlFor="family">
           Font name
         </label>
-        <div className="name-row">
-          <input
-            id="family"
-            className="name-field"
-            type="text"
-            value={name}
+        <input
+          id="family"
+          className="name-field"
+          type="text"
+          value={name}
+          onChange={(e) => {
+            setTouched(true)
+            setName(e.target.value)
+          }}
+          spellCheck={false}
+          autoComplete="off"
+          size={Math.max(4, name.length)}
+          aria-invalid={problem ? true : undefined}
+          aria-describedby={problem ? 'name-problem' : undefined}
+        />
+      </div>
+
+      {/*
+        What the font is made of, as one control with two halves — the
+        stepper's divided rectangle, at a larger size. The labels sit inside
+        the box rather than above it, which is what let the bar come down to
+        one line: they were the second of the four rows.
+      */}
+      <div className="setup" role="group" aria-label="What the font is made of">
+        <span className="setup-half">
+          <label className="setup-label" htmlFor="font">
+            Base font
+          </label>
+          {/*
+            Uploading lives inside the font menu — it is one of the answers to
+            "which font?", not a separate feature. A controlled select never
+            actually settles on the upload entry: picking it opens the file
+            dialog and the value snaps back to the current font on re-render.
+          */}
+          <select
+            id="font"
+            value={p.fontId}
+            disabled={p.importing}
             onChange={(e) => {
-              setTouched(true)
-              setName(e.target.value)
+              if (e.target.value === UPLOAD) fileRef.current?.click()
+              else p.onFont(e.target.value)
             }}
-            spellCheck={false}
-            autoComplete="off"
-            size={Math.max(4, name.length)}
-            aria-invalid={problem ? true : undefined}
-            aria-describedby={problem ? 'name-problem' : 'font-meta'}
+          >
+            {Object.entries(p.library).map(([id, f]) => (
+              <option key={id} value={id}>
+                {f.label}
+              </option>
+            ))}
+            <option value={UPLOAD}>{p.importing ? 'Reading…' : 'Upload your own…'}</option>
+          </select>
+          <input
+            ref={fileRef}
+            type="file"
+            hidden
+            accept={FONT_ACCEPT}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              // cleared so choosing the same file twice still fires
+              e.target.value = ''
+              if (file) p.onUpload(file)
+            }}
           />
-          <Keep kept={p.kept} onToggle={p.onToggleKeep} />
-        </div>
-        {/*
-          What the font is made of, said once and beside the name it is made
-          into. These two sat unlabelled in the plate's own bar, where they
-          read as settings for the specimen rather than as the two decisions
-          the whole file comes from — and where the line under the name was
-          left saying "Halftone on Pirata One" to a reader looking straight at
-          two menus that said it better.
-        */}
-        <div className="setup-row">
-          <span className="setup-field">
-            <label htmlFor="font">Base font</label>
-            {/*
-              Uploading lives inside the font menu — it is one of the answers to
-              "which font?", not a separate feature. A controlled select never
-              actually settles on the upload entry: picking it opens the file
-              dialog and the value snaps back to the current font on re-render.
-            */}
-            <select
-              id="font"
-              value={p.fontId}
-              disabled={p.importing}
-              onChange={(e) => {
-                if (e.target.value === UPLOAD) fileRef.current?.click()
-                else p.onFont(e.target.value)
-              }}
-            >
-              {Object.entries(p.library).map(([id, f]) => (
-                <option key={id} value={id}>
-                  {f.label}
-                </option>
-              ))}
-              <option value={UPLOAD}>{p.importing ? 'Reading…' : 'Upload your own…'}</option>
-            </select>
-            <input
-              ref={fileRef}
-              type="file"
-              hidden
-              accept={FONT_ACCEPT}
-              onChange={(e) => {
-                const file = e.target.files?.[0]
-                // cleared so choosing the same file twice still fires
-                e.target.value = ''
-                if (file) p.onUpload(file)
-              }}
-            />
-          </span>
-
-          <span className="setup-field">
-            <label htmlFor="treatment">Style</label>
-            <select
-              id="treatment"
-              value={p.treatment.id}
-              onChange={(e) => p.onTreatment(e.target.value)}
-            >
-              {/* Grouped: thirteen names in one list is a wall, and the family
-                  answers "what sort of thing am I after" before "which one". */}
-              {groupTreatments(p.treatments).map((g) => (
-                <optgroup key={g.label} label={g.label}>
-                  {g.items.map((t) => (
-                    // the blurb rides the option as hover help; as a line beside
-                    // the picker it described what the letters already showed
-                    <option key={t.id} value={t.id} title={t.blurb}>
-                      {t.name}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-          </span>
-        </div>
-
-        <p className="topbar-meta" id="font-meta">
-          {state.phase === 'done' ? (
-            <>
-              <b>{state.result.fileName}</b> · {kb(state.result.bytes)} ·{' '}
-              {state.result.glyphCount} glyphs
-              {state.result.addedGlyphs > 0 && <> including {state.result.addedGlyphs} alternates</>}
-            </>
-          ) : (
-            <>
-              {p.font.sourceGlyphs.toLocaleString()} glyphs · OFL
-            </>
-          )}
-        </p>
+        </span>
+        <span className="setup-half">
+          <label className="setup-label" htmlFor="treatment">
+            Style
+          </label>
+          <select id="treatment" value={p.treatment.id} onChange={(e) => p.onTreatment(e.target.value)}>
+            {/* Grouped: thirteen names in one list is a wall, and the family
+                answers "what sort of thing am I after" before "which one". */}
+            {groupTreatments(p.treatments).map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.items.map((t) => (
+                  // the blurb rides the option as hover help; as a line beside
+                  // the picker it described what the letters already showed
+                  <option key={t.id} value={t.id} title={t.blurb}>
+                    {t.name}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </span>
       </div>
 
       <div className="topbar-actions">
@@ -357,7 +304,18 @@ export function TopBar(p: Props) {
           items={CHOICES.map((c) => ({ id: c.id, label: c.label, note: c.note }))}
           onPick={run}
           foot={
+            /* The line that used to sit under the name, moved to the only
+               place anybody wants it: the menu that makes the file. After a
+               download it says what was written first, and the source after. */
             <>
+              {state.phase === 'done' && (
+                <>
+                  <b>{state.result.fileName}</b> · {kb(state.result.bytes)} · {state.result.glyphCount}{' '}
+                  glyphs
+                  {state.result.addedGlyphs > 0 && <> including {state.result.addedGlyphs} alternates</>}
+                  <br />
+                </>
+              )}
               {p.font.label} · {p.chainName} ·{' '}
               {varies ? `${p.alternates} cuts on the Latin letters` : 'one cut per letter'} from{' '}
               {p.font.sourceGlyphs.toLocaleString()} glyphs · OFL

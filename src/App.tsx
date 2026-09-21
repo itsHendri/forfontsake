@@ -36,6 +36,7 @@ import { Plate } from './components/Plate'
 import { Presets } from './components/Presets'
 import { TopBar } from './components/TopBar'
 import { Brand, SignOff } from './components/Brand'
+import { Keep } from './components/Keep'
 import type { Thumb } from './components/Thumb'
 import { GlyphGrid } from './components/GlyphGrid'
 import { Waterfall } from './components/Waterfall'
@@ -686,20 +687,26 @@ export default function App() {
   return (
     <div className="wrap">
       {/*
-        The way back to what you kept, in the mark's row rather than in the
-        bar. It is navigation, not an output: the bar carries the things that
-        hand you a file, and the heart beside the name is what you reach for
-        while you are working. The count stays, because a door with a number
-        on it is the difference between a feature you remember having and one
-        you have to go looking for.
+        Keeping, and what you have kept, together in the mark's row — two
+        buttons, not one: one is a verb and the other is a place, and a
+        divided control made them read as a single thing with two labels. The
+        bar underneath is left carrying only the font and the ways out.
+
+        The count stays, because a door with a number on it is the difference
+        between a feature you remember having and one you have to go looking
+        for. It is absent rather than disabled at zero: a door with nothing
+        behind it is furniture.
       */}
       <Brand
-        door={
-          saved.length > 0 ? (
-            <button type="button" className="saved-door" onClick={() => setView('saved')}>
-              Saved · {saved.length}
-            </button>
-          ) : null
+        actions={
+          <>
+            <Keep kept={kept} onToggle={keep} />
+            {saved.length > 0 && (
+              <button type="button" className="saved-door" onClick={() => setView('saved')}>
+                Saved · {saved.length}
+              </button>
+            )}
+          </>
         }
       />
       <TopBar
@@ -717,8 +724,6 @@ export default function App() {
         onTreatment={changeTreatment}
         onUpload={onUpload}
         importing={importing}
-        kept={kept}
-        onToggleKeep={keep}
         onCompose={() => setView('compose')}
       />
 

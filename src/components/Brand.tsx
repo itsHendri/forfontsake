@@ -37,14 +37,15 @@ function Wordmark({ label }: { label?: string }) {
 /**
  * The masthead. It scrolls away and the bar under it stays, because the mark
  * answers "what is this" — a question asked once on arrival — while the bar
- * carries the name of the font and the way out with it, which are wanted at
- * any depth on the page.
+ * carries the name of the font and the ways out, which are wanted at any
+ * depth on the page. Its right-hand end holds keeping and the shelf it keeps
+ * things on.
  */
-export function Brand({ door }: { door?: React.ReactNode }) {
+export function Brand({ actions }: { actions?: React.ReactNode }) {
   return (
     <div className="brand">
       <Wordmark label="For Font's Sake" />
-      {door}
+      {actions && <div className="brand-actions">{actions}</div>}
     </div>
   )
 }

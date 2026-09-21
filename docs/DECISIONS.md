@@ -1669,6 +1669,47 @@ A **video** backdrop is the obvious next one and is not built. It cannot travel 
 SVG the way an image does: it needs its own sampler and a per-frame `texImage2D`. The draw
 loop already runs while a take is recording, so the loop is not the missing part.
 
+## The bar is three zones, and keeping went up to the shelf
+
+Hendri's note, 21 September: everything in the bar was "stacked on the left hand side and it
+feels a bit heavy", and it "would have looked better almost in line". Measured, it was worse
+than heavy. The left held four rows — name and Save font, two labels, two menus, the glyphs
+line — against two buttons on the right, and the bar is sticky, so all **151 px** of it
+followed you to the bottom of the page.
+
+Four ways to put it on one line were drawn in Figma (UX round 2 file, band 12) and measured
+the same way: everything in a row with labels beside the menus; the mark folded into the bar
+as a breadcrumb; three zones; and the setup set as a sentence ("set in Pirata One with
+Halftone"). **Hendri picked three zones**: the font on the left, what it is made of in the
+middle, the ways out on the right. It is the only one of the four that answers "heavy on the
+left" rather than only "tall", because it spreads the weight across the width, and it is the
+arrangement people already know from Canva's and Figma's own top bars. The outer two columns
+are equal fractions of a grid, which is what puts the middle on the page's centre line
+instead of wherever the name happens to end.
+
+**Base font and Style became one divided control** — the stepper's rectangle at a larger
+size, a label inside each half. The labels sitting above the menus were the second of the
+four rows, so moving them inside the box is most of what brought the bar down to one line.
+
+**The glyphs-and-licence line went into the Download menu's foot**, which already said it.
+The line had one other job: after a download it reported the file name, the size and the
+glyph count. That report goes to the same foot, above the source line, so it is where you
+look when you are deciding whether to download again.
+
+**Save font moved up beside the count, as a separate button.** In the three-zone bar it sat
+on the name's line and read as part of the field. Hendri's instinct was that Save belongs
+next to the shelf it saves onto, which is the same instinct as his first note in the round —
+the collection belongs by the mark. It was drawn two ways: in the masthead (scrolls away) and
+in the sticky bar (always on screen). He chose the masthead, knowing it scrolls away, and
+asked for the two to be **separate buttons** where the drawing had joined them: joined, they
+read as one thing with two labels, and one is a verb while the other is a place. The count
+keeps its mono uppercase so it reads as the shelf rather than as a second Save.
+
+The bar is **70 px** at 1440. It holds one line down to about 700 px wide; under that the name
+takes a line to itself — it is the one being edited, so it gets the room — and on a phone
+every zone takes its own line, with the setup's halves stacked so neither menu is cut off
+mid-word.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the

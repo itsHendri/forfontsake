@@ -129,26 +129,27 @@ body {
   /* over the dial panel, which sticks too; under the tooltips, which are
      absolute and have to clear both */
   z-index: 10;
-  display: flex;
-  align-items: flex-end;
-  gap: 16px;
-  flex-wrap: wrap;
+  /* Three zones. The outer two are equal fractions, which is what puts the
+     middle one on the page's centre line rather than wherever the name
+     happens to end. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px 16px;
   padding: 16px 0;
   border-bottom: 1px solid var(--rule);
   background: var(--paper);
 }
 .topbar-name {
   min-width: 0;
-  margin-right: auto;
+  justify-self: start;
 }
-/* It sits on the name's own line, level with it: keeping a font is a mark on
-   the thing being named rather than one of the ways out of the page. Same
-   button as Compose, because it is the same kind of thing to press. */
-.name-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+.topbar .name-field {
+  margin-bottom: 0;
 }
+/* Keeping a font: the same button as Compose, because it is the same kind of
+   thing to press. It sits in the masthead beside the shelf it keeps things
+   on — see .brand-actions. */
 .keep {
   display: inline-flex;
   align-items: center;
@@ -199,46 +200,60 @@ body {
 /* The two decisions the file comes from, under the name it is made into.
    Labelled, because unlabelled they were two menus in the specimen's own bar
    that could as easily have been about the preview. */
-.setup-row {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin: 6px 0 7px;
+/* What the font is made of: one box, two halves, the label inside each —
+   the stepper's divided rectangle at a larger size. The selects give up
+   their own boxes so the halves read as one control. */
+.setup {
+  display: inline-flex;
+  align-items: stretch;
+  justify-self: center;
+  max-width: 100%;
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
 }
-.setup-field {
+.setup-half {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
+  padding-left: 12px;
 }
-.setup-field label {
+.setup-half + .setup-half {
+  border-left: 1px solid var(--rule);
+}
+/* the focus ring goes round the half, since the select has no edge of its own */
+.setup-half:focus-within {
+  outline: 2px solid var(--mark);
+  outline-offset: -2px;
+}
+.setup-label {
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+  white-space: nowrap;
   color: var(--muted);
+  cursor: pointer;
 }
-.setup-field select {
+.setup-half select {
   width: auto;
   min-width: 0;
-  padding: 5px 9px;
+  padding: 7px 8px 7px 0;
   font-size: 13px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
-.topbar-meta {
-  margin: 0;
-  font-size: 12px;
-  color: var(--muted);
-}
-.topbar-meta b {
-  color: var(--ink);
-  font-weight: 500;
+.setup-half select:focus-visible {
+  outline: none;
 }
 .topbar-actions {
   display: flex;
   align-items: center;
   gap: 8px;
+  justify-self: end;
 }
 /* the wrapper, next to the button that hands it over */
 .export-problem {
@@ -248,7 +263,7 @@ body {
   color: var(--mark);
 }
 .topbar .export-problem {
-  flex-basis: 100%;
+  grid-column: 1 / -1;
   margin: 6px 0 0;
 }
 
@@ -2080,27 +2095,35 @@ select:focus-visible {
 .brand {
   display: flex;
   align-items: center;
+  /* on a phone the two buttons drop under the mark rather than squeezing it */
+  flex-wrap: wrap;
+  gap: 14px 16px;
   padding: 34px 0 26px;
 }
-/* The door to the saved fonts, at the mark's level rather than the bar's.
-   Hidden rather than disabled when there is nothing behind it: a dead button
-   in the row above the bar is furniture. */
-.saved-door {
+/* Save font, then the door to what is saved: two buttons side by side, the
+   same height, with a gap between. They were one divided control in the
+   drawing, and that read as a single thing with two labels — one is a verb
+   and the other is a place. */
+.brand-actions {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
   margin-left: auto;
-  padding: 7px 12px;
+}
+/* The door keeps the mono count it has always had, so it reads as the shelf
+   rather than as a second Save. Hidden rather than disabled when there is
+   nothing behind it: a dead button in the masthead is furniture. */
+.saved-door {
+  display: inline-flex;
+  align-items: center;
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
-  background: none;
-  border: 1px solid var(--rule);
-  border-radius: 999px;
-  cursor: pointer;
 }
-.saved-door:hover {
+.saved-door:hover:not(:disabled) {
   color: var(--ink);
-  border-color: var(--ink);
 }
 .brand-mark {
   display: block;
@@ -2159,5 +2182,45 @@ select:focus-visible {
   }
   .brand {
     padding: 24px 0 18px;
+  }
+}
+/* The three zones need about 600 px. Under that the name takes the first line
+   to itself — it is the one you are editing, so it is the one that gets the
+   room — and the setup and the ways out share the second. */
+@media (max-width: 700px) {
+  .topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .topbar-name {
+    grid-column: 1 / -1;
+  }
+  .setup {
+    justify-self: start;
+  }
+}
+/* A phone: one zone to a line, all flush left. The setup's two halves stack
+   and each takes the full width — side by side at this size, the menus were
+   left about seventy pixels and cut the style's name off mid-word. */
+@media (max-width: 520px) {
+  .topbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .topbar-actions {
+    justify-self: start;
+  }
+  .setup {
+    flex-direction: column;
+    justify-self: stretch;
+  }
+  .setup-half + .setup-half {
+    border-left: 0;
+    border-top: 1px solid var(--rule);
+  }
+  .setup-half select {
+    flex: 1;
+  }
+  /* the masthead's buttons line up with everything under them */
+  .brand-actions {
+    margin-left: 0;
   }
 }
