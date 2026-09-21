@@ -1694,7 +1694,10 @@ It shipped that way and came apart the same day: joined, the two read as one con
 two settings, and Hendri asked for them **separated, with a gap**, and for room after each
 chevron — the select draws its arrow flush against its own edge, so the box's padding is
 what supplies it. **"Base font" became "Font"**: beside a menu of font names the word is
-enough, and the shorter label keeps the two boxes the same weight.
+enough, and the shorter label keeps the two boxes the same weight. Then Hendri flipped them:
+**Style first, then Font**, which is the order the sheet's own caption already reads in
+("Halftone on Anton") — the treatment is the choice that makes it this font, and the face is
+what it is applied to.
 
 **The glyphs-and-licence line went into the Download menu's foot**, which already said it.
 The line had one other job: after a download it reported the file name, the size and the

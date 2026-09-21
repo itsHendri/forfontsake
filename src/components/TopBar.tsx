@@ -218,11 +218,34 @@ export function TopBar(p: Props) {
 
       {/*
         What the font is made of: two menus, side by side with a gap, each
-        with its label inside its own box. The labels sat above the menus
+        with its label inside its own box. Style first, then Font — the
+        order the sheet's own caption uses ("Halftone on Anton"), with the
+        treatment as the choice that makes it this font and the face as what
+        it is applied to. The labels sat above the menus
         before, as the second of the four rows; inside the box is what let
         the bar come down to one line.
       */}
       <div className="setup" role="group" aria-label="What the font is made of">
+        <span className="setup-half">
+          <label className="setup-label" htmlFor="treatment">
+            Style
+          </label>
+          <select id="treatment" value={p.treatment.id} onChange={(e) => p.onTreatment(e.target.value)}>
+            {/* Grouped: thirteen names in one list is a wall, and the family
+                answers "what sort of thing am I after" before "which one". */}
+            {groupTreatments(p.treatments).map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.items.map((t) => (
+                  // the blurb rides the option as hover help; as a line beside
+                  // the picker it described what the letters already showed
+                  <option key={t.id} value={t.id} title={t.blurb}>
+                    {t.name}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </span>
         <span className="setup-half">
           {/* "Font", not "Base font": beside a menu of font names the word
               is enough, and the shorter label is what keeps the two boxes
@@ -264,26 +287,6 @@ export function TopBar(p: Props) {
               if (file) p.onUpload(file)
             }}
           />
-        </span>
-        <span className="setup-half">
-          <label className="setup-label" htmlFor="treatment">
-            Style
-          </label>
-          <select id="treatment" value={p.treatment.id} onChange={(e) => p.onTreatment(e.target.value)}>
-            {/* Grouped: thirteen names in one list is a wall, and the family
-                answers "what sort of thing am I after" before "which one". */}
-            {groupTreatments(p.treatments).map((g) => (
-              <optgroup key={g.label} label={g.label}>
-                {g.items.map((t) => (
-                  // the blurb rides the option as hover help; as a line beside
-                  // the picker it described what the letters already showed
-                  <option key={t.id} value={t.id} title={t.blurb}>
-                    {t.name}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
         </span>
       </div>
 
