@@ -189,34 +189,6 @@ export function TopBar(p: Props) {
   return (
     <header className="topbar" ref={bar}>
       {/*
-        Three zones, the way every tool in the category sets its top bar: the
-        thing you are making on the left, what it is made of in the middle, and
-        the ways out on the right. It was four rows stacked on the left against
-        two buttons on the right, and the whole 151 px of it stuck to the top
-        of the screen all the way down the page. On one line it is 67.
-      */}
-      <div className="topbar-name">
-        <label className="visually-hidden" htmlFor="family">
-          Font name
-        </label>
-        <input
-          id="family"
-          className="name-field"
-          type="text"
-          value={name}
-          onChange={(e) => {
-            setTouched(true)
-            setName(e.target.value)
-          }}
-          spellCheck={false}
-          autoComplete="off"
-          size={Math.max(4, name.length)}
-          aria-invalid={problem ? true : undefined}
-          aria-describedby={problem ? 'name-problem' : undefined}
-        />
-      </div>
-
-      {/*
         What the font is made of: two menus, side by side with a gap, each
         with its label inside its own box. Style first, then Font — the
         order the sheet's own caption uses ("Halftone on Anton"), with the
@@ -288,6 +260,37 @@ export function TopBar(p: Props) {
             }}
           />
         </span>
+      </div>
+
+      {/*
+        Three zones, the way every tool in the category sets its top bar:
+        what the font is made of on the left, the font itself in the middle,
+        and the ways out on the right. The name sits on the centre line
+        because it is the one thing in the bar that belongs to you — the
+        menus are choices from lists, the buttons are verbs, and the name is
+        what you called it. It was four rows stacked on the left against two
+        buttons on the right, and the whole 151 px of it stuck to the top of
+        the screen all the way down the page. On one line it is 70.
+      */}
+      <div className="topbar-name">
+        <label className="visually-hidden" htmlFor="family">
+          Font name
+        </label>
+        <input
+          id="family"
+          className="name-field"
+          type="text"
+          value={name}
+          onChange={(e) => {
+            setTouched(true)
+            setName(e.target.value)
+          }}
+          spellCheck={false}
+          autoComplete="off"
+          size={Math.max(4, name.length)}
+          aria-invalid={problem ? true : undefined}
+          aria-describedby={problem ? 'name-problem' : undefined}
+        />
       </div>
 
       <div className="topbar-actions">

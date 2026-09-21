@@ -130,22 +130,30 @@ body {
      absolute and have to clear both */
   z-index: 10;
   /* Three zones. The outer two are equal fractions, which is what puts the
-     middle one on the page's centre line rather than wherever the name
-     happens to end. */
+     name on the page's centre line rather than wherever the menus end — but
+     neither may be narrower than what it holds. The menus need 350 px and
+     the buttons 179, so when the page cannot give both sides 350 the right
+     one gives way and the name drifts right of centre instead of squeezing
+     the menus. The name's own column may shrink; its field scrolls. */
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, auto) minmax(max-content, 1fr);
   align-items: center;
   gap: 12px 16px;
   padding: 16px 0;
   border-bottom: 1px solid var(--rule);
   background: var(--paper);
 }
+/* The name on the page's centre line. Its dashed box hugs the text, so the
+   box stays centred as the name grows or shrinks. */
 .topbar-name {
   min-width: 0;
-  justify-self: start;
+  max-width: 100%;
+  justify-self: center;
 }
 .topbar .name-field {
-  margin-bottom: 0;
+  /* the outdent that lined its letters up with the page edge means nothing
+     once it is not at the edge */
+  margin: 0;
 }
 /* Keeping a font: the same button as Compose, because it is the same kind of
    thing to press. It sits in the masthead beside the shelf it keeps things
@@ -209,7 +217,7 @@ body {
   display: inline-flex;
   align-items: stretch;
   gap: 8px;
-  justify-self: center;
+  justify-self: start;
   max-width: 100%;
 }
 .setup-half {
@@ -2189,28 +2197,37 @@ select:focus-visible {
     padding: 24px 0 18px;
   }
 }
-/* The three zones need about 600 px. Under that the name takes the first line
-   to itself — it is the one you are editing, so it is the one that gets the
-   room — and the setup and the ways out share the second. */
-@media (max-width: 700px) {
+/* The three zones need about 700 px before the name has any room. Under 860 —
+   where the bar also stops sticking — the name takes the first line to
+   itself, since it is the one you are editing, and the menus and the ways
+   out share the second. */
+@media (max-width: 860px) {
   .topbar {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(max-content, 1fr) auto;
   }
+  /* rows said outright, because the name comes second in the markup and
+     first on the page here */
   .topbar-name {
+    grid-row: 1;
     grid-column: 1 / -1;
+    justify-self: start;
   }
   .setup {
-    justify-self: start;
+    grid-row: 2;
+  }
+  .topbar-actions {
+    grid-row: 2;
   }
 }
 /* A phone: one zone to a line, all flush left. The two menus stack and each
    takes the full width — side by side at this size, the menus were
    left about seventy pixels and cut the style's name off mid-word. */
-@media (max-width: 520px) {
+@media (max-width: 620px) {
   .topbar {
     grid-template-columns: minmax(0, 1fr);
   }
   .topbar-actions {
+    grid-row: 3;
     justify-self: start;
   }
   .setup {

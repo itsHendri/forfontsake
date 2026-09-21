@@ -1699,6 +1699,21 @@ enough, and the shorter label keeps the two boxes the same weight. Then Hendri f
 ("Halftone on Anton") — the treatment is the choice that makes it this font, and the face is
 what it is applied to.
 
+That was a misreading, and a useful one. What Hendri meant by "flip these" was the **menus
+and the name**: the menus on the left, the name in the middle. He kept the Style-then-Font
+order it produced. So the zones are now menus, name, ways out. The name is the one thing in
+the bar that belongs to you — the menus are choices from lists, the buttons are verbs — and
+the centre line is where a document's title sits in every editor that has one.
+
+Centring it cost one rule. The menus are 350 px wide whatever is chosen, because a native
+select sizes itself to its longest option, and the buttons are 179. Equal side columns put the
+name on the centre line only while each side can be 350. So the side tracks are
+`minmax(max-content, 1fr)`: when the page is wide they are equal and the name is exactly
+centred (measured at 1440, 1100 and 960), and when it is not, the right one gives way and the
+name drifts right of centre by a few pixels (11 px at 900) instead of squeezing the menus to
+"Halfton". Under 860 — where the bar also stops sticking — the name takes a line to itself;
+under 620 every zone does.
+
 **The glyphs-and-licence line went into the Download menu's foot**, which already said it.
 The line had one other job: after a download it reported the file name, the size and the
 glyph count. That report goes to the same foot, above the source line, so it is where you
