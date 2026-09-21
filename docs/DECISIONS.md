@@ -1736,6 +1736,21 @@ takes a line to itself — it is the one being edited, so it gets the room — a
 every zone takes its own line, with the setup's halves stacked so neither menu is cut off
 mid-word.
 
+## A hidden note was widening the page
+
+Between about 860 and 1100 px wide the whole workbench scrolled sideways by 11 px, with
+nothing visible to scroll to. It was the dials' (i) notes. Each was anchored at its (i) and
+allowed 240 px, so on a dial whose label is long — Keep counters, Cuts per letter — the note
+started late and ran past the panel and the page. It was hidden, but `visibility: hidden`
+still lays a box out, so it counted toward the page's width whether anyone hovered or not.
+Narrower than 860 the panel drops under the plate and has room; wider than 1100 it sits far
+enough in.
+
+The note now hangs from the dial's own row rather than from the (i): it starts under the
+label and can never be wider than the row, so it stays inside the panel at every width. The
+(i) still shows it on hover and focus. Checked across all thirteen styles at seven widths from
+375 to 1440: no sideways scroll, and every note inside the panel.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the

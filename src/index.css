@@ -1685,6 +1685,24 @@ h1 {
   right: auto;
   max-width: 240px;
 }
+/* A dial's note hangs from the dial's own row, not from the (i).
+
+   Anchored at the (i), a 240 px note started wherever the label ended, and on
+   a dial with a long label — Keep counters, Cuts per letter — it ran past the
+   panel and the page. Hidden, it still counted: a box at visibility: hidden
+   is laid out, so on a window between about 860 and 1100 px wide the whole
+   page scrolled sideways by 11 px with nothing visible to scroll to. From the
+   row it starts under the label and can never be wider than the row, so it
+   stays inside the panel at every width. The (i) is still what shows it. */
+.ctl-head {
+  position: relative;
+}
+.ctl-head .ctl-info {
+  position: static;
+}
+.ctl-head .ctl-info .tip {
+  max-width: min(240px, 100%);
+}
 .ctl-head output {
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 12px;
