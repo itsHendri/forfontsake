@@ -22,10 +22,14 @@ const CHIP_INK = 30 // px of glyph height inside a range chip
  * A range is a picture of itself for the same reason a preset is: the thing
  * that tells you what `a–z` means under this style is the letters under this
  * style. `sample` is what gets drawn; `test` is what gets selected.
+ *
+ * Capitals first, in the order the grid underneath runs — A–Z, then a–z, then
+ * the figures — so the chips read as a key to the grid rather than a second
+ * ordering of it.
  */
 const GROUPS: { label: string; sample: string; test: (ch: string) => boolean }[] = [
-  { label: 'a–z', sample: 'abc', test: (ch) => ch >= 'a' && ch <= 'z' },
   { label: 'A–Z', sample: 'ABC', test: (ch) => ch >= 'A' && ch <= 'Z' },
+  { label: 'a–z', sample: 'abc', test: (ch) => ch >= 'a' && ch <= 'z' },
   { label: '0–9', sample: '012', test: (ch) => ch >= '0' && ch <= '9' },
 ]
 
