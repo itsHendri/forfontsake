@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { getTreatment } from '../engine/treatments/registry'
 import type { Library } from '../lib/glyphData'
 import { render, type RenderResult } from '../lib/render'
@@ -17,7 +17,7 @@ interface Props {
   saved: WorkbenchState[]
   library: Library
   onRestore: (state: WorkbenchState) => void
-  onForget: (id: number) => void
+  onDelete: (id: number) => void
   onClose: () => void
 }
 
@@ -34,7 +34,7 @@ interface Props {
  * either side of the line, and a close × because it is somewhere you leave
  * rather than somewhere you navigated to.
  */
-export function Saved({ saved, library, onRestore, onForget, onClose }: Props) {
+export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
   /*
    * The cards are drawn here, on the way in, rather than by the workbench.
    *
@@ -73,6 +73,18 @@ export function Saved({ saved, library, onRestore, onForget, onClose }: Props) {
     [library, saved],
   )
 
+  /*
+   * Delete asks first. A saved font is a session's work and there is no undo,
+   * so the press that removes it opens a native modal dialog — which brings
+   * its own focus trap, Escape and inert page — with Cancel focused, so a
+   * stray Return keeps the font rather than losing it.
+   */
+  const [doomed, setDoomed] = useState<Kept | null>(null)
+  const dialog = useRef<HTMLDialogElement>(null)
+  useEffect(() => {
+    if (doomed && !dialog.current?.open) dialog.current?.showModal()
+  }, [doomed])
+
   return (
     <div className="saved-view">
       <header className="saved-bar">
@@ -110,29 +122,40 @@ export function Saved({ saved, library, onRestore, onForget, onClose }: Props) {
                 k.result.width + pad * 2,
                 k.result.ascender - k.result.descender + pad * 2,
               ].join(' ')
+              const name = k.state.text || k.treatmentName
               return (
                 <article className="saved-card" key={k.id}>
-                  <div className="saved-ink">
-                    <svg viewBox={box} role="img" aria-label={k.state.text || k.treatmentName}>
-                      <g transform="scale(1,-1)">
-                        <path d={k.result.d} />
-                      </g>
-                    </svg>
-                  </div>
-                  <p className="saved-meta">
-                    {k.treatmentName} on {k.fontLabel} · seed {k.state.seed}
-                  </p>
+                  {/*
+                   * The whole card opens the font. One button holds the word
+                   * and its line, and stretches over the card, so the press
+                   * lands anywhere; Delete sits above it rather than inside,
+                   * because a button cannot hold another.
+                   */}
+                  <button
+                    type="button"
+                    className="saved-open"
+                    onClick={() => onRestore(k.state)}
+                    aria-label={`Open ${name}`}
+                  >
+                    <span className="saved-ink">
+                      <svg viewBox={box} aria-hidden="true">
+                        <g transform="scale(1,-1)">
+                          <path d={k.result.d} />
+                        </g>
+                      </svg>
+                    </span>
+                    <span className="saved-meta">
+                      {k.treatmentName} on {k.fontLabel} · seed {k.state.seed}
+                    </span>
+                  </button>
                   <div className="saved-acts">
-                    <button type="button" className="save" onClick={() => onRestore(k.state)}>
-                      Open
-                    </button>
                     <button
                       type="button"
-                      className="linkish"
-                      onClick={() => onForget(k.id)}
-                      aria-label={`Forget ${k.state.text || k.treatmentName}`}
+                      className="linkish saved-delete"
+                      onClick={() => setDoomed(k)}
+                      aria-label={`Delete ${name}`}
                     >
-                      Forget
+                      Delete
                     </button>
                   </div>
                 </article>
@@ -141,6 +164,44 @@ export function Saved({ saved, library, onRestore, onForget, onClose }: Props) {
           </div>
         )}
       </div>
+
+      <dialog
+        ref={dialog}
+        className="saved-confirm"
+        aria-labelledby="saved-confirm-title"
+        aria-describedby="saved-confirm-line"
+        onClose={() => setDoomed(null)}
+        onClick={(e) => {
+          // a press on the backdrop lands on the dialog itself
+          if (e.target === e.currentTarget) e.currentTarget.close()
+        }}
+      >
+        <h2 id="saved-confirm-title">Delete this font?</h2>
+        <p id="saved-confirm-line">
+          {doomed && (
+            <>
+              <b>{doomed.state.text || doomed.treatmentName}</b> will be removed from your saved
+              fonts.{' '}
+            </>
+          )}
+          Are you sure? This can’t be undone.
+        </p>
+        <div className="saved-confirm-acts">
+          <button type="button" autoFocus onClick={() => dialog.current?.close()}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="saved-confirm-delete"
+            onClick={() => {
+              if (doomed) onDelete(doomed.id)
+              dialog.current?.close()
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      </dialog>
     </div>
   )
 }

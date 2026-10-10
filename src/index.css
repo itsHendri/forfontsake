@@ -2032,6 +2032,7 @@ select:focus-visible {
   gap: 16px;
 }
 .saved-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -2039,12 +2040,43 @@ select:focus-visible {
   background: var(--plate);
   border: 1px solid var(--rule);
   border-radius: 3px;
+  transition: border-color 120ms ease;
+}
+/* The card is the button. The open press holds the word and its line, and its
+   ::after stretches over the whole card so a press anywhere lands on it; the
+   card answers hover and focus for it, but not while you are on Delete. */
+.saved-open {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  text-align: left;
+}
+.saved-open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.saved-open:focus-visible {
+  outline: none;
+}
+.saved-card:has(.saved-open:hover) {
+  border-color: var(--ink);
+}
+.saved-card:has(.saved-open:focus-visible) {
+  outline: 2px solid var(--mark);
+  outline-offset: 2px;
 }
 /* The word gets the height, because it is the thing being kept. A fixed box
    rather than a hugging one, so a long name and a short one line up. */
 .saved-ink {
   display: flex;
   align-items: center;
+  width: 100%;
   min-height: 74px;
 }
 .saved-ink svg {
@@ -2056,6 +2088,7 @@ select:focus-visible {
   fill: var(--ink);
 }
 .saved-meta {
+  display: block;
   margin: 0;
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 10.5px;
@@ -2066,8 +2099,51 @@ select:focus-visible {
   align-items: center;
   gap: 12px;
 }
-.saved-acts .save {
-  margin-left: 0;
+/* Above the stretched open press, so it takes its own clicks. */
+.saved-delete {
+  position: relative;
+  z-index: 1;
+}
+
+/* Delete asks first: there is no undo for a kept font. */
+.saved-confirm {
+  width: min(400px, calc(100vw - 32px));
+  padding: 22px 22px 18px;
+  color: var(--ink);
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+.saved-confirm::backdrop {
+  background: rgb(10 10 8 / 0.45);
+}
+.saved-confirm h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+.saved-confirm p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.saved-confirm p b {
+  color: var(--ink);
+  font-weight: 500;
+}
+.saved-confirm-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+button.saved-confirm-delete {
+  background: var(--mark);
+  color: var(--paper);
+  border-color: var(--mark);
+}
+button.saved-confirm-delete:hover:not(:disabled) {
+  border-color: var(--ink);
 }
 
 /* The empty state shows the sentence at the size the feature is shown at,

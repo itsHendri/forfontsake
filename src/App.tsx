@@ -678,7 +678,7 @@ export default function App() {
           setState(s)
           setView('bench')
         }}
-        onForget={(id) => setSaved((list) => list.filter((_, i) => i !== id))}
+        onDelete={(id) => setSaved((list) => list.filter((_, i) => i !== id))}
         onClose={() => setView('bench')}
       />
     )
