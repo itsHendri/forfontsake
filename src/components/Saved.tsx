@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getTreatment } from '../engine/treatments/registry'
 import type { Library } from '../lib/glyphData'
+import { SHELF_LIMIT } from '../lib/savedStyles'
 import { render, type RenderResult } from '../lib/render'
 import { wordFor, type WorkbenchState } from '../lib/urlState'
 
@@ -90,7 +91,12 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
       <header className="saved-bar">
         <h1>Saved fonts</h1>
         <p className="saved-count">
-          {kept.length === 0 ? 'nothing yet' : `${kept.length} of 12`}
+          {/* a count and the room left, not "3 of 12", which read as 9 missing */}
+          {kept.length === 0
+            ? 'nothing yet'
+            : kept.length < SHELF_LIMIT
+              ? `${kept.length} saved · room for ${SHELF_LIMIT - kept.length} more`
+              : `${kept.length} saved · full, the oldest goes next`}
         </p>
         <button type="button" className="sheet-close" onClick={onClose} aria-label="Back to the workbench">
           ✕
