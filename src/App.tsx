@@ -187,6 +187,17 @@ export default function App() {
   // what the last uploaded font said about its own licence
   const [licence, setLicence] = useState<Imported['licence'] | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  /*
+   * What opening a saved font put aside. The whole card opens it, so one
+   * stray press used to replace the bench with nothing to go back to: there
+   * is no undo, and the address bar is replaced rather than pushed. Unsaved
+   * work is kept here and offered back until you start on the font you
+   * opened — the first change makes it yours, and the offer goes.
+   */
+  const [putAside, setPutAside] = useState<{
+    previous: WorkbenchState
+    opened: WorkbenchState
+  } | null>(null)
   const hydrated = useRef(false)
 
   useEffect(() => {
@@ -414,6 +425,9 @@ export default function App() {
 
   /** whether the font on the bench is one of the kept ones */
   const kept = useMemo(() => (state ? isKept(saved, state) : false), [saved, state])
+
+  // the first change to the font you opened makes it yours, and the offer goes
+  const offer = putAside && state === putAside.opened ? putAside : null
 
   /** the specimen's own handler, stable so the plate can skip a render */
   const onText = useCallback((text: string) => patch({ text }), [patch])
@@ -675,6 +689,12 @@ export default function App() {
         saved={saved}
         library={library}
         onRestore={(s) => {
+          // only work that is not on the shelf needs offering back
+          setPutAside(
+            encodeState(state) !== encodeState(s) && !isKept(saved, state)
+              ? { previous: state, opened: s }
+              : null,
+          )
           setState(s)
           setView('bench')
         }}
@@ -793,6 +813,35 @@ export default function App() {
       </div>
 
       <SignOff />
+
+      {/* the region is always there, so a screen reader hears what lands in it */}
+      <div className="toast-region" role="status">
+        {offer && (
+          <div className="toast">
+            <p>
+              Opened <b>{offer.opened.text || chainName}</b>. What you were working on wasn’t saved.
+            </p>
+            <button
+              type="button"
+              className="toast-act"
+              onClick={() => {
+                setState(offer.previous)
+                setPutAside(null)
+              }}
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              className="toast-close"
+              onClick={() => setPutAside(null)}
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getTreatment } from '../engine/treatments/registry'
+import { getTreatment, presetMatches, type Step } from '../engine/treatments/registry'
 import type { Library } from '../lib/glyphData'
 import { SHELF_LIMIT } from '../lib/savedStyles'
 import { render, type RenderResult } from '../lib/render'
@@ -10,7 +10,22 @@ interface Kept {
   state: WorkbenchState
   result: RenderResult
   treatmentName: string
-  fontLabel: string
+  /** what it is and what it is on, e.g. "Halftone: Punched out · Anton" */
+  caption: string
+}
+
+/**
+ * A step by the preset it still matches, when it does.
+ *
+ * The caption was treatment, face and seed, so three fonts made from three
+ * Halftone presets on one face read identically, and only the picture told
+ * them apart — which a screen reader does not get. The seed is gone too: it
+ * is the engine's word, and it was the same on every card anyway.
+ */
+function stepLabel(step: Step): string {
+  const t = getTreatment(step.id)
+  const preset = t.presets?.find((p) => presetMatches(p, step.params))
+  return preset ? `${t.name}: ${preset.name}` : t.name
 }
 
 interface Props {
@@ -64,7 +79,7 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
                 overrides: s.overrides,
               }),
               treatmentName: s.chain.map((c) => getTreatment(c.id).name).join(' + '),
-              fontLabel: library[s.fontId]?.label ?? s.fontId,
+              caption: `${s.chain.map(stepLabel).join(' + ')} · ${library[s.fontId]?.label ?? s.fontId}`,
             },
           ]
         } catch {
@@ -86,18 +101,42 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
     if (doomed && !dialog.current?.open) dialog.current?.showModal()
   }, [doomed])
 
+  /*
+   * Where focus goes once a font is gone. The dialog hands it back to the
+   * Delete that opened it, which no longer exists, so it fell to the body and
+   * a keyboard started again from the top. It goes to the card that took the
+   * deleted one's place instead — the one before it at the end of the row, or
+   * the way back once there is nothing left — and the deletion is said aloud.
+   */
+  const refocus = useRef<number | null>(null)
+  const grid = useRef<HTMLDivElement>(null)
+  const back = useRef<HTMLButtonElement>(null)
+  const [said, setSaid] = useState('')
+  useEffect(() => {
+    const at = refocus.current
+    if (at === null) return
+    refocus.current = null
+    const cards = grid.current?.querySelectorAll<HTMLButtonElement>('.saved-open')
+    ;(cards?.[Math.min(at, cards.length - 1)] ?? back.current)?.focus()
+  }, [kept])
+
+  const nameOf = (k: Kept) => k.state.text || k.treatmentName
+
   return (
     <div className="saved-view">
       <header className="saved-bar">
-        <h1>Saved fonts</h1>
-        <p className="saved-count">
-          {/* a count and the room left, not "3 of 12", which read as 9 missing */}
-          {kept.length === 0
-            ? 'nothing yet'
-            : kept.length < SHELF_LIMIT
-              ? `${kept.length} saved · room for ${SHELF_LIMIT - kept.length} more`
-              : `${kept.length} saved · full, the oldest goes next`}
-        </p>
+        <div className="saved-title">
+          <h1>Saved fonts</h1>
+          {/* a count and the room left, not "3 of 12", which read as 9 missing;
+              absent when empty, where the page itself says so */}
+          {kept.length > 0 && (
+            <p className="saved-count">
+              {kept.length < SHELF_LIMIT
+                ? `${kept.length} saved · room for ${SHELF_LIMIT - kept.length} more`
+                : `${kept.length} saved · full, the oldest goes next`}
+            </p>
+          )}
+        </div>
         <button type="button" className="sheet-close" onClick={onClose} aria-label="Back to the workbench">
           ✕
         </button>
@@ -109,7 +148,9 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
            * The empty state says what fills it, in the tool's own voice and at
            * the size the thing being described is actually shown — a line of
            * small grey text under an empty box would describe the feature
-           * without showing anything of it.
+           * without showing anything of it. It is reached by deleting the
+           * last one, so it also offers the way back rather than leaving that
+           * to the ✕ in the corner.
            */
           <div className="saved-empty">
             <p className="saved-empty-word">Nothing saved yet</p>
@@ -117,9 +158,12 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
               <b>Save font</b> keeps the font you are working on here, and it survives a reload.
               Twelve fit; the oldest drops off after that.
             </p>
+            <button type="button" ref={back} onClick={onClose}>
+              Back to the workbench
+            </button>
           </div>
         ) : (
-          <div className="saved-grid">
+          <div className="saved-grid" ref={grid}>
             {kept.map((k) => {
               const pad = 40
               const box = [
@@ -128,7 +172,7 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
                 k.result.width + pad * 2,
                 k.result.ascender - k.result.descender + pad * 2,
               ].join(' ')
-              const name = k.state.text || k.treatmentName
+              const name = nameOf(k)
               return (
                 <article className="saved-card" key={k.id}>
                   {/*
@@ -141,23 +185,22 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
                     type="button"
                     className="saved-open"
                     onClick={() => onRestore(k.state)}
-                    aria-label={`Open ${name}`}
+                    aria-label={`Open ${name}, ${k.caption}`}
                   >
                     <span className="saved-ink">
-                      <svg viewBox={box} aria-hidden="true">
+                      {/* set from the left, on the same edge as the line under it */}
+                      <svg viewBox={box} preserveAspectRatio="xMinYMid meet" aria-hidden="true">
                         <g transform="scale(1,-1)">
                           <path d={k.result.d} />
                         </g>
                       </svg>
                     </span>
-                    <span className="saved-meta">
-                      {k.treatmentName} on {k.fontLabel} · seed {k.state.seed}
-                    </span>
+                    <span className="saved-meta">{k.caption}</span>
                   </button>
                   <div className="saved-acts">
                     <button
                       type="button"
-                      className="linkish saved-delete"
+                      className="saved-delete"
                       onClick={() => setDoomed(k)}
                       aria-label={`Delete ${name}`}
                     >
@@ -169,6 +212,9 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
             })}
           </div>
         )}
+        <p className="visually-hidden" role="status">
+          {said}
+        </p>
       </div>
 
       <dialog
@@ -186,8 +232,7 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
         <p id="saved-confirm-line">
           {doomed && (
             <>
-              <b>{doomed.state.text || doomed.treatmentName}</b> will be removed from your saved
-              fonts.{' '}
+              <b>{nameOf(doomed)}</b> will be removed from your saved fonts.{' '}
             </>
           )}
           Are you sure? This can’t be undone.
@@ -200,7 +245,11 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
             type="button"
             className="saved-confirm-delete"
             onClick={() => {
-              if (doomed) onDelete(doomed.id)
+              if (doomed) {
+                refocus.current = kept.indexOf(doomed)
+                setSaid(`${nameOf(doomed)} deleted`)
+                onDelete(doomed.id)
+              }
               dialog.current?.close()
             }}
           >

@@ -7,6 +7,9 @@
   --rule: #cbc7bc;
   --muted: #6c6a61;
   --mark: #be3a22;
+  /* --mark as a fill under paper-coloured text: a shade deeper in the light,
+     where #be3a22 gives 4.3:1 against the paper and misses AA at 13px */
+  --mark-fill: #a9331e;
   --track: #d5d1c6;
   /* the selection accent. Deliberately not --mark: the frame sits over a sheet
      whose own accent may be anything the palette rolled, and a frame that
@@ -21,6 +24,7 @@
     --rule: #33342c;
     --muted: #8b8a7e;
     --mark: #e0603f;
+    --mark-fill: #e0603f;
     --track: #2b2c25;
     --frame: #46a6ea;
   }
@@ -32,6 +36,7 @@
   --rule: #33342c;
   --muted: #8b8a7e;
   --mark: #e0603f;
+  --mark-fill: #e0603f;
   --track: #2b2c25;
   --frame: #46a6ea;
 }
@@ -1996,16 +2001,25 @@ select:focus-visible {
 }
 .saved-bar {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 14px;
   flex: none;
-  flex-wrap: wrap;
   position: sticky;
   top: 0;
   z-index: 10;
   padding: 20px 26px 16px;
   border-bottom: 1px solid var(--rule);
   background: var(--paper);
+}
+/* the title and its count wrap together, so on a phone the count drops under
+   the title and the ✕ stays level with the title rather than with the count */
+.saved-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 14px;
+  row-gap: 4px;
+  min-width: 0;
 }
 .saved-bar h1 {
   font-size: 26px;
@@ -2019,8 +2033,14 @@ select:focus-visible {
   color: var(--muted);
 }
 .saved-bar .sheet-close {
+  position: relative;
   margin-left: auto;
-  align-self: center;
+}
+/* a thumb-sized hit area around a small mark: 35×27 drawn, 45×45 pressed */
+.saved-bar .sheet-close::before {
+  content: '';
+  position: absolute;
+  inset: -9px -5px;
 }
 .saved-body {
   flex: 1;
@@ -2091,7 +2111,7 @@ select:focus-visible {
   display: block;
   margin: 0;
   font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 10.5px;
+  font-size: 12px;
   color: var(--muted);
 }
 .saved-acts {
@@ -2099,10 +2119,29 @@ select:focus-visible {
   align-items: center;
   gap: 12px;
 }
-/* Above the stretched open press, so it takes its own clicks. */
+/* Above the stretched open press, so it takes its own clicks. Quiet until
+   you reach for it: it was the only colour on the page, five red underlines
+   pulling the eye to removing fonts rather than opening them, and the
+   confirm behind it is what guards against a slip, not the colour. */
 .saved-delete {
   position: relative;
   z-index: 1;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+}
+.saved-delete:hover:not(:disabled),
+.saved-delete:focus-visible {
+  color: var(--mark);
+  text-decoration: underline;
+}
+/* about 38×21 drawn, 54×45 pressed, so a near miss is not an open */
+.saved-delete::before {
+  content: '';
+  position: absolute;
+  inset: -12px -8px;
 }
 
 /* Delete asks first: there is no undo for a kept font. */
@@ -2138,9 +2177,9 @@ select:focus-visible {
   margin-top: 20px;
 }
 button.saved-confirm-delete {
-  background: var(--mark);
+  background: var(--mark-fill);
   color: var(--paper);
-  border-color: var(--mark);
+  border-color: var(--mark-fill);
 }
 button.saved-confirm-delete:hover:not(:disabled) {
   border-color: var(--ink);
@@ -2165,7 +2204,9 @@ button.saved-confirm-delete:hover:not(:disabled) {
   font-size: clamp(28px, 5vw, 44px);
   font-weight: 600;
   letter-spacing: -0.02em;
-  color: var(--rule);
+  /* --muted, not --rule: a rule colour is for lines, and as type it read at
+     1.3:1 against the paper */
+  color: var(--muted);
 }
 .saved-empty-line {
   margin: 0;
@@ -2176,6 +2217,55 @@ button.saved-confirm-delete:hover:not(:disabled) {
 .saved-empty-line b {
   color: var(--ink);
   font-weight: 500;
+}
+.saved-empty button {
+  margin-top: 8px;
+}
+
+/* What opening a saved font put aside, offered back until you change the
+   font you opened. Bottom centre, over the bench, because the press that
+   caused it was on another page and this is the first thing you see. */
+.toast-region {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  z-index: 30;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  transform: translateX(-50%);
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 16px;
+  color: var(--paper);
+  background: var(--ink);
+  border-radius: 3px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
+}
+.toast p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.toast b {
+  font-weight: 600;
+}
+.toast button {
+  flex: none;
+  color: var(--paper);
+  background: none;
+  border-color: color-mix(in srgb, var(--paper) 40%, transparent);
+}
+.toast button:hover:not(:disabled) {
+  border-color: var(--paper);
+}
+.toast button:focus-visible {
+  outline-color: var(--paper);
+}
+.toast button.toast-close {
+  border-color: transparent;
 }
 
 @media (max-width: 860px) {
