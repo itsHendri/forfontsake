@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { getTreatment, presetMatches, type Step } from '../engine/treatments/registry'
 import type { Library } from '../lib/glyphData'
 import { SHELF_LIMIT } from '../lib/savedStyles'
-import { render, type RenderResult } from '../lib/render'
-import { wordFor, type WorkbenchState } from '../lib/urlState'
+import { render, renderGlyphSet, type GlyphSet, type RenderResult } from '../lib/render'
+import { encodeState, wordFor, type WorkbenchState } from '../lib/urlState'
 
 interface Kept {
   id: number
+  /** the state, encoded — what a card's letters are filed under */
+  key: string
   state: WorkbenchState
   result: RenderResult
   treatmentName: string
@@ -26,6 +28,88 @@ function stepLabel(step: Step): string {
   const t = getTreatment(step.id)
   const preset = t.presets?.find((p) => presetMatches(p, step.params))
   return preset ? `${t.name}: ${preset.name}` : t.name
+}
+
+/**
+ * The letters a saved font shows of itself: capitals, lowercase and figures,
+ * thirteen of each so they sit on one grid. Thirty-six of the sixty-nine,
+ * because twelve fonts' worth of the whole set is seconds of treating on a
+ * heavy chain, and these are enough to see the face.
+ */
+const SAMPLE = 'ABCDEFGHIJKLMabcdefghijklm0123456789'
+const COLS = 13
+/** the list's line of letters, from the same sample */
+const STRIP = 'Aa Bb Cc Dd Ee Ff 0123'
+
+/** cards or a list, remembered in this browser — a convenience, so it may fail quietly */
+type View = 'cards' | 'list'
+const VIEW_KEY = 'ffs:saved-view'
+function loadView(): View {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'cards'
+  } catch {
+    return 'cards'
+  }
+}
+
+const EMPTY: GlyphSet = { glyphs: [], ascender: 0, descender: 0, unitsPerEm: 1000, ms: 0 }
+
+/**
+ * The sample on a grid, unruled: every letter in a square cell an em wide,
+ * centred on its own advance. Larger in its cell than the sheet's 62%: with no
+ * rules between them the letters are the only thing marking the grid, and a
+ * card's cells are a thirteenth of a card.
+ */
+function SetGrid({ set }: { set: GlyphSet }) {
+  const cell = set.unitsPerEm
+  const k = 0.78
+  return (
+    <svg viewBox={`0 0 ${COLS * cell} ${3 * cell}`} preserveAspectRatio="xMinYMid meet" aria-hidden="true">
+      {set.glyphs.map((g, i) => {
+        const x = (i % COLS) * cell + (cell - g.adv * k) / 2
+        const y = Math.floor(i / COLS) * cell + cell / 2 + (set.ascender * k) / 2
+        return <path key={g.ch} d={g.d} transform={`translate(${x} ${y}) scale(${k} ${-k})`} />
+      })}
+    </svg>
+  )
+}
+
+/** a line of the sample, set as a word would be */
+function Strip({ set }: { set: GlyphSet }) {
+  const by = new Map(set.glyphs.map((g) => [g.ch, g]))
+  const parts: React.ReactNode[] = []
+  let x = 0
+  for (const ch of STRIP) {
+    if (ch === ' ') {
+      x += set.unitsPerEm * 0.35
+      continue
+    }
+    const g = by.get(ch)
+    if (!g) continue
+    parts.push(<path key={ch} d={g.d} transform={`translate(${x} 0) scale(1 -1)`} />)
+    x += g.adv
+  }
+  if (x === 0) return null
+  return (
+    <svg viewBox={`0 ${-set.ascender} ${x} ${set.ascender - set.descender}`} aria-hidden="true">
+      {parts}
+    </svg>
+  )
+}
+
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+      <path
+        d="M2.5 4.5h11M6.5 2.5h3M4 4.5l.7 9h6.6l.7-9M6.7 7v4.5M9.3 7v4.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
 }
 
 interface Props {
@@ -68,6 +152,7 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
           return [
             {
               id: i,
+              key: encodeState(s),
               state: s,
               result: render({
                 library,
@@ -122,6 +207,41 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
 
   const nameOf = (k: Kept) => k.state.text || k.treatmentName
 
+  /*
+   * Each font's letters, one font per turn of the event loop.
+   *
+   * The names are drawn on the way in, as before; the letters follow a font
+   * at a time, so the room opens at once and fills in rather than holding
+   * the page while twelve fonts are treated. Filed by the encoded state, so a
+   * deletion does not shift them onto the wrong card.
+   */
+  const [sets, setSets] = useState<Record<string, GlyphSet>>({})
+  useEffect(() => {
+    const next = kept.find((k) => !(k.key in sets))
+    if (!next) return
+    const id = setTimeout(() => {
+      let set = EMPTY
+      try {
+        const s = next.state
+        set = renderGlyphSet(library, s.fontId, s.chain, s.seed, s.overrides, SAMPLE)
+      } catch {
+        // a font that will not treat keeps its name and loses its letters
+      }
+      setSets((prev) => ({ ...prev, [next.key]: set }))
+    }, 0)
+    return () => clearTimeout(id)
+  }, [kept, sets, library])
+
+  const [view, setView] = useState<View>(loadView)
+  const pick = (v: View) => {
+    setView(v)
+    try {
+      localStorage.setItem(VIEW_KEY, v)
+    } catch {
+      // the view still changes; it just will not be remembered
+    }
+  }
+
   return (
     <div className="saved-view">
       <header className="saved-bar">
@@ -132,6 +252,21 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
               full shelf gets a line, because the next save will push one off. */}
           {kept.length >= SHELF_LIMIT && <p className="saved-count">Full · the oldest goes when you save another</p>}
         </div>
+        {kept.length > 0 && (
+          <div className="mode-switch" role="group" aria-label="Show saved fonts as">
+            {(['cards', 'list'] as const).map((v) => (
+              <button
+                type="button"
+                key={v}
+                className={view === v ? 'seg is-on' : 'seg'}
+                aria-pressed={view === v}
+                onClick={() => pick(v)}
+              >
+                {v === 'cards' ? 'Cards' : 'List'}
+              </button>
+            ))}
+          </div>
+        )}
         <button type="button" className="sheet-close" onClick={onClose} aria-label="Back to the workbench">
           ✕
         </button>
@@ -158,7 +293,7 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
             </button>
           </div>
         ) : (
-          <div className="saved-grid" ref={grid}>
+          <div className={view === 'list' ? 'saved-list' : 'saved-grid'} ref={grid}>
             {kept.map((k) => {
               const pad = 40
               const box = [
@@ -168,13 +303,14 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
                 k.result.ascender - k.result.descender + pad * 2,
               ].join(' ')
               const name = nameOf(k)
+              const set = sets[k.key]
               return (
-                <article className="saved-card" key={k.id}>
+                <article className={view === 'list' ? 'saved-row' : 'saved-card'} key={k.key}>
                   {/*
-                   * The whole card opens the font. One button holds the word
-                   * and its line, and stretches over the card, so the press
-                   * lands anywhere; Delete sits above it rather than inside,
-                   * because a button cannot hold another.
+                   * The whole card opens the font. One button holds the name,
+                   * its letters and its line, and stretches over the card, so
+                   * the press lands anywhere; Delete sits above it rather than
+                   * inside, because a button cannot hold another.
                    */}
                   <button
                     type="button"
@@ -190,18 +326,27 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
                         </g>
                       </svg>
                     </span>
+                    {/* the space is held while the letters are drawn, so nothing jumps */}
+                    {view === 'list' ? (
+                      <span className="saved-strip">{set && <Strip set={set} />}</span>
+                    ) : (
+                      <span className="saved-set">{set && <SetGrid set={set} />}</span>
+                    )}
                     <span className="saved-meta">{k.caption}</span>
                   </button>
-                  <div className="saved-acts">
-                    <button
-                      type="button"
-                      className="saved-delete"
-                      onClick={() => setDoomed(k)}
-                      aria-label={`Delete ${name}`}
-                    >
-                      Delete
-                    </button>
-                  </div>
+                  {/*
+                   * Out of the way until you reach for it: shown on hover and
+                   * on focus, and always on a touch screen, which has no hover.
+                   */}
+                  <button
+                    type="button"
+                    className="saved-delete"
+                    onClick={() => setDoomed(k)}
+                    aria-label={`Delete ${name}`}
+                    title="Delete"
+                  >
+                    <TrashIcon />
+                  </button>
                 </article>
               )
             })}

@@ -1994,6 +1994,34 @@ select:focus-visible {
   position: relative;
   margin-left: auto;
 }
+/* cards or a list, beside the close: the switch takes the push, so the two
+   sit together at the right */
+.saved-bar .mode-switch {
+  margin: 0 0 0 auto;
+  align-self: center;
+}
+.saved-bar .mode-switch + .sheet-close {
+  margin-left: 0;
+}
+/* On a phone the sheet bar's rules reorder the switch and the close for its
+   wrapped rows; this bar does not wrap, so both keep their order, and the
+   title gives a little so all three fit on one line at 375. */
+@media (max-width: 620px) {
+  .saved-bar .sheet-close,
+  .saved-bar .mode-switch {
+    order: 0;
+  }
+  .saved-bar .mode-switch {
+    margin-left: auto;
+  }
+  .saved-bar h1 {
+    font-size: 22px;
+    white-space: nowrap;
+  }
+  .saved-bar .mode-switch .seg {
+    padding: 6px 12px;
+  }
+}
 /* a thumb-sized hit area around a small mark: 35×27 drawn, 45×45 pressed */
 .saved-bar .sheet-close::before {
   content: '';
@@ -2013,8 +2041,9 @@ select:focus-visible {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 18px 18px 16px;
+  gap: 16px;
+  /* the same on every side: the foot used to carry the Delete line's height */
+  padding: 24px;
   background: var(--plate);
   border: 1px solid var(--rule);
   border-radius: 3px;
@@ -2026,7 +2055,7 @@ select:focus-visible {
 .saved-open {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   padding: 0;
   border: 0;
   background: none;
@@ -2062,8 +2091,22 @@ select:focus-visible {
   width: 100%;
   height: 74px;
 }
-.saved-ink path {
+.saved-ink path,
+.saved-set path,
+.saved-strip path {
   fill: var(--ink);
+}
+/* the letters, unruled, thirteen across; the box is held at the grid's shape
+   while they are drawn, so the card does not grow under the pointer */
+.saved-set {
+  display: block;
+  width: 100%;
+  aspect-ratio: 13 / 3;
+}
+.saved-set svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 .saved-meta {
   display: block;
@@ -2072,34 +2115,119 @@ select:focus-visible {
   font-size: 12px;
   color: var(--muted);
 }
-.saved-acts {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-/* Above the stretched open press, so it takes its own clicks. Quiet until
-   you reach for it: it was the only colour on the page, five red underlines
-   pulling the eye to removing fonts rather than opening them, and the
-   confirm behind it is what guards against a slip, not the colour. */
+/* Delete is a small icon in the corner, above the stretched open press so it
+   takes its own clicks, and out of sight until the hand is on the card — on
+   hover and on focus anywhere in it. A touch screen has no hover, so there it
+   always shows. The confirm behind it is what guards against a slip. */
 .saved-delete {
-  position: relative;
+  position: absolute;
   z-index: 1;
+  top: 14px;
+  right: 14px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
   padding: 0;
-  border: 0;
-  background: none;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--paper);
   color: var(--muted);
-  font-size: 13px;
+  opacity: 0;
+  transition: opacity 120ms ease, color 120ms ease;
+}
+.saved-card:hover .saved-delete,
+.saved-card:focus-within .saved-delete,
+.saved-row:hover .saved-delete,
+.saved-row:focus-within .saved-delete {
+  opacity: 1;
+}
+@media (hover: none) {
+  .saved-delete {
+    opacity: 1;
+  }
 }
 .saved-delete:hover:not(:disabled),
 .saved-delete:focus-visible {
   color: var(--mark);
-  text-decoration: underline;
+  border-color: var(--mark);
 }
-/* about 38×21 drawn, 54×45 pressed, so a near miss is not an open */
+/* about 30×30 drawn, 44×44 pressed */
 .saved-delete::before {
   content: '';
   position: absolute;
-  inset: -12px -8px;
+  inset: -7px;
+}
+
+/* The list: one font a row — the name, a line of its letters, what it is made
+   of, and the trash at the end of the row. */
+.saved-list {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--rule);
+}
+.saved-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 16px;
+  border-bottom: 1px solid var(--rule);
+  transition: background-color 120ms ease;
+}
+.saved-row:has(.saved-open:hover) {
+  background: var(--plate);
+}
+.saved-row:has(.saved-open:focus-visible) {
+  outline: 2px solid var(--mark);
+  outline-offset: -2px;
+}
+.saved-row .saved-open {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 32px;
+}
+.saved-row .saved-ink {
+  min-height: 52px;
+}
+.saved-row .saved-ink svg {
+  height: 52px;
+}
+.saved-strip {
+  display: block;
+  min-width: 0;
+  height: 28px;
+}
+.saved-strip svg {
+  display: block;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  opacity: 0.55;
+}
+.saved-row .saved-meta {
+  text-align: right;
+}
+.saved-row .saved-delete {
+  position: relative;
+  top: auto;
+  right: auto;
+  flex: none;
+}
+@media (max-width: 760px) {
+  .saved-row .saved-open {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .saved-row .saved-strip {
+    display: none;
+  }
+  .saved-row .saved-meta {
+    text-align: left;
+  }
 }
 
 /* Delete asks first: there is no undo for a kept font. */

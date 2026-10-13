@@ -201,6 +201,8 @@ export function renderGlyphSet(
   chain: Step[],
   seed: number,
   overrides?: Overrides,
+  /** only these, in specimen order — a saved card needs 36 of the 69 */
+  only?: string,
 ): GlyphSet {
   const t0 = performance.now()
   const data = library[fontId] ?? Object.values(library)[0]
@@ -210,6 +212,7 @@ export function renderGlyphSet(
   // integer-like keys to the front, which would open the grid on the digits.
   const grow = letterGrowth(data, chain, seed)
   for (const ch of GLYPH_ORDER) {
+    if (only !== undefined && !only.includes(ch)) continue
     const g = data.glyphs[ch]
     if (!g || g.rings.length === 0) continue // absent, or space and its like
     const rchain = resolveChain(chain, overrides, ch)
