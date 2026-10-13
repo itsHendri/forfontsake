@@ -29,17 +29,15 @@ import type { Step } from './urlState'
 /**
  * What each layer of the sheet is coloured with.
  *
- * `ink` and `paper` are the word and the ground; `mark` is the accent the
- * margins use for the sheet number and the address. `caption` is the rules and
- * the two long label lines, and it defaults to `ink` — which is what it always
- * was, before the caption became a layer you could select and recolour on its
- * own.
+ * `ink` and `paper` are the word and the ground. `mark` is the accent: it was
+ * the sheet number and the address in the margins, which are gone, and it is
+ * kept because the share image still uses it and the text templates that
+ * replace the margins will want an accent of their own.
  */
 export interface PosterPalette {
   ink: string
   paper: string
   mark: string
-  caption?: string
 }
 
 /**
@@ -87,8 +85,8 @@ export const GROUNDS: Ground[] = [
       // screen; finer dots also carry more ink for the same weight, so the
       // opacity comes up as the radius comes down.
       `<defs><pattern id="ffs-screen" width="9" height="9" patternUnits="userSpaceOnUse">` +
-      `<circle cx="2.25" cy="2.25" r="1.15" fill="${p.caption ?? p.ink}" fill-opacity="0.22"/>` +
-      `<circle cx="6.75" cy="6.75" r="1.15" fill="${p.caption ?? p.ink}" fill-opacity="0.22"/>` +
+      `<circle cx="2.25" cy="2.25" r="1.15" fill="${p.ink}" fill-opacity="0.22"/>` +
+      `<circle cx="6.75" cy="6.75" r="1.15" fill="${p.ink}" fill-opacity="0.22"/>` +
       `</pattern></defs>` +
       `<rect width="${w}" height="${h}" fill="${p.paper}"/>` +
       `<rect width="${w}" height="${h}" fill="url(#ffs-screen)"/>`,
@@ -98,7 +96,7 @@ export const GROUNDS: Ground[] = [
     name: 'Grid',
     draw: (w, h, p) =>
       `<defs><pattern id="ffs-grid" width="48" height="48" patternUnits="userSpaceOnUse">` +
-      `<path d="M48 0H0V48" fill="none" stroke="${p.caption ?? p.ink}" stroke-opacity="0.16" stroke-width="1"/>` +
+      `<path d="M48 0H0V48" fill="none" stroke="${p.ink}" stroke-opacity="0.16" stroke-width="1"/>` +
       `</pattern></defs>` +
       `<rect width="${w}" height="${h}" fill="${p.paper}"/>` +
       `<rect width="${w}" height="${h}" fill="url(#ffs-grid)"/>`,
@@ -118,7 +116,7 @@ export const GROUNDS: Ground[] = [
      * Now: a coarse fractal noise, its alpha pushed into a narrow band so most
      * of the sheet stays paper and the grain is a sparse speckle rather than
      * fog — only the tail of the noise takes any ink at all — and the speckle
-     * is flooded with the caption ink so the tooth belongs to the sheet's own
+     * is flooded with the ink so the tooth belongs to the sheet's own
      * colours.
      */
     id: 'tooth',
@@ -130,7 +128,7 @@ export const GROUNDS: Ground[] = [
       `<feComponentTransfer in="a" result="band">` +
       `<feFuncA type="table" tableValues="0.6 0.12 0 0 0"/>` +
       `</feComponentTransfer>` +
-      `<feFlood flood-color="${p.caption ?? p.ink}" result="ink"/>` +
+      `<feFlood flood-color="${p.ink}" result="ink"/>` +
       `<feComposite in="ink" in2="band" operator="in"/>` +
       `</filter></defs>` +
       `<rect width="${w}" height="${h}" fill="${p.paper}"/>` +
@@ -159,16 +157,15 @@ export interface WordTransform {
  * The lines the word snaps to, in sheet units.
  *
  * Deliberately here rather than in the room: they are the sheet's own
- * geometry — the centre, the margin the type is set to, and the two rules the
- * head and the foot are drawn on — so if the sheet's layout ever moves, what
- * the word snaps to moves with it instead of drifting out of agreement.
+ * geometry — the centre and the margin all round — so if the sheet's layout
+ * ever moves, what the word snaps to moves with it instead of drifting out of
+ * agreement.
  */
 export function snapLines(format?: string): { x: number[]; y: number[] } {
   const { w, h } = getFormat(format)
-  const { headRule, footTop } = bandOf(h)
   return {
     x: [MARGIN, w / 2, w - MARGIN],
-    y: [headRule, h / 2, footTop],
+    y: [MARGIN, h / 2, h - MARGIN],
   }
 }
 
@@ -209,8 +206,6 @@ export interface PosterRequest {
   /** the word set large; falls back to the treatment's name */
   word: string
   palette: PosterPalette
-  /** the sheet's number, shown in the margin */
-  number: number
   /** which of LAYOUTS to set it in; out of range falls back to the first */
   layout?: string
   /** which of FORMATS to cut it to; out of range falls back to the first */
@@ -237,35 +232,14 @@ export const SHEET_H = FORMATS[0].h
 const MARGIN = 76
 
 /**
- * The band the type is set in, derived from whatever height the format has —
- * and the two rules that fence it, because the word snaps to those and they
- * must be the same numbers the sheet actually draws.
+ * The band the type is set in: the sheet inside its margin.
+ *
+ * It sat between a head and a foot rule while the sheet carried a caption —
+ * name, number, the chain, the address. Those had no real value on a post and
+ * are gone; the text templates that replace them will say where text goes.
  */
 function bandOf(h: number) {
-  const footTop = h - MARGIN - 64
-  const bandTop = MARGIN + 96
-  return { footTop, bandTop, bandBottom: footTop - 48, headRule: bandTop - 60 }
-}
-
-const esc = (s: string) =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-
-/**
- * The dial values, written the way a caption would write them. With more than
- * one treatment each is named, because "Amount 55" twice over says nothing about
- * which is which.
- */
-export function settingsLine(chain: Step[]): string {
-  return chain
-    .map((step) => {
-      const t = getTreatment(step.id)
-      const dials = t.params
-        .filter((s) => s.primary)
-        .map((s) => `${s.label} ${step.params[s.key]}`)
-        .join('   ')
-      return chain.length > 1 ? `${t.name}: ${dials}` : dials
-    })
-    .join('   ·   ')
+  return { bandTop: MARGIN, bandBottom: h - MARGIN }
 }
 
 /**
@@ -421,8 +395,8 @@ export function chainName(chain: Step[]): string {
  * Two, and a way to page between them, because one layout makes the sheet a
  * template and several make it a specimen series — which is what a foundry
  * actually publishes and is the difference between an output and an artefact.
- * They share all their furniture and differ only in the band between the rules,
- * so a third is a function and nothing else.
+ * They share the ground and the margin and differ only in what is set inside
+ * it, so a third is a function and nothing else.
  */
 export interface PosterLayout {
   id: string
@@ -435,10 +409,6 @@ export const LAYOUTS: PosterLayout[] = [
   { id: 'word', name: 'Word', note: 'One word, set as large as the sheet allows' },
   { id: 'chars', name: 'Character set', note: 'The whole alphabet, treated' },
 ]
-
-const mono = "'Roboto Mono', ui-monospace, monospace"
-
-const esc2 = esc
 
 /**
  * Where a turn settles.
@@ -463,97 +433,6 @@ export function snapAngle(deg: number, free = false): number {
   if (Math.abs(at - square) <= 6) return square % 360
   const step = Math.round(at / 15) * 15
   return Math.abs(at - step) <= 4 ? step % 360 : at
-}
-
-/**
- * The six marks the caption is made of, as rectangles on the sheet.
- *
- * The sheet is a canvas, so there is nothing in the document to click: a part
- * is found by asking which of these the pointer is inside. They are derived
- * from the same numbers `chrome` draws with — one `bandOf` between them — so
- * the thing you click and the thing you see cannot drift apart.
- *
- * The mono face the captions are set in is 0.6em wide per character, near
- * enough for a hit box, and the letter-spacing is added because it is a fifth
- * of the width again over a long line.
- */
-export interface SheetPart {
-  id: 'head-rule' | 'head-label' | 'number' | 'foot-rule' | 'foot-caption' | 'address'
-  /** which layer owns it, and therefore which rail a click opens */
-  layer: 'caption'
-  x: number
-  y: number
-  w: number
-  h: number
-}
-
-/** what a run of the caption's mono face measures, near enough to click */
-function monoBox(text: string, size: number) {
-  return { w: text.length * (size * 0.6 + 2.4), h: size * 1.25 }
-}
-
-export function sheetParts(req: Pick<PosterRequest, 'format' | 'number' | 'chain' | 'font' | 'seed'>): SheetPart[] {
-  const { w, h } = getFormat(req.format)
-  const { footTop, bandTop, headRule } = bandOf(h)
-  const right = w - MARGIN
-  // a rule is two units tall and impossible to hit, so it is clickable over a
-  // band around itself — the same allowance a hairline gets in any editor
-  const RULE_GRAB = 12
-  const label = monoBox("For Font's Sake", 17)
-  const number = monoBox(`No. ${String(req.number).padStart(3, '0')}`, 17)
-  const caption = monoBox(`${chainName(req.chain)} on ${req.font.label} · Seed ${req.seed}`, 15)
-  const address = monoBox('forfontsake.xyz', 15)
-  return [
-    { id: 'head-rule', layer: 'caption', x: MARGIN, y: headRule - RULE_GRAB / 2, w: right - MARGIN, h: RULE_GRAB },
-    { id: 'head-label', layer: 'caption', x: MARGIN, y: bandTop - 80 - label.h, w: label.w, h: label.h },
-    { id: 'number', layer: 'caption', x: right - number.w, y: bandTop - 80 - number.h, w: number.w, h: number.h },
-    { id: 'foot-rule', layer: 'caption', x: MARGIN, y: footTop - RULE_GRAB / 2, w: right - MARGIN, h: RULE_GRAB },
-    { id: 'foot-caption', layer: 'caption', x: MARGIN, y: footTop + 38 - caption.h, w: Math.min(caption.w, right - MARGIN), h: caption.h },
-    { id: 'address', layer: 'caption', x: right - address.w, y: footTop + 38 - address.h, w: address.w, h: address.h },
-  ]
-}
-
-/** what the rail calls the part you just clicked */
-export const PART_NAMES: Record<SheetPart['id'], string> = {
-  'head-rule': 'the head rule',
-  'head-label': 'the name',
-  number: 'the number',
-  'foot-rule': 'the foot rule',
-  'foot-caption': 'the chain',
-  address: 'the address',
-}
-
-/**
- * The marks every sheet carries, whatever is set in the band.
- *
- * Deliberately spare: the sheet is a post before it is a datasheet, so it says
- * what it is, which number it is, one caption line, and where it came from —
- * and leaves the rest of the surface to the type. The dial values still travel
- * with the sheet as the URL state, not as furniture.
- */
-function chrome(req: PosterRequest, bandTop: number, footTop: number) {
-  const { w: sheetW } = getFormat(req.format)
-  const caption = req.palette.caption ?? req.palette.ink
-  const small = (x: number, y: number, text: string, fill: string, size = 17, anchor = 'start') =>
-    `<text x="${x}" y="${y}" font-family="${mono}" font-size="${size}" letter-spacing="2.4" ` +
-    `fill="${fill}" text-anchor="${anchor}">${esc2(text.toUpperCase())}</text>`
-
-  const number = String(req.number).padStart(3, '0')
-
-  const rule = bandTop - 60
-  const head =
-    `<line x1="${MARGIN}" y1="${rule}" x2="${sheetW - MARGIN}" y2="${rule}" ` +
-    `stroke="${caption}" stroke-width="2"/>` +
-    small(MARGIN, bandTop - 80, "For Font's Sake", caption) +
-    small(sheetW - MARGIN, bandTop - 80, `No. ${number}`, req.palette.mark, 17, 'end')
-
-  const foot =
-    `<line x1="${MARGIN}" y1="${footTop}" x2="${sheetW - MARGIN}" y2="${footTop}" ` +
-    `stroke="${caption}" stroke-width="2"/>` +
-    small(MARGIN, footTop + 38, `${chainName(req.chain)} on ${req.font.label} · Seed ${req.seed}`, caption, 15) +
-    small(sheetW - MARGIN, footTop + 38, 'forfontsake.xyz', req.palette.mark, 15, 'end')
-
-  return { head, foot, small }
 }
 
 /** one word, set as large as the sheet will take it */
@@ -716,13 +595,12 @@ const wrap = (body: string, w: number, h: number) =>
 
 export function buildPoster(req: PosterRequest): string {
   const { w, h } = getFormat(req.format)
-  const { footTop, bandTop, bandBottom } = bandOf(h)
+  const { bandTop, bandBottom } = bandOf(h)
 
   const layout = LAYOUTS.find((l) => l.id === req.layout) ?? LAYOUTS[0]
-  const { head, foot } = chrome(req, bandTop, footTop)
   const band = layout.id === 'chars' ? bandChars(req, bandTop, bandBottom) : bandWord(req, bandTop, bandBottom)
 
-  return wrap(ground(req, w, h) + head + band + foot, w, h)
+  return wrap(ground(req, w, h) + band, w, h)
 }
 
 /**
@@ -748,16 +626,15 @@ export function buildPosterLayers(req: PosterRequest): {
   wordBox: WordBox | null
 } {
   const { w, h } = getFormat(req.format)
-  const { footTop, bandTop, bandBottom } = bandOf(h)
+  const { bandTop, bandBottom } = bandOf(h)
 
   const layout = LAYOUTS.find((l) => l.id === req.layout) ?? LAYOUTS[0]
-  const { head, foot } = chrome(req, bandTop, footTop)
-  // the same order the composed sheet uses: ground, head, band, foot
+  // the same order the composed sheet uses: ground, then the band
   const paper = ground(req, w, h)
 
   if (layout.id === 'chars') {
     return {
-      ground: wrap(paper + head + bandChars(req, bandTop, bandBottom) + foot, w, h),
+      ground: wrap(paper + bandChars(req, bandTop, bandBottom), w, h),
       word: null,
       wordBox: null,
     }
@@ -767,5 +644,5 @@ export function buildPosterLayers(req: PosterRequest): {
     wordTransform: req.wordTransform ? { ...req.wordTransform, dx: 0, dy: 0 } : undefined,
   }
   const { markup, box } = placeWord(anchored, bandTop, bandBottom)
-  return { ground: wrap(paper + head + foot, w, h), word: wrap(markup, w, h), wordBox: box }
+  return { ground: wrap(paper, w, h), word: wrap(markup, w, h), wordBox: box }
 }

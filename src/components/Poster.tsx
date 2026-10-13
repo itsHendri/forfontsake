@@ -9,11 +9,8 @@ import {
   GROUNDS,
   LAYOUTS,
   liveBox,
-  PART_NAMES,
-  sheetParts,
   snapAngle,
   snapLines,
-  type SheetPart,
   POSTER_PALETTES,
   type PosterLayout,
   type PosterPalette,
@@ -68,7 +65,7 @@ const IDENTITY: WordTransform = { dx: 0, dy: 0, scale: 1, rotate: 0 }
  * finishes and a story format without selecting anything.
  */
 const LAYERS: {
-  id: 'background' | 'type' | 'caption' | 'finishes'
+  id: 'background' | 'type' | 'finishes'
   name: (layout: PosterLayout) => string
   sub: (s: {
     palette: PosterPalette
@@ -80,7 +77,7 @@ const LAYERS: {
     picture: FinishState
   }) => string
   /** which colour the row shows a chip of, if any */
-  swatch?: 'paper' | 'ink' | 'mark'
+  swatch?: 'paper' | 'ink'
 }[] = [
   {
     id: 'finishes',
@@ -90,7 +87,6 @@ const LAYERS: {
       return on.length > 0 ? on.join(' · ') : 'none'
     },
   },
-  { id: 'caption', name: () => 'Caption', sub: () => 'name · number · chain', swatch: 'mark' },
   {
     id: 'type',
     name: (layout) => layout.name,
@@ -318,8 +314,8 @@ const CORNERS: [number, number, string][] = [
  *
  * It was called Share, which named the exit rather than the room: sharing is
  * what you do once the thing exists, and this is where it gets made. What is
- * in here is a sheet stated as its layers — a ground, the type, the caption
- * and whatever finishes are on — with the word as an object you can take hold
+ * in here is a sheet stated as its layers — a ground, the type and whatever
+ * finishes are on — with the word as an object you can take hold
  * of. Everything here belongs to the sheet, never to the font: the structural
  * test that keeps finishes off the path to a font file is the same rule
  * written down.
@@ -376,10 +372,8 @@ export function Poster(p: Props) {
   } | null>(null)
   /** the word is an object you select, so it has a selected state to be in */
   const [framed, setFramed] = useState(false)
-  /** which of the caption's six marks was clicked, so the rail can name it */
-  const [part, setPart] = useState<SheetPart['id'] | null>(null)
-  /** what the pointer is over: a mark's id, the word, or nothing */
-  const [hover, setHover] = useState<SheetPart['id'] | 'word' | null>(null)
+  /** whether the pointer is over the word, which is the one thing on the sheet you can take hold of */
+  const [hover, setHover] = useState<'word' | null>(null)
   /** which snap lines are lit, in sheet units, while a move is in flight */
   const [guides, setGuides] = useState<{ x: number[]; y: number[] }>({ x: [], y: [] })
   // where the move got to, so the release commits the snapped value rather
@@ -449,7 +443,7 @@ export function Poster(p: Props) {
    * property of the one you picked, which is what "recolour" was always
    * reaching for.
    */
-  const [selected, setSelected] = useState<'background' | 'type' | 'caption' | 'finishes' | null>(null)
+  const [selected, setSelected] = useState<'background' | 'type' | 'finishes' | null>(null)
   /** colours set by hand, over whatever the palette roll last landed on */
   const [colours, setColours] = useState<Partial<PosterPalette>>({})
   /** what the sheet is printed on: a drawn texture, or a picture you brought */
@@ -556,12 +550,10 @@ export function Poster(p: Props) {
   // chain on every render rather than when a colour actually moved.
   const palette = useMemo<PosterPalette>(() => {
     const rolled = POSTER_PALETTES[paletteIndex % POSTER_PALETTES.length]
-    return { ...rolled, caption: rolled.caption ?? rolled.ink, ...colours }
+    return { ...rolled, ...colours }
   }, [paletteIndex, colours])
   const layout = LAYOUTS[layoutIndex % LAYOUTS.length]
   const format = getFormat(formatId)
-  // the number is the seed's, so the same sheet always carries the same one
-  const number = (sheetSeed % 999) + 1
 
 
   /*
@@ -588,12 +580,11 @@ export function Poster(p: Props) {
       layout: layout.id,
       format: format.id,
       palette,
-      number,
       wordTransform: bakedT,
       ground: groundId,
       backdrop,
     }),
-    [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, layout.id, format.id, palette, number, bakedT, groundId, backdrop],
+    [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, layout.id, format.id, palette, bakedT, groundId, backdrop],
   )
 
   /*
@@ -643,7 +634,7 @@ export function Poster(p: Props) {
   const exactReq = wordT === bakedT ? sheetReq : { ...sheetReq, wordTransform: wordT }
   const composed = () => buildPoster(exactReq)
 
-  const stem = `forfontsake-${p.chain.map((c) => c.id).join('-')}-${layout.id}-${String(number).padStart(3, '0')}`
+  const stem = `forfontsake-${p.chain.map((c) => c.id).join('-')}-${layout.id}-${sheetSeed}`
 
   /*
    * The sheet on the GPU.
@@ -876,7 +867,6 @@ export function Poster(p: Props) {
     selectedRef.current = selected
     deselectRef.current = () => {
       setSelected(null)
-      setPart(null)
       setFramed(false)
     }
   })
@@ -1020,12 +1010,6 @@ export function Poster(p: Props) {
     return el && el.clientWidth ? px * (format.w / el.clientWidth) : px
   }
 
-  /** the caption's marks as rectangles, from the numbers the sheet draws with */
-  const parts = useMemo(
-    () => sheetParts({ format: format.id, number, chain: p.chain, font: p.font, seed: sheetSeed }),
-    [format.id, number, p.chain, p.font, sheetSeed],
-  )
-
   /**
    * The word's rectangle on the sheet, drag included — what the frame draws on.
    *
@@ -1083,8 +1067,7 @@ export function Poster(p: Props) {
    * The tolerance is in *screen* pixels and converted in, which is the only
    * way it can mean the same thing on a sheet drawn at 852px and one drawn at
    * 400 — eight sheet units is a hair at one size and a shove at the other.
-   * The lines are the sheet's own: its centre, the margin the type is set to,
-   * and the two rules the head and the foot are drawn on.
+   * The lines are the sheet's own: its centre and the margin all round.
    */
   const settle = (dx: number, dy: number) => {
     if (!layers.wordBox) return { dx, dy, lit: { x: [] as number[], y: [] as number[] } }
@@ -1145,31 +1128,12 @@ export function Poster(p: Props) {
     setFramed(true)
   }
 
-  /**
-   * Which of the caption's marks is under the pointer, if any.
-   *
-   * The sheet is a canvas, so selection has to be arithmetic: the parts come
-   * from the same numbers the sheet is drawn with, and the first one the point
-   * falls inside wins. Small boxes first would be the usual rule, but these do
-   * not overlap — the two rules run between the marks rather than through them.
-   */
-  const partAt = (clientX: number, clientY: number): SheetPart | null => {
-    const at = toPoint(clientX, clientY)
-    if (!at) return null
-    return (
-      parts.find((r) => at.x >= r.x && at.x <= r.x + r.w && at.y >= r.y && at.y <= r.y + r.h) ?? null
-    )
-  }
-
   /*
    * Clicking the sheet selects what you clicked.
    *
-   * The rail used to be the only way in: to change the caption's colour you
-   * picked a layer called Caption, having first worked out that the number in
-   * the corner was part of something called the caption. Every canvas tool in
-   * the category — Framer, Jitter, Rive, Penpot, Ditther — lets the artwork be
-   * the way in and keeps the list as the second one. So: the word, then the
-   * caption's marks, then the ground, which is also how they are stacked.
+   * Every canvas tool in the category — Framer, Jitter, Rive, Penpot, Ditther
+   * — lets the artwork be the way in and keeps the list as the second one. So:
+   * the word, then the ground, which is also how they are stacked.
    */
   const onStagePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (layout.id === 'word' && onWord(e.clientX, e.clientY)) {
@@ -1178,23 +1142,15 @@ export function Poster(p: Props) {
       return
     }
     setFramed(false)
-    const part = partAt(e.clientX, e.clientY)
-    if (part) {
-      setPart(part.id)
-      setSelected(part.layer)
-      return
-    }
-    // the ground is the last thing under everything, and the sheet's own
-    // margin is not a layer — a press on nothing goes back to the sheet
-    setPart(null)
+    // the ground is the last thing under everything — a press off the sheet
+    // goes back to the sheet's own settings
     const at = toPoint(e.clientX, e.clientY)
     setSelected(at ? 'background' : null)
   }
 
   /*
-   * What the pointer is over, for the outline that says it can be clicked.
-   * Coalesced to a frame: it is a handful of rectangle tests, but it runs on
-   * every pointermove across the sheet.
+   * Whether the pointer is over the word, for the cursor that says it can be
+   * taken hold of. Coalesced to a frame: it runs on every pointermove.
    */
   const hoverFrame = useRef<number | null>(null)
   const trackHover = (clientX: number, clientY: number) => {
@@ -1202,8 +1158,7 @@ export function Poster(p: Props) {
     hoverFrame.current = requestAnimationFrame(() => {
       hoverFrame.current = null
       if (dragRef.current) return
-      const over =
-        layout.id === 'word' && onWord(clientX, clientY) ? 'word' : (partAt(clientX, clientY)?.id ?? null)
+      const over = layout.id === 'word' && onWord(clientX, clientY) ? 'word' : null
       setHover((h) => (h === over ? h : over))
     })
   }
@@ -1254,7 +1209,7 @@ export function Poster(p: Props) {
     } else {
       // The turn settles on the angles worth landing on unless Shift says
       // otherwise — the opposite way round from Figma, because a word a degree
-      // off level on a sheet with two rules on it is a mistake, not a choice.
+      // off level on a rectangular sheet is a mistake, not a choice.
       const snapped =
         drag.kind === 'rotate'
           ? { ...next, rotate: snapAngle(next.rotate ?? 0, e.shiftKey) }
@@ -1308,7 +1263,7 @@ export function Poster(p: Props) {
         }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [p.font, p.fontId, p.chain, p.overrides, sheetSeed, p.word, format.id, palette, number],
+    [p.font, p.fontId, p.chain, p.overrides, sheetSeed, p.word, format.id, palette],
   )
 
   // out of video the sheet goes back to the font as you made it
@@ -1344,7 +1299,7 @@ export function Poster(p: Props) {
     <div className="sheet-view">
       <header className="sheet-bar">
         <b className="sheet-name">{chainName}</b>
-        <span className="sheet-no">Specimen No. {String(number).padStart(3, '0')}</span>
+        <span className="sheet-font">on {p.font.label}</span>
 
         {/*
           Static or video, centred above everything it governs. It is the only
@@ -1467,7 +1422,7 @@ export function Poster(p: Props) {
           className={[
             'sheet-stage',
             inVideo ? 'has-transport' : '',
-            hover ? 'is-over-part' : '',
+            hover ? 'is-over-word' : '',
           ]
             .filter(Boolean)
             .join(' ')}
@@ -1489,7 +1444,7 @@ export function Poster(p: Props) {
               key={format.id}
               ref={mount}
               role="img"
-              aria-label={`Specimen sheet number ${number}`}
+              aria-label={`Specimen sheet, ${chainName} on ${p.font.label}`}
             />
             {/*
               The word, as a thing you can take hold of.
@@ -1500,31 +1455,6 @@ export function Poster(p: Props) {
               when the window moves. It is `pointer-events: none` except on the
               handles, so the drag underneath still reaches the stage.
             */}
-            {/*
-              What is selected, and what would be if you pressed.
-
-              Drawn as overlays in percentages of the sheet, the same trick the
-              word's frame uses: the canvas has nothing in it to outline, and a
-              percentage stays on the mark at whatever size the sheet is shown.
-            */}
-            <div className="part-frames" aria-hidden="true">
-              {parts.map((r) => {
-                const lit = selected === 'caption' || hover === r.id
-                if (!lit) return null
-                return (
-                  <span
-                    key={r.id}
-                    className={hover === r.id ? 'part-box is-over' : 'part-box'}
-                    style={{
-                      left: pct(r.x, format.w),
-                      top: pct(r.y, format.h),
-                      width: pct(r.w, format.w),
-                      height: pct(r.h, format.h),
-                    }}
-                  />
-                )
-              })}
-            </div>
             {layout.id === 'word' && framedBox && (
               <div className="word-frame" aria-hidden="true">
                 {guides.x.map((x) => (
@@ -1884,25 +1814,6 @@ export function Poster(p: Props) {
                   word to move and resize it.
                 </p>
               )}
-            </div>
-          )}
-
-          {selected === 'caption' && (
-            <div className="group ruled">
-              <h2>Caption</h2>
-              <Swatch
-                label="Rules and labels"
-                value={palette.caption ?? palette.ink}
-                onChange={(v) => setColours((c) => ({ ...c, caption: v }))}
-              />
-              <Swatch label="Accent" value={palette.mark} onChange={(v) => setColours((c) => ({ ...c, mark: v }))} />
-              <p className="note">
-                What the sheet says about itself: the two rules, the name, the number, the chain and
-                the address. It travels with the sheet — it is not in the font.
-                {part && ` You picked ${PART_NAMES[part]}, which takes its colour from ${
-                  part === 'number' || part === 'address' ? 'Accent' : 'Rules and labels'
-                }.`}
-              </p>
             </div>
           )}
 

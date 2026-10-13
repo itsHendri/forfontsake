@@ -8,12 +8,9 @@ import {
   GROUNDS,
   getGround,
   liveBox,
-  PART_NAMES,
   sheetGeometry,
-  sheetParts,
   snapAngle,
   snapLines,
-  settingsLine,
   chainName,
   LAYOUTS,
   FORMATS,
@@ -49,7 +46,6 @@ const req = (layout?: string) => ({
   seed: 1337,
   word: 'AB',
   palette: POSTER_PALETTES[0],
-  number: 7,
   layout,
 })
 
@@ -77,14 +73,12 @@ describe('poster', () => {
       wellFormed(svg)
       // the sheet is made to be posted: Instagram portrait, 4:5
       expect(svg).toContain('viewBox="0 0 1080 1350"')
-      // the marks every sheet carries, whichever band it sets
-      expect(svg).toContain('FOR FONT&#39;S SAKE'.replace('&#39;', "'"))
-      expect(svg).toContain('NO. 007')
-      expect(svg).toContain('SEED 1337')
-      expect(svg).toContain('FORFONTSAKE.XYZ')
-      expect(svg).toContain('GRIT ON TEST FACE')
-      // furniture the redesign removed stays removed
-      expect(svg).not.toContain('BUILT IN THE BROWSER')
+      // the caption is gone — name, number, chain, address and both rules —
+      // until the text templates say what a sheet should carry
+      expect(svg).not.toContain('<text')
+      expect(svg).not.toContain('<line')
+      expect(svg).not.toContain('FORFONTSAKE.XYZ')
+      expect(svg).not.toContain('SEED')
     })
   }
 
@@ -121,24 +115,17 @@ describe('poster', () => {
     expect(buildPoster(req('chars'))).toBe(buildPoster(req('chars')))
   })
 
-  it('names a stack in the caption and the settings line', () => {
+  it('names a stack', () => {
     const chain = [
       { id: 'grit', params: defaults(getTreatment('grit')) },
       { id: 'bleed', params: defaults(getTreatment('bleed')) },
     ]
     expect(chainName(chain)).toBe('Grit + Bleed')
-    // with more than one step each dial group is named, or the numbers are
-    // unreadable
-    const line = settingsLine(chain)
-    expect(line).toContain('Grit:')
-    expect(line).toContain('Bleed:')
-    // one step needs no naming
-    expect(settingsLine([chain[0]])).not.toContain('Grit:')
   })
 
-  it('escapes text that would otherwise break the markup', () => {
+  it('keeps the font name off the sheet, so nothing in it can break the markup', () => {
     const svg = buildPoster({ ...req('word'), font: { ...font, label: 'A & B <script>' } })
-    expect(svg).toContain('&amp;')
+    expect(svg).not.toContain('A & B')
     expect(svg).not.toContain('<script>')
   })
 
@@ -153,7 +140,8 @@ describe('poster', () => {
     // every mark the composed sheet carries is in one layer or the other
     const composed = buildPoster(r)
     const marks = composed.match(/<(path|text|rect|line)[^>]*>/g) ?? []
-    expect(marks.length).toBeGreaterThan(4)
+    // the paper and the word, at least
+    expect(marks.length).toBeGreaterThanOrEqual(2)
     for (const mark of marks) {
       expect(ground.includes(mark) || word!.includes(mark), mark.slice(0, 60)).toBe(true)
     }
@@ -255,7 +243,7 @@ describe('formats', () => {
         const { ground, word } = buildPosterLayers(r)
         const composed = buildPoster(r)
         const marks = composed.match(/<(path|text|rect|line)[^>]*>/g) ?? []
-        expect(marks.length, `${f.id}/${layout.id}`).toBeGreaterThan(4)
+        expect(marks.length, `${f.id}/${layout.id}`).toBeGreaterThanOrEqual(2)
         for (const mark of marks) {
           expect(
             ground.includes(mark) || (word !== null && word.includes(mark)),
@@ -347,7 +335,7 @@ describe('what the sheet is printed on', () => {
   it('draws every texture in the sheet\'s own ink, tooth included', () => {
     // Tooth used to ignore the palette entirely: it was a grey veil over the
     // paper, so it was the one ground that did not recolour with the sheet.
-    const ink = palette.caption ?? palette.ink
+    const ink = palette.ink
     for (const g of GROUNDS.filter((g) => g.id !== 'flat')) {
       expect(g.draw(1080, 1350, palette), g.id).toContain(ink)
     }
@@ -520,9 +508,9 @@ describe('what the word snaps to', () => {
     }
   })
 
-  it('offers the margin the type is set to, and the two rules', () => {
+  it('offers the margin the type is set to, on all four sides', () => {
     const { x, y } = snapLines('post')
-    // three each: the margin pair and the centre, the two rules and the centre
+    // three each: the margin either side and the centre
     expect(x).toHaveLength(3)
     expect(y).toHaveLength(3)
     // every line is inside the sheet, or it is a line nothing can reach
@@ -536,67 +524,15 @@ describe('what the word snaps to', () => {
     }
   })
 
-  it('lines up with where the sheet actually draws its rules', () => {
-    // the head rule and the foot rule are drawn at these y values, so a word
-    // snapped to one sits on a line that is really there
-    const svg = buildPoster(req('word'))
-    for (const y of snapLines('post').y) {
-      if (y === FORMATS[0].h / 2) continue
-      expect(svg, String(y)).toContain(`y1="${y}"`)
-    }
-  })
-})
-
-describe('what the sheet is made of', () => {
-  const parts = sheetParts(req('word'))
-
-  it('names all six marks of the caption', () => {
-    expect(parts.map((p) => p.id)).toEqual([
-      'head-rule',
-      'head-label',
-      'number',
-      'foot-rule',
-      'foot-caption',
-      'address',
-    ])
-    expect(parts.every((p) => p.layer === 'caption')).toBe(true)
-    expect(Object.keys(PART_NAMES).sort()).toEqual(parts.map((p) => p.id).sort())
-  })
-
-  it('keeps every one of them on the sheet, at every format', () => {
+  it('keeps the word inside the margin it snaps to, at every format', () => {
     for (const f of FORMATS) {
-      const { w, h } = getFormat(f.id)
-      for (const part of sheetParts({ ...req('word'), format: f.id })) {
-        expect(part.x).toBeGreaterThanOrEqual(0)
-        expect(part.y).toBeGreaterThanOrEqual(0)
-        expect(part.x + part.w).toBeLessThanOrEqual(w)
-        expect(part.y + part.h).toBeLessThanOrEqual(h)
-        expect(part.w).toBeGreaterThan(0)
-        expect(part.h).toBeGreaterThan(0)
-      }
+      const { x, y } = snapLines(f.id)
+      const box = buildPosterLayers({ ...req('word'), format: f.id }).wordBox!
+      expect(box.x, f.id).toBeGreaterThanOrEqual(Math.min(...x) - 1e-6)
+      expect(box.x + box.w, f.id).toBeLessThanOrEqual(Math.max(...x) + 1e-6)
+      expect(box.y, f.id).toBeGreaterThanOrEqual(Math.min(...y) - 1e-6)
+      expect(box.y + box.h, f.id).toBeLessThanOrEqual(Math.max(...y) + 1e-6)
     }
-  })
-
-  it('puts the head rule where the word snaps to it', () => {
-    // the two have to be the same line, or clicking the rule selects nothing
-    // where the word says it is landing
-    const rule = parts.find((p) => p.id === 'head-rule')!
-    expect(rule.y + rule.h / 2).toBeCloseTo(snapLines().y[0], 6)
-  })
-
-  it('ends the right-hand marks at the margin the sheet draws them to', () => {
-    const right = SHEET_W - 76
-    for (const id of ['number', 'address'] as const) {
-      const part = parts.find((p) => p.id === id)!
-      expect(part.x + part.w).toBeCloseTo(right, 6)
-    }
-  })
-
-  it('grows the number as the sheet counts past ninety-nine', () => {
-    const small = sheetParts({ ...req('word'), number: 7 }).find((p) => p.id === 'number')!
-    const large = sheetParts({ ...req('word'), number: 999 }).find((p) => p.id === 'number')!
-    // padded to three digits either way, so the box does not move under it
-    expect(large.w).toBeCloseTo(small.w, 6)
   })
 })
 

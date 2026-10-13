@@ -40,7 +40,6 @@ const sheet = buildPoster({
   seed: 1337,
   word: 'Swell',
   palette,
-  number: 1,
 })
 
 // strip the outer <svg> wrapper so the sheet can be placed as a group
