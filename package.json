@@ -23,6 +23,7 @@
     "d3-delaunay": "^6.0.4",
     "font-flux-js": "^2.7.2",
     "jszip": "^3.10.1",
+    "mediabunny": "1.59.1",
     "opentype.js": "^2.0.0",
     "poisson-disk-sampling": "^2.3.1",
     "react": "^19.2.8",

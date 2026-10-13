@@ -1,18 +1,14 @@
 import { getTreatment, type ParamSpec } from '../engine/treatments/registry'
-import { EnvelopeFollower } from '../audio/EnvelopeFollower'
-import type { AudioFrame } from '../audio/frame'
+import { CHANNELS, type Channel } from './motion'
 import type { Step } from './urlState'
 
-/** the four things the sound is split into, in the order the drive vector holds them */
-export const BANDS = ['bass', 'mid', 'high', 'level'] as const
-export type Band = (typeof BANDS)[number]
-
-export const BAND_LABEL: Record<Band, string> = {
-  bass: 'Bass',
-  mid: 'Mids',
-  high: 'Highs',
-  level: 'Level',
-}
+/**
+ * The four curves a dial can follow, in the order the drive vector holds them.
+ * They were the sound's bands — bass, mids, highs, level — and kept their
+ * places when the sound went, so the modes below still mean what they meant.
+ */
+export const BANDS = CHANNELS
+export type Band = Channel
 
 /**
  * How far a driven dial swings, as a share of its span — now in *both*
@@ -27,7 +23,7 @@ export const DEFAULT_DEPTH = 0.15
 export type Bindings = Record<string, Band | null>
 
 /**
- * Which dials the sound may ride.
+ * Which dials the motion may ride.
  *
  * `steady` dials are excluded: they choose *which* picture rather than move
  * within one, so driving them alternates rather than animates and the word
@@ -41,12 +37,10 @@ export function drivable(step: Step): ParamSpec[] {
 export const bindKey = (stepIndex: number, param: string) => `${stepIndex}:${param}`
 
 /**
- * What a dial listens to when nobody has said otherwise.
+ * What a dial follows when nobody has said otherwise.
  *
- * The first four drivable dials of each step take bass, mids, highs and level
- * in declared order, which is exactly what the sheet did before any of this
- * was adjustable — so opening the sheet sounds as it always did, and the
- * controls are there for when the declared order is the wrong order.
+ * The first four drivable dials of each step take the four curves in declared
+ * order, which is what the sheet did before any of this was adjustable.
  */
 export function defaultBand(order: number): Band | null {
   return order < BANDS.length ? BANDS[order] : null
@@ -64,7 +58,7 @@ export function bandFor(
 }
 
 /**
- * The dials, ridden by the sound.
+ * The dials, ridden by the motion.
  *
  * A dial's set point plus its band's drive times the depth, clamped to the
  * dial's range. Deliberately *not* snapped to the dial's step: the seed is
@@ -72,7 +66,7 @@ export function bandFor(
  * un-snapped values are what let one frame morph into the next instead of
  * clicking through increments.
  *
- * The drive is **signed** — see `SoundDrive`. It used to be a level between 0
+ * The drive is **signed** — see `motionAt`. It used to be a level between 0
  * and 1, which could only ever be added, so the value you set was the quietest
  * the sheet ever got and everything you actually looked at was heavier than the
  * font you had made. Centred, your setting is the average instead of the floor.
@@ -101,7 +95,7 @@ export function modulate(
 }
 
 /**
- * What the sound does to the letters, as a named thing rather than a matrix.
+ * What the motion does to the letters, as a named thing rather than a matrix.
  *
  * The sheet used to expose one row per drivable dial with a band picker on it.
  * That is a prosumer control — OpenMosh and Neural Frames have it, and even
@@ -111,7 +105,7 @@ export function modulate(
  * is still exactly the `Bindings` record it always was — a mode is just a
  * function that fills one in.
  */
-export interface SoundMode {
+export interface MotionMode {
   id: string
   name: string
   note: string
@@ -119,30 +113,30 @@ export interface SoundMode {
   band(order: number): Band | null
 }
 
-export const MODES: SoundMode[] = [
+export const MODES: MotionMode[] = [
   {
     id: 'pulse',
     name: 'Pulse',
-    note: 'the beat moves the headline dial, and the rest hold still',
-    band: (order) => (order === 0 ? 'bass' : order === 1 ? 'level' : null),
+    note: 'a beat moves the headline dial, a slow drift the next, and the rest hold still',
+    band: (order) => (order === 0 ? 'beat' : order === 1 ? 'drift' : null),
   },
   {
     id: 'breathe',
     name: 'Breathe',
-    note: 'the body of the sound swells every dial at once',
-    band: () => 'mid',
+    note: 'every dial swells and settles at once, like a breath',
+    band: () => 'swell',
   },
   {
     id: 'shimmer',
     name: 'Shimmer',
-    note: 'the top end only, so the detail moves and the shape does not',
-    band: (order) => (order === 0 ? 'high' : 'mid'),
+    note: 'a quick flicker on the detail while the rest swell slowly underneath',
+    band: (order) => (order === 0 ? 'flicker' : 'swell'),
   },
 ]
 
 export const DEFAULT_MODE = MODES[0]
 
-export function getMode(id: string): SoundMode {
+export function getMode(id: string): MotionMode {
   return MODES.find((m) => m.id === id) ?? DEFAULT_MODE
 }
 
@@ -153,7 +147,7 @@ export function getMode(id: string): SoundMode {
  * overrides were derived: a map keyed by step position goes stale the moment a
  * layer is added, removed or retreated, and a stale map drives the wrong dial.
  */
-export function bindingsFor(mode: SoundMode, chain: Step[]): Bindings {
+export function bindingsFor(mode: MotionMode, chain: Step[]): Bindings {
   const out: Bindings = {}
   chain.forEach((step, i) => {
     drivable(step).forEach((spec, order) => {
@@ -161,39 +155,4 @@ export function bindingsFor(mode: SoundMode, chain: Step[]): Bindings {
     })
   })
   return out
-}
-
-/**
- * The four bands, as deviations from what the sound has lately been doing.
- *
- * Two followers per band. The fast one is the motion — slower than the
- * analyser's own, which is tuned for light shows and made to twitch — and the
- * slow one is a running sense of how loud this material is. Driving on the
- * difference is what centres the movement on the dial's set point: a steady
- * passage settles back to the font you made, a transient pushes above it and
- * the dip after it pulls below.
- *
- * That also makes it self-levelling. A quiet recording and a loud one both
- * move the letters about as much, where an absolute level would leave one
- * inert and pin the other at the top of every dial.
- */
-export class SoundDrive {
-  private readonly fast = [
-    new EnvelopeFollower(0.3, 0.9), // bass + beat
-    new EnvelopeFollower(0.45, 1.1), // mids
-    new EnvelopeFollower(0.25, 0.8), // highs
-    new EnvelopeFollower(0.55, 1.3), // level
-  ]
-  // rises to meet the sound in about a second so there is no lurch at the
-  // start, and lets go slowly so a loud bar does not become the new normal
-  private readonly slow = BANDS.map(() => new EnvelopeFollower(1.2, 4))
-
-  read(f: AudioFrame, dt: number): number[] {
-    const targets = [Math.min(1, f.bass + f.beat * 0.5), f.mid, f.high, f.level]
-    return targets.map((t, i) => {
-      const now = this.fast[i].update(t, dt)
-      const baseline = this.slow[i].update(t, dt)
-      return Math.max(-1, Math.min(1, now - baseline))
-    })
-  }
 }

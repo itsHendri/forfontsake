@@ -22,18 +22,18 @@ import {
 import { saveFile } from '../lib/exportFont'
 import { Menu } from './Menu'
 import { getTreatment } from '../engine/treatments/registry'
+import { DEFAULT_DEPTH, DEFAULT_MODE, MODES, bindingsFor, getMode, modulate } from '../lib/modulate'
 import {
-  DEFAULT_DEPTH,
-  DEFAULT_MODE,
-  MODES,
-  SoundDrive,
-  bindingsFor,
-  getMode,
-  modulate,
-} from '../lib/modulate'
-import { AudioEngine } from '../audio/AudioEngine'
-import { createLoopSource, createMicSource } from '../audio/sources'
+  DEFAULT_LENGTH,
+  DEFAULT_SPEED,
+  LENGTHS,
+  MAX_SPEED,
+  MIN_SPEED,
+  FPS,
+  motionAt,
+} from '../lib/motion'
 import { startSheetRecorder, type SheetRecorder } from '../lib/videoRecorder'
+import { canRenderClips, renderClip } from '../lib/clipRender'
 import {
   FINISHES,
   PICTURE_EFFECTS,
@@ -282,9 +282,6 @@ const TICK_MS = 33
 const TICK_MS_HEAVY = 140
 const HEAVY = new Set(['growth', 'mosaic'])
 
-// long enough for a loop of the bubble track, short enough to stay postable
-const MAX_RECORD_SECONDS = 15
-
 // How close a snap line has to be, in *screen* pixels — converted into sheet
 // units where it is used, which is the only way it means the same thing on a
 // sheet drawn at 852px and one drawn at 400. Konva's own demo uses five and
@@ -300,10 +297,6 @@ const SNAP_PX = 6
 const BAKE_MS = 150
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
-
-// Fourteen bars, spaced so the quiet end has resolution — speech sits low and
-// a linear ladder would leave a working mic looking like a dead one.
-const METER_BARS = Array.from({ length: 14 }, (_, i) => Math.pow((i + 1) / 15, 1.7))
 
 /** a sheet coordinate as a percentage of the sheet, which is how the frame is laid out */
 const pct = (v: number, of: number) => `${(v / of) * 100}%`
@@ -338,28 +331,18 @@ export function Poster(p: Props) {
   /*
    * Static or video: the one choice the whole room hangs off.
    *
-   * It is a mode rather than a consequence of turning the sound on, because the
-   * clip is the capability nobody else in this niche has and a mode nobody can
-   * see is a mode nobody uses. The rule underneath it runs one way only —
-   * sound is what makes a moving export possible, never the reverse — so in
-   * static there is no sound anywhere to wonder about, and choosing MP4 can
-   * never silently start it.
+   * The clip is the capability nobody else in this niche has, and a mode
+   * nobody can see is a mode nobody uses. In video the sheet moves as soon as
+   * you are in it — there is nothing to switch on first, because the motion is
+   * a function of time rather than a sound that has to be started.
    */
   const [mode, setMode] = useState<'static' | 'video'>('static')
   // The sheet's size is a property of the sheet, not of the export. Every tool
   // in this category splits them that way; the download stays type and scale.
   const [formatId, setFormatId] = useState(FORMATS[0].id)
-  const [soundModeId, setSoundModeId] = useState(DEFAULT_MODE.id)
+  const [motionModeId, setMotionModeId] = useState(DEFAULT_MODE.id)
   const [busy, setBusy] = useState(false)
-  /*
-   * Two notes, because they had two causes and one place to appear.
-   *
-   * A refused microphone used to be reported at the foot of the rail inside
-   * Export — the length of the whole room away from the button that asked for
-   * it, and under a heading about something else. A message about a thing you
-   * just pressed belongs beside the thing you just pressed.
-   */
-  const [soundNote, setSoundNote] = useState<string | null>(null)
+  // a message about the export belongs beside the export, in the bar
   const [exportNote, setExportNote] = useState<string | null>(null)
   /*
    * Two transforms, and the difference between them is what the GPU is doing.
@@ -403,44 +386,40 @@ export function Poster(p: Props) {
   // than recomputing it from a pointer that may have left the canvas
   const moveRef = useRef<WordTransform | null>(null)
 
-  // Sound. The engine is created in a click handler, never on mount — an
-  // AudioContext made outside a user gesture starts suspended, and StrictMode
-  // would make one twice.
-  const [soundSource, setSoundSource] = useState<'loop' | 'mic' | null>(null)
+  /*
+   * Motion. It plays whenever the room is in video and nobody has paused it;
+   * `clock` is where in the loop it is, kept across a pause so the sheet
+   * resumes from the frame it stopped on rather than jumping.
+   */
+  const [playing, setPlaying] = useState(false)
+  const clock = useRef(0)
   const [modChain, setModChain] = useState<Step[] | null>(null)
-  // how fast the letters move with the sound: it scales the clock the glides
-  // run on, so low values are a slow drift and 1.5 is back to eager
-  const [soundSpeed, setSoundSpeed] = useState(0.5)
-  const soundSpeedRef = useRef(soundSpeed)
+  // how fast the letters move: a multiplier on how many times each curve goes
+  // round in the clip, rounded to whole turns so the loop always closes
+  const [speed, setSpeed] = useState(DEFAULT_SPEED)
+  const speedRef = useRef(speed)
+  // how long the clip is, and so how long one loop of the motion is
+  const [length, setLength] = useState<number>(DEFAULT_LENGTH)
+  const lengthRef = useRef(length)
   // How far a driven dial swings, as a share of its span. Tuned by ear at 0.35
   // and kept as the default; adjustable because a heavy treatment on a short
   // word wants less travel than a light one on a long word.
   const [depth, setDepth] = useState(DEFAULT_DEPTH)
   const depthRef = useRef(depth)
-  const soundModeRef = useRef(soundModeId)
+  const motionModeRef = useRef(motionModeId)
   useEffect(() => {
-    soundSpeedRef.current = soundSpeed
-  }, [soundSpeed])
+    speedRef.current = speed
+  }, [speed])
+  useEffect(() => {
+    lengthRef.current = length
+  }, [length])
   useEffect(() => {
     depthRef.current = depth
   }, [depth])
   useEffect(() => {
-    soundModeRef.current = soundModeId
-  }, [soundModeId])
-  const engineRef = useRef<AudioEngine | null>(null)
+    motionModeRef.current = motionModeId
+  }, [motionModeId])
   const rafRef = useRef<number | null>(null)
-  /*
-   * How loud it is, for the meter.
-   *
-   * The room has never had one, which is most of why the microphone read as
-   * dead: a working mic and a refused one looked identical, because the mic is
-   * deliberately not monitored — playing it back through the speakers is a
-   * feedback loop. Published at about twelve times a second rather than every
-   * frame; a meter is read by eye and sixty setStates a second is sixty
-   * renders a second.
-   */
-  const [level, setLevel] = useState(0)
-  const levelAt = useRef(0)
   // how long the last sheet took to build, so the tick can back off adaptively
   const buildCost = useRef(0)
 
@@ -479,11 +458,7 @@ export function Poster(p: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Closing must never discard work: a take in flight is finished and saved
-  // on the way out, and the backdrop stops being a close target while sound
-  // or recording is live — a stray click outside the sheet must not kill a
-  // performance. Escape always gets you out, but out of one thing at a time:
-  // from a performance it returns the rail rather than throwing away the sheet
-  // and whatever was playing.
+  // on the way out.
   const closeRef = useRef<() => void>(p.onClose)
   /*
    * Escape backs out of one thing at a time.
@@ -509,7 +484,7 @@ export function Poster(p: Props) {
   }, [])
 
   // Recording. The recorder lives in refs and the finisher in a ref too, so
-  // stopSound (a stable callback) can save a take without stale closures.
+  // the countdown and the close can save a take without stale closures.
   const [recording, setRecording] = useState(false)
   const [recSeconds, setRecSeconds] = useState(0)
   const recorderRef = useRef<SheetRecorder | null>(null)
@@ -517,78 +492,60 @@ export function Poster(p: Props) {
   const recStemRef = useRef('sheet')
   const finishRecordingRef = useRef<(() => Promise<void>) | null>(null)
 
-  const stopSound = useCallback(() => {
-    // a deliberate stop mid-take keeps the take
-    void finishRecordingRef.current?.()
-    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
-    rafRef.current = null
-    engineRef.current?.setSource(null)
-    setSoundSource(null)
-    setModChain(null)
-    setLevel(0)
-  }, [])
+  /*
+   * Rendering. Whether this browser can encode a clip frame by frame is asked
+   * once, on the way into video; until it has answered the button assumes it
+   * can, and where it cannot the live recorder takes over the same button.
+   */
+  const [canRender, setCanRender] = useState<boolean | null>(null)
+  const [progress, setProgress] = useState<{ label: string; done: number; total: number; eta: number | null } | null>(
+    null,
+  )
+  const abortRef = useRef<AbortController | null>(null)
+  useEffect(() => () => abortRef.current?.abort(), [])
 
-  // the overlay closing takes the sound with it — and abandons any take
+  // the room closing abandons any take
   useEffect(
     () => () => {
       recorderRef.current?.cancel()
       recorderRef.current = null
       if (recTimerRef.current) clearInterval(recTimerRef.current)
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
-      engineRef.current?.dispose()
-      engineRef.current = null
     },
     [],
   )
 
-  const startTicking = useCallback(() => {
-    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+  /*
+   * The motion, live.
+   *
+   * The clock runs every frame, but the geometry is rebuilt only as fast as
+   * the chain can afford, and the shader's cross-fade covers the gaps. The
+   * renderer does not need either trick: it draws every frame of the clip at
+   * its own exact time, however long that takes.
+   */
+  useEffect(() => {
+    if (mode !== 'video' || !playing) return
     const tier = p.chain.some((s) => HEAVY.has(s.id)) ? TICK_MS_HEAVY : TICK_MS
-    const drive = new SoundDrive()
     let last = performance.now()
     let lastBuild = 0
     const loop = (now: number) => {
-      const engine = engineRef.current
-      if (!engine) return
       const dt = Math.min(0.1, (now - last) / 1000)
       last = now
-      // Tick every frame so the envelopes and detectors stay accurate; only
-      // the glides run on the scaled clock — the Speed dial is time dilation
-      // on the motion, not on the analysis.
-      const frame = engine.tick(dt)
-      const bands = drive.read(frame, dt * soundSpeedRef.current)
-      if (now - levelAt.current >= 80) {
-        levelAt.current = now
-        setLevel(frame.level)
-      }
-      // ...but rebuild the geometry at a pace the chain can afford
+      clock.current = (clock.current + dt) % lengthRef.current
       if (now - lastBuild >= Math.max(tier, buildCost.current * 1.5)) {
         lastBuild = now
+        const drive = motionAt(clock.current, lengthRef.current, speedRef.current)
         setModChain(
-          modulate(p.chain, bands, bindingsFor(getMode(soundModeRef.current), p.chain), depthRef.current),
+          modulate(p.chain, drive, bindingsFor(getMode(motionModeRef.current), p.chain), depthRef.current),
         )
       }
       rafRef.current = requestAnimationFrame(loop)
     }
     rafRef.current = requestAnimationFrame(loop)
-  }, [p.chain])
-
-  const startSound = async (kind: 'loop' | 'mic') => {
-    setSoundNote(null)
-    try {
-      const engine = engineRef.current ?? new AudioEngine()
-      engineRef.current = engine
-      await engine.resume()
-      const source =
-        kind === 'loop' ? await createLoopSource(engine.context) : await createMicSource(engine.context)
-      engine.setSource(source)
-      setSoundSource(kind)
-      startTicking()
-    } catch (e) {
-      stopSound()
-      setSoundNote(e instanceof Error ? e.message : String(e))
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
+      rafRef.current = null
     }
-  }
+  }, [mode, playing, p.chain])
 
   // The roll underneath, and whatever has been set by hand over it. Recolour
   // still moves all four at once, which is the fast way to a different sheet;
@@ -617,9 +574,6 @@ export function Poster(p: Props) {
    * those are slow on a word too. So the limit is the chain's cost, not the
    * layout, and the rail reports it instead of the picker forbidding it.
    */
-  useEffect(() => {
-    if (mode !== 'video') stopSound()
-  }, [mode, stopSound])
 
   const sheetChain = mode === 'video' && modChain ? modChain : p.chain
 
@@ -716,8 +670,7 @@ export function Poster(p: Props) {
    * room was open, which on a still sheet with no finishes and no sound is
    * sixty full-screen passes a second to produce the same pixels. The frames
    * that must keep coming are the fade after a rebuild, a take being recorded,
-   * and sound driving the dials — so those three re-arm it and nothing else
-   * does.
+   * and the motion playing — so those three re-arm it and nothing else does.
    */
   const drawReq = useRef<number | null>(null)
   const lastDraw = useRef(performance.now())
@@ -730,11 +683,7 @@ export function Poster(p: Props) {
       const dt = Math.min(0.1, (now - lastDraw.current) / 1000)
       lastDraw.current = now
       if (fadeRef.current > 0) {
-        // a slower drift earns a longer dissolve, as the CSS version did
-        fadeRef.current = Math.max(
-          0,
-          fadeRef.current - dt / (0.35 / Math.max(0.35, soundSpeedRef.current)),
-        )
+        fadeRef.current = Math.max(0, fadeRef.current - dt / 0.35)
       }
       const view = viewRef.current
       if (view) {
@@ -748,9 +697,9 @@ export function Poster(p: Props) {
   }, [])
 
   useEffect(() => {
-    keepDrawing.current = recording || soundSource !== null
+    keepDrawing.current = recording || playing
     if (keepDrawing.current) requestDraw()
-  }, [recording, soundSource, requestDraw])
+  }, [recording, playing, requestDraw])
 
   /*
    * The size field bakes when it stops moving.
@@ -915,10 +864,11 @@ export function Poster(p: Props) {
   /** finish any take, then leave — the exit that keeps the work */
   const handleClose = () => {
     void finishRecordingRef.current?.()
+    abortRef.current?.abort()
     p.onClose()
   }
 
-  // kept fresh so stopSound, Escape and the countdown can finish a take
+  // kept fresh so Escape and the countdown can finish a take
   // without closing over a stale sheet or filename
   useEffect(() => {
     finishRecordingRef.current = finishRecording
@@ -932,24 +882,86 @@ export function Poster(p: Props) {
   })
 
   const startRecording = () => {
-    const engine = engineRef.current
-    if (!engine || recorderRef.current) return
+    if (recorderRef.current) return
     setExportNote(null)
     try {
       const canvas = viewRef.current?.canvas
       if (!canvas) throw new Error('The sheet is not ready to record yet.')
-      recorderRef.current = startSheetRecorder(canvas, engine.captureStream())
+      // from the top of the loop, so the take is exactly one loop long
+      clock.current = 0
+      setPlaying(true)
+      recorderRef.current = startSheetRecorder(canvas)
       recStemRef.current = stem
       setRecSeconds(0)
       setRecording(true)
+      const take = length
       recTimerRef.current = setInterval(() => {
         setRecSeconds((s) => {
-          if (s + 1 >= MAX_RECORD_SECONDS) void finishRecordingRef.current?.()
+          if (s + 1 >= take) void finishRecordingRef.current?.()
           return s + 1
         })
       }, 1000)
     } catch (e) {
       setExportNote(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  /*
+   * A clip of this sheet in any format and layout, rendered frame by frame.
+   *
+   * Everything about the sheet as it stands — colours, ground, picture,
+   * finishes, the word where you put it, the motion and its length — with the
+   * format and layout swappable, which is what lets the kit cut one
+   * composition four ways.
+   */
+  const renderCut = async (
+    cut: { format: string; layout: string },
+    signal: AbortSignal,
+    onProgress: (done: number, total: number, eta: number | null) => void,
+  ) => {
+    const f = getFormat(cut.format)
+    const base = { ...exactReq, chain: p.chain, format: cut.format, layout: cut.layout }
+    const bindings = bindingsFor(getMode(motionModeId), p.chain)
+    return renderClip({
+      w: f.w,
+      h: f.h,
+      seconds: length,
+      fps: FPS,
+      layersAt: (t) => {
+        const chain = modulate(p.chain, motionAt(t, length, speed), bindings, depth)
+        return buildPosterLayers({ ...base, chain })
+      },
+      prepare: (view) => {
+        view.setFinishes(finishes)
+        view.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink)
+        if (cut.layout === 'word') view.setOffset((wordT.dx / format.w) * f.w, (wordT.dy / format.h) * f.h)
+      },
+      onProgress,
+      signal,
+    })
+  }
+
+  /** the clip on screen, as an MP4 — or, where it cannot be rendered, recorded live */
+  const renderVideo = async () => {
+    if (canRender === false) {
+      startRecording()
+      return
+    }
+    const ac = new AbortController()
+    abortRef.current = ac
+    setExportNote(null)
+    setProgress({ label: 'MP4', done: 0, total: 1, eta: null })
+    try {
+      const blob = await renderCut({ format: format.id, layout: layout.id }, ac.signal, (done, total, eta) =>
+        setProgress({ label: 'MP4', done, total, eta }),
+      )
+      await saveFile(blob, `${stem}-${length}s.mp4`)
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === 'AbortError'))
+        setExportNote(e instanceof Error ? e.message : String(e))
+    } finally {
+      abortRef.current = null
+      setProgress(null)
     }
   }
 
@@ -1282,7 +1294,7 @@ export function Poster(p: Props) {
    * entirely visual, so it is shown rather than named — the same argument the
    * workbench presets won on. Memoised on everything except the dials, because
    * the chain the sheet is handed does not change while you are in here (the
-   * sound modulates a copy), so this is two renders per visit rather than two
+   * motion modulates a copy), so this is two renders per visit rather than two
    * per frame.
    */
   const layoutThumbs = useMemo(
@@ -1299,21 +1311,28 @@ export function Poster(p: Props) {
     [p.font, p.fontId, p.chain, p.overrides, sheetSeed, p.word, format.id, palette, number],
   )
 
-  /** leaving static for video, or the other way, and what each costs */
+  // out of video the sheet goes back to the font as you made it
   const setStatic = () => {
-    stopSound()
     setMode('static')
+    setPlaying(false)
+    setModChain(null)
+    clock.current = 0
   }
-  const setVideo = () => setMode('video')
+  // into it, it plays — and the browser is asked, once, whether it can render
+  const setVideo = () => {
+    setMode('video')
+    setPlaying(true)
+    if (canRender === null) void canRenderClips(1080, 1920).then(setCanRender)
+  }
 
   /*
-   * What the sound will actually get out of this chain.
+   * What the motion will actually get out of this chain, live.
    *
    * The rebuild rate is adaptive already — the tick backs off to the measured
    * cost — so this is that number said out loud rather than a new limit. Under
    * about six a second the letters step between shapes instead of morphing
-   * through them, which is worth knowing before you record fifteen seconds of
-   * it rather than after.
+   * through them on screen. The rendered clip draws every frame exactly, so
+   * this is about the preview, not the file.
    */
   const framesPerSecond = frameMs > 0 ? 1000 / Math.max(TICK_MS, frameMs * 1.5) : null
   // three rebuilds before it is allowed an opinion; one is just the cold one
@@ -1337,7 +1356,7 @@ export function Poster(p: Props) {
             type="button"
             className={inVideo ? 'seg' : 'seg is-on'}
             aria-pressed={!inVideo}
-            disabled={recording}
+            disabled={recording || !!progress}
             onClick={setStatic}
           >
             Static
@@ -1346,7 +1365,7 @@ export function Poster(p: Props) {
             type="button"
             className={inVideo ? 'seg is-on' : 'seg'}
             aria-pressed={inVideo}
-            disabled={recording}
+            disabled={recording || !!progress}
             onClick={setVideo}
           >
             Video
@@ -1356,7 +1375,12 @@ export function Poster(p: Props) {
         <label className="visually-hidden" htmlFor="sheet-format">
           Sheet size
         </label>
-        <select id="sheet-format" value={format.id} onChange={(e) => setFormatId(e.target.value)}>
+        <select
+          id="sheet-format"
+          value={format.id}
+          disabled={recording || !!progress}
+          onChange={(e) => setFormatId(e.target.value)}
+        >
           {FORMATS.map((f) => (
             <option key={f.id} value={f.id}>
               {f.name} {f.ratio} · {f.w} × {f.h}
@@ -1371,27 +1395,37 @@ export function Poster(p: Props) {
           button as a tooltip, the way the workbench's download does.
         */}
         <div className="sheet-export">
-          {inVideo ? (
+          {inVideo && progress ? (
             <>
-              <span className="pill">MP4 · up to {MAX_RECORD_SECONDS}s</span>
-              <span className="with-tip">
-                <button
-                  type="button"
-                  className={recording ? 'is-live' : 'save'}
-                  disabled={!soundSource && !recording}
-                  onClick={() => (recording ? void finishRecording() : startRecording())}
-                >
-                  {recording ? `Stop · ${recSeconds}s` : 'Record & download'}
-                </button>
-                <span className="tip" role="tooltip">
-                  {recording
-                    ? 'It saves itself at the end, and closing finishes the take rather than losing it.'
-                    : soundSource
-                      ? 'The dials are riding the sound. The take starts when you press it.'
-                      : 'Start the loop or the mic first — a clip is a recording of something moving.'}
+              {/* how far, and roughly how long — a clip is minutes of work on a heavy chain */}
+              <span className="render-progress" role="status">
+                <span className="render-bar" aria-hidden="true">
+                  <span style={{ width: `${(progress.done / progress.total) * 100}%` }} />
                 </span>
+                {progress.label} · {Math.round((progress.done / progress.total) * 100)}%
+                {progress.eta !== null && progress.eta >= 1 && ` · ~${Math.ceil(progress.eta)}s left`}
               </span>
+              <button type="button" onClick={() => abortRef.current?.abort()}>
+                Cancel
+              </button>
             </>
+          ) : inVideo ? (
+            <span className="with-tip">
+              <button
+                type="button"
+                className={recording ? 'is-live' : 'save'}
+                onClick={() => (recording ? void finishRecording() : void renderVideo())}
+              >
+                {recording ? `Stop · ${recSeconds}s` : `${canRender === false ? 'Record' : 'Render'} MP4 · ${length}s`}
+              </button>
+              <span className="tip" role="tooltip">
+                {recording
+                  ? 'It saves itself at the end of the loop, and closing finishes the take rather than losing it.'
+                  : canRender === false
+                    ? 'This browser cannot render a clip frame by frame, so it records the sheet as it plays — a heavy chain will step.'
+                    : `${format.w} × ${format.h}, ${FPS} fps, silent — every frame drawn exactly, and the last runs into the first.`}
+              </span>
+            </span>
           ) : (
             <Menu
               label="Download"
@@ -1432,7 +1466,7 @@ export function Poster(p: Props) {
         <div
           className={[
             'sheet-stage',
-            inVideo && soundSource ? 'has-transport' : '',
+            inVideo ? 'has-transport' : '',
             hover ? 'is-over-part' : '',
           ]
             .filter(Boolean)
@@ -1534,47 +1568,20 @@ export function Poster(p: Props) {
               </div>
             )}
           </div>
-          {/*
-            The first gesture, on the sheet.
-
-            Not decoration: a browser will not let an AudioContext out of
-            suspended until something resumes it inside a user gesture, so a
-            play control is what makes sound possible at all. It sits on the
-            artefact because that is where somebody in video mode is looking,
-            and it gives way to the strip the moment anything is running —
-            every audio-reactive tool in the research pass does exactly this.
-          */}
-          {inVideo && !soundSource && (
-            <button
-              type="button"
-              className="sheet-play"
-              onClick={() => void startSound('loop')}
-              title="Play the loop and let the letters ride it"
-            >
-              <span className="sheet-play-glyph" aria-hidden="true" />
-              Play
-            </button>
-          )}
-
-          {inVideo && soundSource && (
+          {/* the motion's transport, on the sheet where somebody in video is looking */}
+          {inVideo && (
             <div className="transport">
-              <button type="button" className="is-live" onClick={stopSound}>
-                Stop
-              </button>
               <button
                 type="button"
-                onClick={() => startSound(soundSource === 'mic' ? 'loop' : 'mic')}
-                title={soundSource === 'mic' ? 'Back to the bubble loop' : 'Let the room drive it'}
+                className={playing ? 'is-live' : undefined}
+                disabled={recording || !!progress}
+                onClick={() => setPlaying((v) => !v)}
               >
-                {soundSource === 'mic' ? 'Play loop' : 'Use mic'}
+                {playing ? 'Pause' : 'Play'}
               </button>
-              {/* proof that sound is arriving, which the room has never had */}
-              <span className="meter" role="img" aria-label={`Level ${Math.round(level * 100)} per cent`}>
-                {METER_BARS.map((b, i) => (
-                  <span key={i} className={level > b ? 'meter-bar is-lit' : 'meter-bar'} />
-                ))}
+              <span className="transport-mode">
+                {getMode(motionModeId).name} · {length}s loop
               </span>
-              <span className="transport-mode">{getMode(soundModeId).name}</span>
             </div>
           )}
 
@@ -1915,76 +1922,85 @@ export function Poster(p: Props) {
           )}
 
           {/*
-            Sound exists only in video. Not greyed, not collapsed — absent — so
-            "does picking MP4 turn the sound on?" is a question that cannot come
-            up: it is sound that makes a moving export possible, never the other
-            way round.
+            Motion exists only in video. It is a loop: every curve goes round a
+            whole number of times in the clip's length, so the length is part
+            of the motion rather than a setting on the export.
           */}
           {inVideo && (
-            <div className="group ruled sound">
-              <h2>Sound</h2>
-              {/* Play and the mic live under the sheet, where you are looking.
-                  What is left here is what the sound does once it is running. */}
-              {!soundSource && (
-                <p className="note">Press play on the sheet, or switch to the mic once it is running.</p>
-              )}
-              {/* a refused microphone is reported beside the button that asked
-                  for it, not at the far end of the rail under Export */}
-              {soundNote && (
-                <p className="note is-bad" role="alert">
-                  {soundNote}
-                </p>
-              )}
+            <div className="group ruled motion">
+              <h2>Motion</h2>
               <div className="chips">
                 {MODES.map((m) => (
                   <button
                     type="button"
                     key={m.id}
-                    className={m.id === soundModeId ? 'chip is-on' : 'chip'}
-                    aria-pressed={m.id === soundModeId}
-                    onClick={() => setSoundModeId(m.id)}
+                    className={m.id === motionModeId ? 'chip is-on' : 'chip'}
+                    aria-pressed={m.id === motionModeId}
+                    disabled={!!progress}
+                    onClick={() => setMotionModeId(m.id)}
                     title={m.note}
                   >
                     {m.name}
                   </button>
                 ))}
               </div>
-              <p className="note">{getMode(soundModeId).note}</p>
+              <p className="note">{getMode(motionModeId).note}</p>
               <div className="ctl">
                 <div className="ctl-head">
-                  <label htmlFor="sound-depth">Depth</label>
-                  <output htmlFor="sound-depth" className={depth === DEFAULT_DEPTH ? 'is-default' : undefined}>
+                  <label htmlFor="motion-depth">Depth</label>
+                  <output htmlFor="motion-depth" className={depth === DEFAULT_DEPTH ? 'is-default' : undefined}>
                     {Math.round(depth * 100)}%
                   </output>
                 </div>
                 <input
-                  id="sound-depth"
+                  id="motion-depth"
                   type="range"
                   min={0}
                   max={1}
                   step={0.05}
                   value={depth}
+                  disabled={!!progress}
                   onChange={(e) => setDepth(Number(e.target.value))}
                   onDoubleClick={() => setDepth(DEFAULT_DEPTH)}
                 />
               </div>
               <div className="ctl">
                 <div className="ctl-head">
-                  <label htmlFor="sound-speed">Speed</label>
-                  <output htmlFor="sound-speed" className={soundSpeed === 0.5 ? 'is-default' : undefined}>
-                    {soundSpeed.toFixed(2)}
+                  <label htmlFor="motion-speed">Speed</label>
+                  <output htmlFor="motion-speed" className={speed === DEFAULT_SPEED ? 'is-default' : undefined}>
+                    {speed.toFixed(2)}×
                   </output>
                 </div>
                 <input
-                  id="sound-speed"
+                  id="motion-speed"
                   type="range"
-                  min={0.1}
-                  max={1.5}
+                  min={MIN_SPEED}
+                  max={MAX_SPEED}
                   step={0.05}
-                  value={soundSpeed}
-                  onChange={(e) => setSoundSpeed(Number(e.target.value))}
-                  onDoubleClick={() => setSoundSpeed(0.5)}
+                  value={speed}
+                  disabled={!!progress}
+                  onChange={(e) => setSpeed(Number(e.target.value))}
+                  onDoubleClick={() => setSpeed(DEFAULT_SPEED)}
                 />
+              </div>
+              <div className="ctl">
+                <div className="ctl-head">
+                  <span>Length</span>
+                </div>
+                <div className="chips" role="group" aria-label="Clip length">
+                  {LENGTHS.map((l) => (
+                    <button
+                      type="button"
+                      key={l}
+                      className={l === length ? 'chip is-on' : 'chip'}
+                      aria-pressed={l === length}
+                      disabled={recording || !!progress}
+                      onClick={() => setLength(l)}
+                    >
+                      {l}s
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}

@@ -539,6 +539,31 @@ h1 {
   align-items: center;
   gap: 8px;
 }
+/* a render takes seconds to minutes, so it says how far it is and roughly how
+   long is left, in the bar where the button that started it was */
+.render-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.render-bar {
+  position: relative;
+  width: 120px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--track);
+  overflow: hidden;
+}
+.render-bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--mark);
+}
 /* the specificity matters: `.sheet-bar > *` sets flex:none below, and this has
    to be allowed its own line rather than sitting in the row */
 .sheet-bar .sheet-problem {
@@ -778,42 +803,7 @@ h1 {
   outline-offset: 2px;
 }
 
-/* ---------- play, the mic, and proof that either is working ---------- */
-
-/* On the sheet, because that is where somebody in video mode is looking — and
-   because a browser will not start audio outside a user gesture, so this is
-   the control that makes sound possible rather than a shortcut to it. */
-.sheet-play {
-  position: absolute;
-  z-index: 3;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 18px 22px 14px;
-  border: 0;
-  border-radius: 8px;
-  background: color-mix(in srgb, #0a0b0d 78%, transparent);
-  color: #fff;
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.sheet-play:hover {
-  background: color-mix(in srgb, #0a0b0d 88%, transparent);
-}
-.sheet-play-glyph {
-  display: block;
-  width: 0;
-  height: 0;
-  margin-left: 5px;
-  border-left: 20px solid #fff;
-  border-top: 13px solid transparent;
-  border-bottom: 13px solid transparent;
-}
+/* ---------- the motion's transport ---------- */
 
 /* Under the sheet, not on it. It is a control strip for the thing above it,
    and the artefact is the one surface in this room nothing should cover. */
@@ -838,22 +828,6 @@ h1 {
   text-transform: uppercase;
   color: var(--muted);
 }
-.meter {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 18px;
-}
-.meter-bar {
-  width: 3px;
-  height: 100%;
-  border-radius: 1px;
-  background: var(--track);
-}
-.meter-bar.is-lit {
-  background: var(--mark);
-}
-
 /* ---------- the word, as a thing you can take hold of ---------- */
 
 /* The frame is laid out in percentages of the sheet, so it stays on the word
@@ -1011,17 +985,6 @@ h1 {
   color: var(--mark);
   box-shadow: inset 0 0 0 1px var(--mark);
 }
-.pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 10px;
-  border: 1px solid var(--rule);
-  border-radius: 4px;
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 12px;
-  color: var(--muted);
-}
-
 /* A layout is the one choice here whose difference is entirely visual, so it
    is shown rather than named — the argument the workbench presets won on. */
 .layout-pick {

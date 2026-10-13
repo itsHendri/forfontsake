@@ -10,12 +10,10 @@ import {
   drivable,
   getMode,
   modulate,
-  SoundDrive,
   type Bindings,
 } from './modulate'
 import { defaults, getTreatment } from '../engine/treatments/registry'
 import type { Step } from './urlState'
-import type { AudioFrame } from '../audio/frame'
 
 const grit = getTreatment('grit')
 const step = (id = 'grit'): Step => ({ id, params: defaults(getTreatment(id)) })
@@ -25,7 +23,7 @@ function only(band: (typeof BANDS)[number], amount = 1): number[] {
   return BANDS.map((b) => (b === band ? amount : 0))
 }
 
-describe('what the sound moves', () => {
+describe('what the motion moves', () => {
   it('drives the first four drivable dials in declared order by default', () => {
     const dials = drivable(step())
     expect(dials.length).toBeGreaterThanOrEqual(4)
@@ -43,18 +41,18 @@ describe('what the sound moves', () => {
   it('leaves a dial alone once it is bound to nothing', () => {
     const spec = drivable(step())[0]
     const bindings: Bindings = { ['0:' + spec.key]: null }
-    const out = modulate([step()], only('bass'), bindings)[0].params
+    const out = modulate([step()], only('beat'), bindings)[0].params
     expect(out[spec.key]).toBe(step().params[spec.key])
   })
 
   it('moves a dial onto whichever band it is reassigned to', () => {
     const spec = drivable(step())[0]
-    // the first dial defaults to bass; put it on the highs instead
-    const bindings: Bindings = { ['0:' + spec.key]: 'high' }
-    const onBass = modulate([step()], only('bass'), bindings)[0].params
-    const onHigh = modulate([step()], only('high'), bindings)[0].params
-    expect(onBass[spec.key]).toBe(step().params[spec.key])
-    expect(onHigh[spec.key]).toBeGreaterThan(step().params[spec.key])
+    // the first dial defaults to the beat; put it on the flicker instead
+    const bindings: Bindings = { ['0:' + spec.key]: 'flicker' }
+    const onBeat = modulate([step()], only('beat'), bindings)[0].params
+    const onFlicker = modulate([step()], only('flicker'), bindings)[0].params
+    expect(onBeat[spec.key]).toBe(step().params[spec.key])
+    expect(onFlicker[spec.key]).toBeGreaterThan(step().params[spec.key])
   })
 
   it('binds each layer of a stack separately', () => {
@@ -62,7 +60,7 @@ describe('what the sound moves', () => {
     const first = drivable(chain[0])[0]
     const second = drivable(chain[1])[0]
     // silence the first layer's leading dial, leave the second's alone
-    const out = modulate(chain, only('bass'), { ['0:' + first.key]: null })
+    const out = modulate(chain, only('beat'), { ['0:' + first.key]: null })
     expect(out[0].params[first.key]).toBe(chain[0].params[first.key])
     expect(out[1].params[second.key]).toBeGreaterThan(chain[1].params[second.key])
   })
@@ -107,7 +105,7 @@ describe('what the sound moves', () => {
   })
 })
 
-describe('sound modes', () => {
+describe('motion modes', () => {
   const chain: Step[] = [{ id: 'grit', params: defaults(getTreatment('grit')) }]
 
   it('fills a binding for every drivable dial, and only those', () => {
@@ -127,13 +125,13 @@ describe('sound modes', () => {
   it('Pulse leaves all but the first two dials still', () => {
     const map = bindingsFor(getMode('pulse'), chain)
     const specs = drivable(chain[0])
-    expect(map[bindKey(0, specs[0].key)]).toBe('bass')
+    expect(map[bindKey(0, specs[0].key)]).toBe('beat')
     for (const spec of specs.slice(2)) expect(map[bindKey(0, spec.key)]).toBeNull()
   })
 
   it('Breathe moves every dial together', () => {
     const map = bindingsFor(getMode('breathe'), chain)
-    expect(Object.values(map).every((b) => b === 'mid')).toBe(true)
+    expect(Object.values(map).every((b) => b === 'swell')).toBe(true)
   })
 
   it('an unknown mode id falls back rather than throwing', () => {
@@ -148,52 +146,7 @@ describe('sound modes', () => {
   })
 })
 
-describe('the drive is centred on what you set', () => {
-  const frame = (level: number): AudioFrame => ({
-    bass: level, mid: level, high: level, level, beat: 0, onset: 0,
-  })
-  /** run a steady signal through until the followers settle */
-  const settle = (d: SoundDrive, level: number, seconds = 20) => {
-    let out = [0, 0, 0, 0]
-    for (let t = 0; t < seconds; t += 1 / 60) out = d.read(frame(level), 1 / 60)
-    return out
-  }
-
-  it('settles to nothing on a steady sound, so the sheet returns to your font', () => {
-    for (const level of [0.2, 0.6, 1]) {
-      const settled = settle(new SoundDrive(), level)
-      for (const band of settled) expect(Math.abs(band), `level ${level}`).toBeLessThan(0.02)
-    }
-  })
-
-  it('levels itself, so a quiet take moves as much as a loud one', () => {
-    const quiet = new SoundDrive()
-    const loud = new SoundDrive()
-    settle(quiet, 0.15)
-    settle(loud, 0.85)
-    // the same relative jump from each baseline should read about the same
-    const a = quiet.read(frame(0.3), 1 / 60)[0]
-    const b = loud.read(frame(1), 1 / 60)[0]
-    expect(Math.sign(a)).toBe(Math.sign(b))
-    expect(Math.abs(a - b)).toBeLessThan(0.1)
-  })
-
-  it('goes negative when the sound drops away', () => {
-    const d = new SoundDrive()
-    settle(d, 0.8)
-    let out = [0, 0, 0, 0]
-    for (let t = 0; t < 1.5; t += 1 / 60) out = d.read(frame(0), 1 / 60)
-    expect(out[0]).toBeLessThan(-0.05)
-  })
-
-  it('never leaves the range modulate expects', () => {
-    const d = new SoundDrive()
-    for (let t = 0; t < 5; t += 1 / 60) {
-      const out = d.read(frame(Math.random()), 1 / 60)
-      for (const band of out) expect(band).toBeGreaterThanOrEqual(-1)
-    }
-  })
-
+describe('a signed drive', () => {
   it('a negative drive takes a dial below where you left it', () => {
     const chain: Step[] = [{ id: 'grit', params: defaults(getTreatment('grit')) }]
     const spec = drivable(chain[0])[0]

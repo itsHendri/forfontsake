@@ -1,11 +1,10 @@
 /**
- * The pulsing sheet, recorded to a video file.
+ * The moving sheet, recorded off the screen — the fallback.
  *
- * The sheet is an SVG string that changes ~10 times a second while sound
- * drives the dials. Each new string is decoded to an image and painted onto a
- * canvas every animation frame, so the video runs at full frame rate even
- * though the geometry updates slower; `captureStream` on that canvas plus the
- * audio engine's tap gives MediaRecorder one stream carrying both.
+ * Clips are rendered frame by frame in `clipRender.ts` wherever the browser
+ * has a WebCodecs H.264 encoder. Where it has not, this records the live view
+ * instead: real time, so a slow chain steps, but a clip all the same. Silent,
+ * like the rendered one — music is added in the app the clip is posted from.
  *
  * MP4 is preferred because that is what Instagram and iMessage take without
  * complaint; browsers that only mux WebM get WebM.
@@ -14,8 +13,8 @@
 const CANDIDATES = [
   'video/mp4;codecs=avc1',
   'video/mp4',
-  'video/webm;codecs=vp9,opus',
-  'video/webm;codecs=vp8,opus',
+  'video/webm;codecs=vp9',
+  'video/webm;codecs=vp8',
   'video/webm',
 ]
 
@@ -49,10 +48,7 @@ export interface SheetRecorder {
  * different things. The cross-fade between geometry rebuilds is in the shader,
  * so it comes along for free.
  */
-export function startSheetRecorder(
-  canvas: HTMLCanvasElement,
-  audio: MediaStream | null,
-): SheetRecorder {
+export function startSheetRecorder(canvas: HTMLCanvasElement): SheetRecorder {
   if (typeof MediaRecorder === 'undefined') {
     throw new Error('This browser cannot record video.')
   }
@@ -60,7 +56,6 @@ export function startSheetRecorder(
   if (!mimeType) throw new Error('This browser cannot record video.')
 
   const stream = canvas.captureStream(30)
-  if (audio) for (const track of audio.getAudioTracks()) stream.addTrack(track)
 
   const chunks: BlobPart[] = []
   const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 8_000_000 })
@@ -70,8 +65,6 @@ export function startSheetRecorder(
   // a timeslice so a long take is many small chunks rather than one giant one
   recorder.start(1000)
 
-  // only the canvas's own track is ours to stop — the audio tracks belong to
-  // the engine's tap and must survive for the next take
   const teardown = () => {
     stream.getVideoTracks().forEach((t) => t.stop())
   }
