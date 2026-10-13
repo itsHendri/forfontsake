@@ -97,6 +97,49 @@ function Strip({ set }: { set: GlyphSet }) {
   )
 }
 
+/**
+ * The box the name's ink actually reaches, as a viewBox.
+ *
+ * It was the font's box plus a margin, so the space above a name was the
+ * card's padding plus the gap between the ascender and the capitals plus the
+ * margin — and the top of every card looked deeper than its foot. Framed by
+ * its ink, the name starts where the padding ends.
+ */
+function inkBox(d: string, fallback: RenderResult): string {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+  const nums = d.match(/-?\d+(?:\.\d+)?/g) ?? []
+  for (let i = 0; i + 1 < nums.length; i += 2) {
+    const x = Number(nums[i]), y = Number(nums[i + 1])
+    if (x < x0) x0 = x
+    if (x > x1) x1 = x
+    if (y < y0) y0 = y
+    if (y > y1) y1 = y
+  }
+  if (!Number.isFinite(x0)) return `0 ${-fallback.ascender} ${fallback.width || 1} ${fallback.ascender - fallback.descender}`
+  // a hair of room so an outline's antialiasing is not cut by the edge
+  const m = (y1 - y0) * 0.02
+  return [x0 - m, -y1 - m, x1 - x0 + m * 2, y1 - y0 + m * 2].join(' ')
+}
+
+function CardsIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+      <rect x="2" y="2" width="5" height="5" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <rect x="9" y="2" width="5" height="5" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <rect x="2" y="9" width="5" height="5" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+      <rect x="9" y="9" width="5" height="5" rx="1" fill="none" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  )
+}
+
+function ListIcon() {
+  return (
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+      <path d="M2 3.5h12M2 8h12M2 12.5h12" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 function TrashIcon() {
   return (
     <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
@@ -260,9 +303,11 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
                 key={v}
                 className={view === v ? 'seg is-on' : 'seg'}
                 aria-pressed={view === v}
+                aria-label={v === 'cards' ? 'Cards' : 'List'}
+                title={v === 'cards' ? 'Cards' : 'List'}
                 onClick={() => pick(v)}
               >
-                {v === 'cards' ? 'Cards' : 'List'}
+                {v === 'cards' ? <CardsIcon /> : <ListIcon />}
               </button>
             ))}
           </div>
@@ -295,13 +340,7 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
         ) : (
           <div className={view === 'list' ? 'saved-list' : 'saved-grid'} ref={grid}>
             {kept.map((k) => {
-              const pad = 40
-              const box = [
-                -pad,
-                -k.result.ascender - pad,
-                k.result.width + pad * 2,
-                k.result.ascender - k.result.descender + pad * 2,
-              ].join(' ')
+              const box = inkBox(k.result.d, k.result)
               const name = nameOf(k)
               const set = sets[k.key]
               return (
@@ -319,8 +358,10 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
                     aria-label={`Open ${name}, ${k.caption}`}
                   >
                     <span className="saved-ink">
-                      {/* set from the left, on the same edge as the line under it */}
-                      <svg viewBox={box} preserveAspectRatio="xMinYMid meet" aria-hidden="true">
+                      {/* set from the left and the top, on the same edges as the
+                          card's padding — a wide name leaves its spare height
+                          below it, not above */}
+                      <svg viewBox={box} preserveAspectRatio="xMinYMin meet" aria-hidden="true">
                         <g transform="scale(1,-1)">
                           <path d={k.result.d} />
                         </g>
