@@ -19,11 +19,11 @@ import {
 import { saveFile } from '../lib/exportFont'
 import { buildCaption, captionFile, type Caption } from '../lib/caption'
 import { copyText } from '../lib/clipboard'
+import { loadLook, saveLook } from '../lib/composeLook'
 import { Menu } from './Menu'
 import { getTreatment } from '../engine/treatments/registry'
-import { DEFAULT_DEPTH, DEFAULT_MODE, MODES, bindingsFor, getMode, modulate } from '../lib/modulate'
+import { DEFAULT_DEPTH, MODES, bindingsFor, getMode, modulate } from '../lib/modulate'
 import {
-  DEFAULT_LENGTH,
   DEFAULT_SPEED,
   LENGTHS,
   MAX_SPEED,
@@ -37,8 +37,6 @@ import {
   FINISHES,
   PICTURE_EFFECTS,
   createFinishView,
-  finishState,
-  pictureState,
   type Finish,
   type FinishState,
   type FinishView,
@@ -325,8 +323,10 @@ const CORNERS: [number, number, string][] = [
  * written down.
  */
 export function Poster(p: Props) {
+  // the look you left the room with last time, read once on the way in
+  const [look] = useState(loadLook)
   const [sheetSeed, setSheetSeed] = useState(p.seed)
-  const [paletteIndex, setPaletteIndex] = useState(0)
+  const [paletteIndex, setPaletteIndex] = useState(look.paletteIndex)
   const [layoutIndex, setLayoutIndex] = useState(0)
   /*
    * Static or video: the one choice the whole room hangs off.
@@ -339,8 +339,8 @@ export function Poster(p: Props) {
   const [mode, setMode] = useState<'static' | 'video'>('static')
   // The sheet's size is a property of the sheet, not of the export. Every tool
   // in this category splits them that way; the download stays type and scale.
-  const [formatId, setFormatId] = useState(FORMATS[0].id)
-  const [motionModeId, setMotionModeId] = useState(DEFAULT_MODE.id)
+  const [formatId, setFormatId] = useState(look.formatId)
+  const [motionModeId, setMotionModeId] = useState(look.motionModeId)
   const [busy, setBusy] = useState(false)
   // a message about the export belongs beside the export, in the bar
   const [exportNote, setExportNote] = useState<string | null>(null)
@@ -394,15 +394,15 @@ export function Poster(p: Props) {
   const [modChain, setModChain] = useState<Step[] | null>(null)
   // how fast the letters move: a multiplier on how many times each curve goes
   // round in the clip, rounded to whole turns so the loop always closes
-  const [speed, setSpeed] = useState(DEFAULT_SPEED)
+  const [speed, setSpeed] = useState(look.speed)
   const speedRef = useRef(speed)
   // how long the clip is, and so how long one loop of the motion is
-  const [length, setLength] = useState<number>(DEFAULT_LENGTH)
+  const [length, setLength] = useState<number>(look.length)
   const lengthRef = useRef(length)
   // How far a driven dial swings, as a share of its span. Tuned by ear at 0.35
   // and kept as the default; adjustable because a heavy treatment on a short
   // word wants less travel than a light one on a long word.
-  const [depth, setDepth] = useState(DEFAULT_DEPTH)
+  const [depth, setDepth] = useState(look.depth)
   const depthRef = useRef(depth)
   const motionModeRef = useRef(motionModeId)
   useEffect(() => {
@@ -426,7 +426,7 @@ export function Poster(p: Props) {
   // palette and the layout rather than in the workbench state or the URL.
   // Any combination can be on: they are passes over a page, and a page can be
   // scanned badly, printed in two inks and still be on toothy paper.
-  const [finishes, setFinishes] = useState<FinishState>(finishState)
+  const [finishes, setFinishes] = useState<FinishState>(look.finishes)
   /*
    * What is being done to a picture you brought, as opposed to the sheet.
    *
@@ -436,7 +436,7 @@ export function Poster(p: Props) {
    * with it. Kept while a picture is swapped out and back, so changing your
    * mind about the photograph does not cost you the treatment of it.
    */
-  const [pictureFx, setPictureFx] = useState<FinishState>(pictureState)
+  const [pictureFx, setPictureFx] = useState<FinishState>(look.pictureFx)
 
   /*
    * Which layer the rail is editing, or null for the sheet's own settings.
@@ -449,11 +449,16 @@ export function Poster(p: Props) {
    */
   const [selected, setSelected] = useState<'background' | 'type' | 'finishes' | null>(null)
   /** colours set by hand, over whatever the palette roll last landed on */
-  const [colours, setColours] = useState<Partial<PosterPalette>>({})
+  const [colours, setColours] = useState<Partial<PosterPalette>>(look.colours)
   /** what the sheet is printed on: a drawn texture, or a picture you brought */
-  const [groundId, setGroundId] = useState(GROUNDS[0].id)
+  const [groundId, setGroundId] = useState(look.groundId)
   const [backdrop, setBackdrop] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // and kept as it changes, so next week's sheet opens looking like this one
+  useEffect(() => {
+    saveLook({ paletteIndex, colours, groundId, finishes, pictureFx, formatId, motionModeId, depth, speed, length })
+  }, [paletteIndex, colours, groundId, finishes, pictureFx, formatId, motionModeId, depth, speed, length])
 
   // Closing must never discard work: a take in flight is finished and saved
   // on the way out.
