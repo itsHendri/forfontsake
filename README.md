@@ -2,7 +2,8 @@
 
 A browser type foundry. Pick a font, apply a treatment, tweak it live — down to a single
 letter — and export a real, installable, correctly-licensed font. Then set it on a
-specimen sheet, drive the dials with sound, and take the sheet away as an image or a clip.
+specimen sheet, set it moving, and take it away as an image, a seamless clip, or a whole
+week's post at once.
 
 Everything runs client-side. No account, no server, nothing leaves your machine — a font you
 bring is read in the page and never sent anywhere.
@@ -38,7 +39,7 @@ button.
 | **Export** | Building the real font in the browser. Same engine as `build:font`, run in a worker. |
 | **Plate** | The specimen block at the top of the workbench: the type, the two choices that define it, and the door to the sheet. |
 | **Override** | One glyph's exceptions to the stack — sparse dial deltas over the global chain, set by selecting letters in the glyph grid. Never a different stack. |
-| **Sheet** | The specimen sheet: Instagram-portrait SVG, word draggable and resizable, downloadable as PNG/SVG — or recorded as video while sound drives the dials. |
+| **Sheet** | The specimen sheet: Post, Square or Story, word draggable and resizable, downloadable as PNG/SVG, rendered as a looping MP4 while the motion drives the dials, or cut every way at once as a post kit. |
 
 ## Treatments
 
@@ -86,8 +87,8 @@ Every dial a treatment has is on the page, and each ships named presets (Photoco
 Rust, Marker, Balloon, Newsprint…) shown as pictures of themselves. There is no unnamed state:
 picking a treatment lands you on one of its presets — `defaultPreset` names which, otherwise
 the first — so one is always selected and Reset has somewhere to go back to. A dial marked
-`primary` is what the specimen sheet's sound rides; one marked `steady` is front-of-house but
-the sound skips it, because mode switches alternate rather than animate and a word that
+`primary` is what the specimen sheet's motion rides; one marked `steady` is front-of-house but
+the motion skips it, because mode switches alternate rather than animate and a word that
 strobes reads as a fault.
 
 `npx tsx scripts/style-samples.ts` puts every treatment at every preset on one contact sheet,
@@ -195,10 +196,6 @@ src/engine/
   extract.ts      one font → outlines + licence; the build script and the page share it
   gsub.ts         our own GSUB writer
   sfnt.ts         add and remove tables from a finished binary
-src/audio/
-  AudioEngine.ts  one AudioContext + analyser → {bass, mid, high, level, beat, onset}
-  sources.ts      the mic (browser DSP off), and the synthesized bubble loop — no asset
-  EnvelopeFollower / OnsetDetector / bands — the analysis stack, from FLUX (MIT)
 src/lib/
   glyphData.ts    outlines shipped as data, so no font parser reaches the browser
   importFont.ts   a font off a file input: read, register for metrics, keep the bytes
@@ -206,7 +203,12 @@ src/lib/
   urlState.ts     the whole workbench state, encoded into the address bar
   savedStyles.ts  the shelf, kept across reloads — states, never rendered outlines
   poster.ts       the specimen sheet, as standalone SVG; also makes share.png
-  videoRecorder.ts the pulsing sheet to MP4/WebM — canvas frames + the audio tap
+  motion.ts       the sheet's motion as curves of time, each closing its own loop
+  modulate.ts     which dial follows which curve, and by how much
+  clipRender.ts   the moving sheet to MP4, one exact frame at a time (WebCodecs)
+  videoRecorder.ts the live fallback where a browser cannot encode — MediaRecorder
+  caption.ts      what a post says, linking back to the exact font
+  composeLook.ts  the look Compose opens on, kept from last time
   exportFont.ts   drives the worker, and hands the finished font over
 src/components/
   Plate.tsx       the specimen — and the field you type it into
@@ -215,7 +217,7 @@ src/components/
   Waterfall.tsx   the same line at seven sizes
   Dial.tsx        one parameter, with its default marked on the track
   Shelf.tsx       saved styles
-  Poster.tsx      the sheet overlay — layouts, word placement, sound, recording, download
+  Poster.tsx      Compose — layouts, word placement, motion, the clip, the kit, download
 src/workers/      buildFont.worker.ts — the export, and reading an uploaded font
 public/fonts/preview/   metrics-only subsets — never seen, see below
 scripts/          build, verify and comparison tooling
@@ -258,12 +260,12 @@ through every dial a glyph has not overridden. The seed stays global; the per-gl
 a nudge on top of it, and the whole map rides a seventh URL field that old links simply never
 had.
 
-**The sheet is a performance.** Sound — the mic, or a bubble loop synthesized in the page —
-drives each treatment's primary dials around their set points, through deliberately slow
-followers whose pace is the Speed dial. The seed never moves, so any captured frame is
-exactly reproducible from the values it was drawn with. Downloads take the current frame;
-Record clip takes up to fifteen seconds of it, sound included, as MP4 where the browser can
-write one.
+**The sheet moves on a clock, not a microphone.** Pulse, Breathe and Shimmer drive each
+treatment's primary dials around their set points along curves that each go round a whole
+number of times in the clip, so the last frame runs into the first. The seed never moves, and
+every frame is a function of its time alone — which is what lets the MP4 be rendered offline,
+one exact frame at a time, rather than recorded off the screen: a heavy chain costs render
+time, never smoothness. Clips are silent; music is added in the app you post from.
 
 ## Licence
 

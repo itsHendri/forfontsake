@@ -25,12 +25,13 @@ installable font**, entirely in the browser.
 | Glyph grid, waterfall | Done. All 69 preview glyphs; the grid is also the override selection surface. |
 | **Per-glyph overrides** | **Done.** Select glyphs → dial deltas over the global chain, per-glyph reroll; in the URL (7th field), the shelf and the export. |
 | **In-browser export** | **Done.** Same engine as the CLI, in a Web Worker; overrides included. **One Download button that opens its four choices** (`Menu.tsx`, the project's only popover): TTF, WOFF2, WOFF, or a zip of all three — one build, since the web formats are containers over the same validated bytes (`engine/webfont.ts`, written by hand because the library's own WOFF2 is rejected by OTS on real fonts). |
-| Compose (was Share) | **A room of its own, not a modal.** Replaces the workbench, keeps the URL, closes with a ×. Three formats (Post 4:5, Square, Story 9:16) chosen in the header, **which also carries the export and is sticky**; layout picked as two engine-drawn pictures and switched with a cut rather than a dissolve. At 1440×1000 the sheet draws at 852 px, against 702 in the modal. Renamed on 9 September: Share named the exit, not the room. |
+| Compose (was Share) | **A room of its own, not a modal.** Replaces the workbench, keeps the URL, closes with a ×. Three formats (Post 4:5, Square, Story 9:16) chosen in the header, **which also carries the export and is sticky**; layout picked as two engine-drawn pictures and switched with a cut rather than a dissolve. At 1440×1000 the sheet draws at 852 px, against 702 in the modal. Renamed on 9 September: Share named the exit, not the room. **It remembers its look** — colours, ground, finishes, format and the motion, in `localStorage` (`composeLook.ts`) — so a weekly series opens looking like last week's; not the picture, the word's place or the seed. |
 | **Finishes** | **Done, and they stack.** The sheet renders through WebGL2: grain, riso misregistration and a scanner losing sync, in that order and in any combination. Pixels, never geometry — a structural test keeps finishes off the path from a chain to a font file, and the SVG download stays letterforms only. |
-| **The sheet as layers** | **Done, and you click the sheet rather than the list.** Background, Word, Caption, Finishes, with **Sheet** as a row of its own at the foot so the layout picker is always one press away. Clicking the canvas selects what is under the pointer — the word, any of the caption's six marks (named in the rail), or the ground — and Escape backs out one step before it leaves the room. Colour belongs to a layer; the word is an object with corner handles and a knob that **snaps to the square and fifteen-degree angles unless Shift is held**. |
+| **The sheet as layers** | **Done, and you click the sheet rather than the list.** Background, Word, Finishes, with **Sheet** as a row of its own at the foot so the layout picker is always one press away. Clicking the canvas selects what is under the pointer — the word or the ground — and Escape backs out one step before it leaves the room. **The caption is gone** (13 October): no head or foot rule, name, number, chain line or address. The type sets inside the margin alone. Text and format templates replace it in a round of their own. Colour belongs to a layer; the word is an object with corner handles and a knob that **snaps to the square and fifteen-degree angles unless Shift is held**. |
 | **Grounds** | Flat, Screen, Grid, Tooth, or a picture you bring. Wash was cut. Tooth was sub-pixel noise reading as a flat grey veil and is now a banded speckle in the sheet's own caption ink; Screen halved its pitch. |
 | **Effects on a picture** | **Done.** Halftone, Dither, Duotone and Mosaic, on the Background layer and only when a photograph is loaded: they reprint the ground in the sheet's two inks and the word is composited over the result, so the type stays letterforms. In `finish.ts` beside FINISHES, positional uniforms and all. A video backdrop is not built — see the note below. |
-| **Sound + clip** | **Done, behind a Static / Video switch.** Sound exists only in video, so choosing MP4 can never start it. Three named modes — Pulse, Breathe, Shimmer — plus Depth and Speed. The export *is* the take: no separate Record button. **Both layouts can move**; the rail reports the measured rebuild rate when a chain is slow enough to step. |
+| **Motion + clip** | **Done, behind a Static / Video switch, and silent** (13 October). Sound is gone — the loop, the mic and the analysis: music is added in the app a clip is posted from. Pulse, Breathe and Shimmer are timed curves (`motion.ts`), each going round a whole number of times in the clip, so **every clip loops without a seam**. Depth, Speed and **Length** (6 / 10 / 15 s). The MP4 is **rendered offline, frame by frame** (`clipRender.ts`, WebCodecs H.264 through mediabunny): 1080 wide, 30 fps, 8 Mbps — a 6 s Halftone word took 9 s. A heavy chain costs render time, not smoothness; past a 90 s budget builds are spaced out and cross-faded on an exact schedule. Where there is no encoder, the old live recorder takes the button and stops at the end of the loop. |
+| **Post kit** | **Done** (13 October). In the Download menu in both modes: word and character set as 4:5 PNGs (a carousel), the clip at 4:5 and 9:16, and `caption.txt` with a long caption for Instagram and LinkedIn — linking back to the exact font — and one inside X's limit. One press, about 26 s for a light chain. Afterwards the bar offers Copy caption, and Share where the browser can hand files to the system sheet. It re-cuts the composition to each size — see DECISIONS. |
 | Saved fonts | **A room of its own**, reached from `Saved fonts · N` beside Save font in the masthead, with an empty state. Its cards are drawn when the room opens rather than by the workbench. Kept across reloads in `localStorage`. |
 | Bring your own font | Done, from the font menu. Read in the worker, licence reported, held in memory. |
 | CLI export + verification | Done. `build:font` + `verify:font` (7 checks). |
@@ -73,12 +74,13 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
    registry is the only spot a per-glyph delta meets the global chain; preview, sheet and
    writer all call it. Seed and cuts stay global (GSUB needs uniform variant counts); the
    per-glyph reroll is a nudge on the seed, never a second seed.
-6. **Sound modulates values, never the seed.** The sheet's sound mode drives primary dials
-   through slow per-band envelope followers (the Speed dial scales their clock), un-snapped
-   so the geometry morphs; every frame is reproducible from its values. Which dial rides
-   which band is a choice — `src/lib/modulate.ts` holds the mapping, stores only the
-   overrides and derives the rest, so the default is what the sheet always did. The audio
-   analysis is FLUX's (MIT, same author), kept in `src/audio/` with attribution.
+6. **Motion modulates values, never the seed, and it is a function of time.** The sheet's
+   motion mode drives primary dials along curves from `src/lib/motion.ts`, un-snapped so the
+   geometry morphs; every frame is reproducible from its time alone. Each curve completes a
+   whole number of cycles in the clip's length, which is what makes a clip loop without a seam
+   *and* what lets the renderer draw any frame on its own, offline, at its exact time. Which
+   dial follows which curve is `src/lib/modulate.ts`'s mapping, unchanged from when it was
+   sound: the four curves took the four bands' places.
 
 ## Verified, and how
 
@@ -90,8 +92,10 @@ All are explained fully in `DECISIONS.md`; know they exist before touching any o
   values their presets land on, when the sheet cuts rather than dissolves, override URL
   round-trips, the poster's
   word transform, the layered sheet against the composed one, the word's hit-test box against
-  the transform that draws it, the sound's per-dial bindings, the audio maths, the recorder's
-  container choice, and the structural rule that keeps finishes off the path to a font file)
+  the transform that draws it, the motion's per-dial bindings, that every curve closes its
+  loop at every length and speed, the renderer's frame schedule, the caption's link opening the
+  same font, the remembered look dropping what no longer exists, the recorder's container
+  choice, and the structural rule that keeps finishes off the path to a font file)
   — both green.
 - `npm run verify:font` — 7 checks: size, **ots-sanitize**, fontTools, **CoreText**,
   alternates actually substitute, ligatures still form, naming + Reserved Font Names.
@@ -264,9 +268,9 @@ letters that are already drawn.
 3. `VERIFY_AGAINST`'s uneven-drift rule predates per-glyph overrides, which can legitimately
    grow different glyphs by different amounts — the check would flag such a font. It needs to
    learn to read the override map.
-4. Sound feel is tuned by ear so far only on one machine: the Speed default (0.5), the
-   Depth default (35% of a dial's span) and the bubble loop's mix deserve a pass on a phone
-   and real speakers.
+4. Motion feel is tuned by eye on one machine: the curves' rates (a beat every 1.25 s, a
+   breath every eight) and the Depth default deserve a look on a phone, at the size a post
+   is actually seen.
 5. ~~**The sheet is a modal, and that is now the limit on it.**~~ **Done** — see DECISIONS,
    "The sheet is a room, and it asks one question at the top". The paragraph below is kept
    because the measurements in it are what the redesign was judged against. It opens as an overlay over the
@@ -301,11 +305,10 @@ letters that are already drawn.
 ```
 src/engine/          pure geometry + font writing, no DOM (browser-safe)
 src/engine/extract   one font → outlines + licence; shared by the build script and the page
-src/audio/           AudioEngine · sources (mic + bubble loop) · EnvelopeFollower ·
-                     OnsetDetector · bands — FLUX's analysis stack (MIT), adapted
 src/lib/             glyphData · render · urlState · savedStyles · exportFont · importFont
-                     poster · finish (the WebGL2 stage) · modulate (sound → dials) ·
-                     videoRecorder · clipboard
+                     poster · finish (the WebGL2 stage) · motion (time → curves) ·
+                     modulate (curves → dials) · clipRender (the MP4, frame by frame) ·
+                     videoRecorder (the live fallback) · caption · composeLook · clipboard
 src/components/      TopBar · Plate · Presets · GlyphGrid · Waterfall · Panel · Dial · Thumb ·
                      Shelf · Poster (the specimen sheet, and everything on it)
 src/workers/         buildFont.worker.ts — the export *and* reading an uploaded font

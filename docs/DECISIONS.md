@@ -1394,6 +1394,9 @@ Two deliberate choices underneath:
 
 ## Four reasons the microphone looked dead
 
+*Superseded on 13 October 2026: the microphone, the loop and the analysis are gone — see
+"Compose makes a week's post". Kept for what it says about where controls go.*
+
 Three were about where the controls are.
 
 1. Play and the mic were the third group down a rail you have to scroll, and
@@ -1751,6 +1754,91 @@ label and can never be wider than the row, so it stays inside the panel at every
 (i) still shows it on hover and focus. Checked across all thirteen styles at seven widths from
 375 to 1440: no sideways scroll, and every note inside the panel.
 
+## Compose makes a week's post
+
+Hendri posts every week — Instagram feed and Reels, X, Threads, Bluesky, LinkedIn, TikTok,
+Shorts — and each post is one font in a few cuts. The round started from
+[GEOMETRIC](https://geometric-art.com/en/pro), an image-and-motion art tool that does the
+exporting half of that job well. Read from its shipped bundle rather than its marketing:
+
+- **It renders video offline.** The clock is frozen and frame *i* is drawn at `i / fps`, then
+  encoded with WebCodecs through mediabunny into a fast-start MP4. A live WebM recording is
+  only its fallback. That one choice is why its clips have no dropped frames and an exact
+  length.
+- **You pick a length, not a moment to press Stop.** 3–12 seconds.
+- **Export starts from where the post is going** — X, IG feed, story, reel — and writes the
+  post's text for you, with a link back.
+- **A direct download is clean**; a badge is only added on its share path.
+
+### Motion replaces sound
+
+The clip used to be a live recording of the sheet riding a sound — the synthesized bubble
+loop or the microphone — for up to fifteen seconds. Hendri's call: the sound never makes it to
+the post anyway, because music is added in the app you post from. So the audio engine, the
+loop, the mic and the analysis are deleted, and the MP4 is silent.
+
+What moved the letters is now a function of time. Pulse (a beat, and a slow drift on the
+second dial), Breathe (a swell on every dial) and Shimmer (a flicker on the headline dial over
+a slow swell) are curves in `motion.ts`, and each completes **a whole number of cycles in the
+clip's length**. Two things follow from that one property. The last frame runs into the first,
+so a clip loops without a seam on every platform that loops it. And any frame can be drawn on
+its own, at its own time, in any order — which is what offline rendering needs. Speed is a
+multiplier on the cycle count, rounded to whole turns, so the slider can sit anywhere and the
+loop still closes. The four curves took the four bands' places in the drive vector, so
+`modulate()` and the mode bindings did not change.
+
+### The clip is rendered, not recorded
+
+`clipRender.ts` draws every frame through a throwaway finish view — the same pipeline as the
+screen and the PNG — and hands the canvas to a WebCodecs H.264 encoder through **mediabunny**
+(MPL-2.0, file-level copyleft, compatible with this project's GPL-3.0; pinned exactly and
+loaded only when a clip is made). 1080 wide, 30 fps, 8 Mbps, keyframe every 2 s: one file that
+every platform on the list takes. A 6 s Halftone word renders in about 9 s.
+
+A slow chain now costs render time rather than smoothness. Past a 90-second budget, measured
+on the median of the first three builds (the first is always cold), the builds are spaced out
+— at most every fourth frame — and the shader cross-fades from each to the next, looked ahead
+so frame *i + k* lands exactly on its own sheet. On an exact schedule, so it is still the same
+file every time. Frames are yielded with `MessageChannel`, not rAF, so a hidden tab renders —
+and so a headless session can verify a clip, which the live recorder never allowed.
+
+Where `canEncodeVideo('avc')` says no, `videoRecorder.ts` stays as the fallback: the live
+view, recorded for exactly one loop, and the button says Record instead of Render.
+
+### The kit bends "the format belongs to the sheet"
+
+That rule was right for one export at a time, and it still holds for the PNG, SVG and MP4.
+But a week's post is four files at two sizes, and four trips through the format menu is the
+job the tool should do. So **Post kit** re-cuts the composition on screen: the word and the
+character set as 4:5 stills (a carousel), the clip at 4:5 for feeds and at 9:16 for Reels,
+TikTok and Shorts, and `caption.txt`. Everything about the sheet carries; the word keeps its
+place as a share of the sheet, and a picture you bring is now kept at its own shape, just big
+enough to cover every format, so a re-cut crops it instead of stretching a crop made for one.
+Stills in the kit are 1× — the size the platforms show — while the PNG download stays 2×.
+
+The caption is written for you because a week of posts is a week of writing the same three
+facts. The long one, for Instagram and LinkedIn, links back to **this exact font** — the
+workbench state is already a link. The short one fits X's 280 and carries the bare address,
+because the state link alone can run past 200 characters. A link pasted into a post has its
+`|` separators escaped (`escapeForPost`), because some apps end a link at a bare pipe;
+`decodeState` reads either form, and a pipe somebody typed into the text cannot be mistaken
+for a separator on the way back.
+
+### The caption came off the sheet
+
+The head and foot marks — For Font's Sake, the number, the chain line, the address, both rules
+— had no real value on a post (Hendri, 13 October). They are gone with the Caption layer, its
+two colours and the click targets for its six marks; the type sets inside the margin alone.
+Text and format templates replace them in a round of their own, drawn first. The palette keeps
+its accent for those templates and for the share image.
+
+### Compose remembers its look
+
+A series should look like one. Colours, ground, finishes, picture effects, format and the
+motion are kept in `localStorage` and checked field by field on the way back in, so a cut
+finish or a renamed format falls back on its own. Not the picture (one post's, and megabytes),
+not the word's place or the seed (the font's), and not the URL, which stays about the font.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the
@@ -1765,8 +1853,8 @@ what is left is below.
    deterministic.
 3. **Styles view**: every preset of the current treatment as a waterfall in the page — what
    `scripts/style-samples.ts` does on the CLI. Small.
-4. **WebCodecs recorder** with `MediaRecorder` as the Safari fallback, the 15 s cap lifted,
-   MP4 with the audio muxed. Medium; `src/lib/videoRecorder.ts`.
+4. ~~**WebCodecs recorder**~~ **Shipped 13 October** as an offline renderer rather than a
+   recorder, silent by choice — see "Compose makes a week's post".
 5. **Geometry in a worker**, for the sheet and for the bench both. This is now the only
    thing left holding the main thread: after the September speed round, opening Compose and
    Randomise are the two actions that still block, and they block because they are new
@@ -1787,9 +1875,14 @@ what is left is below.
     the ground's SVG; a `<video>` needs its own sampler and a per-frame `texImage2D`. Medium,
     and it would export for free — the PNG and the recorder both read the same canvas.
 11. **Nothing about the sheet is in the URL.** Format, layout, palette, seed, word placement,
-    finish and the sound mode are all local to `Poster`, so a sheet you like cannot be
-    reopened or sent to anybody. That was an open question when the sheet was a modal; now
+    finish and the motion are all local to `Poster` — the look is now remembered in the
+    browser, but a sheet you like still cannot be sent to anybody. That was an open question when the sheet was a modal; now
     that it is a room with real settings in it, it is a hole. Small to medium.
+12. **Text and format templates**, to replace the caption that came off the sheet. Research
+    and options drawn in Figma first, for Hendri to pick. On 9:16 the platforms' own UI covers
+    roughly the top 12% and the bottom 20% — where the head and foot used to sit; check the
+    platforms' current safe-zone templates before drawing — so a Story template needs a safe
+    zone, ideally shown as a guide that is never exported.
 
 Shipped: the licence panel at font upload; the action bar, layers as cards, every dial visible
 and the size ladder's gutter with the layout pass; presets as pictures with one always
