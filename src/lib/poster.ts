@@ -205,6 +205,8 @@ export interface PosterRequest {
   seed: number
   /** the word set large; falls back to the treatment's name */
   word: string
+  /** what the Sentence sheet sets; falls back to a pangram */
+  sentence?: string
   palette: PosterPalette
   /** which of LAYOUTS to set it in; out of range falls back to the first */
   layout?: string
@@ -250,13 +252,13 @@ function bandOf(h: number) {
  * letter differently each time would be showing off the randomness rather than
  * the treatment.
  */
-function treatWord(req: PosterRequest) {
+function treatRun(req: PosterRequest, text: string) {
   const data = req.font
   // grown advances, as the exported font sets them — see render.ts
   const grow = letterGrowth(data, req.chain, req.seed)
   let d = ''
   let penX = 0
-  for (const ch of req.word) {
+  for (const ch of text) {
     const g = data.glyphs[ch]
     if (!g) continue
     const rchain = resolveChain(req.chain, req.overrides, ch)
@@ -303,13 +305,29 @@ function treatGlyphs(req: PosterRequest, chars: string) {
   return out
 }
 
-/** the character set the second layout shows, in the order it shows them */
-const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,!?&'-"
+/**
+ * The character set the grids show, in the order they show it.
+ *
+ * Letters and numerals only. The punctuation was there because the glyph data
+ * has it, not because anybody wanted to look at a treated comma; on a grid it
+ * was seven cells of specks at the end of the alphabet.
+ */
+export const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+
+/** what the Sentence sheet sets when there is no sentence of your own */
+export const PANGRAM = 'Sphinx of black quartz, judge my vow.'
+
+/** a run of treated letters: one path, its advance and the font's box */
+type Run = ReturnType<typeof treatRun>
 
 /** the outlines a sheet is made of, before anything has been said about colour */
 export interface SheetGeometry {
-  readonly word: ReturnType<typeof treatWord>
+  readonly word: Run
   readonly chars: ReturnType<typeof treatGlyphs>
+  /** "Aa", for the specimen */
+  readonly pair: Run
+  /** the sentence, a word at a time, so it can be broken into lines */
+  readonly words: Run[]
 }
 
 /**
@@ -337,6 +355,7 @@ export function sheetGeometry(req: PosterRequest): SheetGeometry {
     req.fontId,
     req.seed,
     req.word,
+    req.sentence ?? '',
     JSON.stringify(req.chain),
     JSON.stringify(req.overrides ?? null),
   ].join('|')
@@ -347,14 +366,22 @@ export function sheetGeometry(req: PosterRequest): SheetGeometry {
     geoCache.set(key, hit)
     return hit
   }
-  let word: SheetGeometry['word'] | null = null
+  let word: Run | null = null
   let chars: SheetGeometry['chars'] | null = null
+  let pair: Run | null = null
+  let words: Run[] | null = null
   const geo: SheetGeometry = {
     get word() {
-      return (word ??= treatWord(req))
+      return (word ??= treatRun(req, req.word))
     },
     get chars() {
       return (chars ??= treatGlyphs(req, CHARS))
+    },
+    get pair() {
+      return (pair ??= treatRun(req, 'Aa'))
+    },
+    get words() {
+      return (words ??= sentenceOf(req).split(/\s+/).filter(Boolean).map((w) => treatRun(req, w)))
     },
   }
   geoCache.set(key, geo)
@@ -384,6 +411,12 @@ export function dissolveFor(
   return prev.layout === next.layout && prev.format === next.format ? 1 : 0
 }
 
+/** the sentence a request sets: its own if it has one, the pangram if not */
+export function sentenceOf(req: Pick<PosterRequest, 'sentence'>): string {
+  const own = req.sentence?.trim()
+  return own && /\s/.test(own) ? own : PANGRAM
+}
+
 /** "Grit + Bleed" — what the sheet calls the stack */
 export function chainName(chain: Step[]): string {
   return chain.map((s) => getTreatment(s.id).name).join(' + ')
@@ -392,11 +425,13 @@ export function chainName(chain: Step[]): string {
 /**
  * The sheets this can be set in.
  *
- * Two, and a way to page between them, because one layout makes the sheet a
- * template and several make it a specimen series — which is what a foundry
- * actually publishes and is the difference between an output and an artefact.
- * They share the ground and the margin and differ only in what is set inside
- * it, so a third is a function and nothing else.
+ * Several, because one layout makes the sheet a template and several make it
+ * a specimen series — which is what a foundry actually publishes. They share
+ * the ground and the margin and differ only in what is set inside it, so each
+ * is a function and nothing else. The four were picked from the October
+ * poster round (L1, L6, L7 and L8 in the Figma file): the word, every letter
+ * and numeral on a drawn grid, a sentence at three sizes, and a specimen that
+ * holds all of it. None of them carries any text of its own.
  */
 export interface PosterLayout {
   id: string
@@ -407,7 +442,9 @@ export interface PosterLayout {
 
 export const LAYOUTS: PosterLayout[] = [
   { id: 'word', name: 'Word', note: 'One word, set as large as the sheet allows' },
-  { id: 'chars', name: 'Character set', note: 'The whole alphabet, treated' },
+  { id: 'chars', name: 'Character set', note: 'Every letter and numeral, each in its own cell' },
+  { id: 'sentence', name: 'Sentence', note: 'A line at three sizes, so it reads as a face you could set text in' },
+  { id: 'specimen', name: 'Specimen', note: 'Aa, the word, and every letter and numeral on one sheet' },
 ]
 
 /**
@@ -518,13 +555,76 @@ function placeWord(req: PosterRequest, bandTop: number, bandBottom: number) {
 const bandWord = (req: PosterRequest, bandTop: number, bandBottom: number) =>
   placeWord(req, bandTop, bandBottom).markup
 
+/** the box a path's points actually reach, in its own units — the ink, not the font's box */
+function inkOf(d: string) {
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+  const nums = d.match(/-?\d+(?:\.\d+)?/g) ?? []
+  for (let i = 0; i + 1 < nums.length; i += 2) {
+    const x = Number(nums[i]), y = Number(nums[i + 1])
+    if (x < x0) x0 = x
+    if (x > x1) x1 = x
+    if (y < y0) y0 = y
+    if (y > y1) y1 = y
+  }
+  return Number.isFinite(x0) ? { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 } : null
+}
+
+const pathAt = (d: string, x: number, baseline: number, scale: number, fill: string) =>
+  `<g transform="translate(${x.toFixed(1)}, ${baseline.toFixed(1)}) scale(${scale.toFixed(5)}, ${(-scale).toFixed(5)})">` +
+  `<path d="${d}" fill="${fill}" fill-rule="evenodd"/></g>`
+
+/** a hairline in the ink, at a weight that survives being shown at a third of its size */
+const rule = (x: number, y: number, w: number, ink: string) =>
+  `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="2" fill="${ink}"/>`
+
 /**
- * The whole alphabet, on a grid.
+ * Glyphs in cells, one each, centred on their own advance.
  *
- * Every glyph is drawn in its own cell at one size, so the sheet reads as a
- * comparison rather than a composition — which is the point of a character set
- * and is where an uneven treatment shows itself. The columns are chosen to fill
- * the band rather than fixed, so a face with fewer glyphs still fills the sheet.
+ * Shared by the character set and the specimen's foot. With `lines`, the grid
+ * is drawn — every cell of the rectangle, the empty ones at the end included,
+ * so the grid reads as a grid rather than as boxes round some letters.
+ */
+function glyphGrid(
+  req: PosterRequest,
+  glyphs: SheetGeometry['chars'],
+  x0: number,
+  y0: number,
+  cols: number,
+  cell: number,
+  lines: boolean,
+) {
+  const rows = Math.ceil(glyphs.length / cols)
+  const em = req.font.unitsPerEm
+  // 62% of the cell leaves the letters room to breathe and keeps a descender
+  // from touching the row beneath it
+  const scale = (cell * 0.62) / em
+  const asc = req.font.ascender
+  let out = ''
+  if (lines) {
+    const ink = req.palette.ink
+    const stroke = `stroke="${ink}" stroke-opacity="0.22" stroke-width="1.5"`
+    const gw = cols * cell
+    const gh = rows * cell
+    let d = ''
+    for (let c = 0; c <= cols; c++) d += `M${(x0 + c * cell).toFixed(1)} ${y0.toFixed(1)}V${(y0 + gh).toFixed(1)}`
+    for (let r = 0; r <= rows; r++) d += `M${x0.toFixed(1)} ${(y0 + r * cell).toFixed(1)}H${(x0 + gw).toFixed(1)}`
+    out += `<path d="${d}" fill="none" ${stroke}/>`
+  }
+  glyphs.forEach((g, i) => {
+    const cx = x0 + (i % cols) * cell
+    const cy = y0 + Math.floor(i / cols) * cell
+    out += pathAt(g.d, cx + (cell - g.adv * scale) / 2, cy + cell / 2 + (asc * scale) / 2, scale, req.palette.ink)
+  })
+  return out
+}
+
+/**
+ * Every letter and numeral, each in its own cell, the grid drawn.
+ *
+ * Every glyph is drawn at one size, so the sheet reads as a comparison rather
+ * than a composition — which is the point of a character set and is where an
+ * uneven treatment shows itself. The columns are chosen to fill the band, so
+ * a story gets six across and a square eight.
  */
 function bandChars(req: PosterRequest, bandTop: number, bandBottom: number) {
   const glyphs = sheetGeometry(req).chars
@@ -532,8 +632,8 @@ function bandChars(req: PosterRequest, bandTop: number, bandBottom: number) {
 
   const measure = getFormat(req.format).w - MARGIN * 2
   const band = bandBottom - bandTop
-  // Square-ish cells: pick the column count whose resulting grid comes closest
-  // to filling the band without overflowing it.
+  // Square cells: pick the column count whose grid comes closest to filling
+  // the band without overflowing it.
   let best = { cols: 8, cell: 0 }
   for (let cols = 6; cols <= 12; cols++) {
     const rows = Math.ceil(glyphs.length / cols)
@@ -542,31 +642,132 @@ function bandChars(req: PosterRequest, bandTop: number, bandBottom: number) {
   }
   const { cols, cell } = best
   const rows = Math.ceil(glyphs.length / cols)
-  const gridW = cols * cell
-  const gridH = rows * cell
-  const originX = MARGIN + (measure - gridW) / 2
-  const originY = bandTop + (band - gridH) / 2
+  const originX = MARGIN + (measure - cols * cell) / 2
+  const originY = bandTop + (band - rows * cell) / 2
+  return glyphGrid(req, glyphs, originX, originY, cols, cell, true)
+}
 
-  const em = req.font.unitsPerEm
-  // 62% of the cell leaves the letters room to breathe and keeps a descender
-  // from touching the row beneath it
-  const scale = (cell * 0.62) / em
-  const asc = req.font.ascender
+/**
+ * Words broken into lines at a scale, greedily, never splitting a word.
+ *
+ * A word wider than the measure gets a line to itself rather than being
+ * broken; `layoutSentence` sizes the type so that does not happen.
+ */
+function breakLines(words: Run[], space: number, measure: number, scale: number) {
+  const lines: { run: Run; x: number }[][] = []
+  let line: { run: Run; x: number }[] = []
+  let x = 0
+  for (const run of words) {
+    const w = run.width * scale
+    if (line.length > 0 && x + w > measure) {
+      lines.push(line)
+      line = []
+      x = 0
+    }
+    line.push({ run, x })
+    x += w + space * scale
+  }
+  if (line.length > 0) lines.push(line)
+  return lines
+}
 
-  return glyphs
-    .map((g, i) => {
-      const cx = originX + (i % cols) * cell
-      const cy = originY + Math.floor(i / cols) * cell
-      // centred on its own advance width, so a narrow letter is not left-aligned
-      // in a cell it does not fill
-      const x = cx + (cell - g.adv * scale) / 2
-      const y = cy + cell / 2 + (asc * scale) / 2
-      return (
-        `<g transform="translate(${x.toFixed(1)}, ${y.toFixed(1)}) scale(${scale.toFixed(5)}, ${(-scale).toFixed(5)})">` +
-        `<path d="${g.d}" fill="${req.palette.ink}" fill-rule="evenodd"/></g>`
-      )
-    })
-    .join('')
+/** the three sizes the sentence is set at, as shares of the largest */
+export const SENTENCE_SIZES = [1, 0.6, 0.36]
+
+/**
+ * The sentence, three times, large to small, ragged right.
+ *
+ * The largest size starts at a seventh of the measure per em and comes down
+ * until the longest word fits a line and all three blocks fit the band. Set
+ * from the top, as a page of text is, rather than centred.
+ */
+function bandSentence(req: PosterRequest, bandTop: number, bandBottom: number) {
+  const { words } = sheetGeometry(req)
+  if (words.length === 0) return ''
+  const data = req.font
+  const measure = getFormat(req.format).w - MARGIN * 2
+  const band = bandBottom - bandTop
+  const em = data.unitsPerEm
+  // Lines are spaced by the ink the words actually reach, not by the font's
+  // box: Anton's box is half again its caps, which set its lines a third of a
+  // line apart. Ascender to descender of what is there, with a little air.
+  const inks = words.map((w) => inkOf(w.d)).filter((b) => b !== null)
+  const inkTop = inks.length ? Math.max(...inks.map((b) => b.y1)) : data.ascender
+  const inkBottom = inks.length ? Math.min(...inks.map((b) => b.y0)) : data.descender
+  const lineH = (inkTop - inkBottom) * 1.06
+  const space = data.glyphs[' ']?.adv ?? em * 0.25
+  const widest = Math.max(...words.map((w) => w.width))
+
+  let top = Math.min((measure * 0.15) / em, measure / widest)
+  const blocks = (k: number) => SENTENCE_SIZES.map((f) => breakLines(words, space, measure, k * f))
+  const heightAt = (k: number) =>
+    SENTENCE_SIZES.reduce((h, f, i) => h + blocks(k)[i].length * lineH * k * f, 0) + 2 * lineH * k * 0.45
+  for (let i = 0; i < 12 && heightAt(top) > band; i++) top *= Math.max(0.5, (band / heightAt(top)) * 0.99)
+
+  let y = bandTop
+  let out = ''
+  blocks(top).forEach((lines, i) => {
+    const k = top * SENTENCE_SIZES[i]
+    for (const line of lines) {
+      const baseline = y + inkTop * k
+      for (const { run, x } of line) out += pathAt(run.d, MARGIN + x, baseline, k, req.palette.ink)
+      y += lineH * k
+    }
+    y += lineH * top * 0.45
+  })
+  return out
+}
+
+/**
+ * A foundry specimen: Aa, the word, and every letter and numeral.
+ *
+ * Built from the foot up. The set takes thirteen columns across the measure
+ * and sits on the bottom margin; the word sits between two rules above it at
+ * up to two-fifths of what is left; Aa takes the rest, standing on the upper
+ * rule. Placed by the ink, not by the font's box, because a face with a tall
+ * box — Anton's is half again its caps — would otherwise float in air.
+ */
+function bandSpecimen(req: PosterRequest, bandTop: number, bandBottom: number) {
+  const geo = sheetGeometry(req)
+  const measure = getFormat(req.format).w - MARGIN * 2
+  const ink = req.palette.ink
+  const cols = 13
+  const cell = measure / cols
+  const rows = Math.ceil(geo.chars.length / cols)
+  const gridTop = bandBottom - rows * cell
+  const gap = cell * 0.45
+  let out = glyphGrid(req, geo.chars, MARGIN, gridTop, cols, cell, false)
+
+  const lower = gridTop - gap
+  out += rule(MARGIN, lower, measure, ink)
+
+  const word = inkOf(geo.word.d)
+  const pair = inkOf(geo.pair.d)
+  const avail = lower - gap - bandTop
+  let wordTop = lower
+  if (word) {
+    const k = Math.min(measure / word.w, (avail * 0.4) / word.h)
+    const bottom = lower - gap
+    wordTop = bottom - word.h * k
+    out += pathAt(geo.word.d, MARGIN - word.x0 * k, bottom + word.y0 * k, k, ink)
+  }
+  const upper = wordTop - gap
+  out += rule(MARGIN, upper, measure, ink)
+  if (pair) {
+    const room = upper - gap - bandTop
+    const k = Math.min((measure * 0.85) / pair.w, room / pair.h)
+    const bottom = upper - gap
+    out += pathAt(geo.pair.d, MARGIN - pair.x0 * k, bottom + pair.y0 * k, k, ink)
+  }
+  return out
+}
+
+/** what a layout sets in the band, for the layouts that are all one picture */
+function bandFor(id: string, req: PosterRequest, bandTop: number, bandBottom: number): string | null {
+  if (id === 'chars') return bandChars(req, bandTop, bandBottom)
+  if (id === 'sentence') return bandSentence(req, bandTop, bandBottom)
+  if (id === 'specimen') return bandSpecimen(req, bandTop, bandBottom)
+  return null
 }
 
 /**
@@ -598,7 +799,7 @@ export function buildPoster(req: PosterRequest): string {
   const { bandTop, bandBottom } = bandOf(h)
 
   const layout = LAYOUTS.find((l) => l.id === req.layout) ?? LAYOUTS[0]
-  const band = layout.id === 'chars' ? bandChars(req, bandTop, bandBottom) : bandWord(req, bandTop, bandBottom)
+  const band = bandFor(layout.id, req, bandTop, bandBottom) ?? bandWord(req, bandTop, bandBottom)
 
   return wrap(ground(req, w, h) + band, w, h)
 }
@@ -632,13 +833,9 @@ export function buildPosterLayers(req: PosterRequest): {
   // the same order the composed sheet uses: ground, then the band
   const paper = ground(req, w, h)
 
-  if (layout.id === 'chars') {
-    return {
-      ground: wrap(paper + bandChars(req, bandTop, bandBottom), w, h),
-      word: null,
-      wordBox: null,
-    }
-  }
+  // only the word is an object; every other sheet is one picture on the ground
+  const whole = bandFor(layout.id, req, bandTop, bandBottom)
+  if (whole !== null) return { ground: wrap(paper + whole, w, h), word: null, wordBox: null }
   const anchored: PosterRequest = {
     ...req,
     wordTransform: req.wordTransform ? { ...req.wordTransform, dx: 0, dy: 0 } : undefined,

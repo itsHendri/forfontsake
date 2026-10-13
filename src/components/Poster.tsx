@@ -51,6 +51,8 @@ interface Props {
   overrides?: Overrides
   seed: number
   word: string
+  /** the whole specimen line, for the Sentence sheet; one word falls back to a pangram */
+  sentence: string
   /** the whole workbench state, so a post's caption can link back to this exact font */
   state: WorkbenchState
   onClose: () => void
@@ -593,6 +595,7 @@ export function Poster(p: Props) {
       overrides: p.overrides,
       seed: sheetSeed,
       word: p.word,
+      sentence: p.sentence,
       layout: layout.id,
       format: format.id,
       palette,
@@ -600,7 +603,7 @@ export function Poster(p: Props) {
       ground: groundId,
       backdrop,
     }),
-    [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, layout.id, format.id, palette, bakedT, groundId, backdrop],
+    [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, p.sentence, layout.id, format.id, palette, bakedT, groundId, backdrop],
   )
 
   /*
@@ -1001,10 +1004,11 @@ export function Poster(p: Props) {
    *
    * This knowingly bends "the format belongs to the sheet": the kit re-cuts
    * the composition on screen to the sizes the platforms take, rather than
-   * asking for four trips through the format menu. Two stills for a carousel
-   * — the word, then the set — and the clip twice, 4:5 for feeds and 9:16 for
+   * asking for four trips through the format menu. Stills for a carousel
+   * and the clip twice, 4:5 for feeds and 9:16 for
    * Reels, TikTok and Shorts. Stills at 1×, the size every platform shows;
    * the PNG download stays 2×. The caption comes with it, both lengths.
+   * Three stills since the poster round: the word, the set and the specimen.
    */
   const renderKit = async () => {
     const ac = new AbortController()
@@ -1013,7 +1017,7 @@ export function Poster(p: Props) {
     setKit(null)
     setCopied(false)
     const base = `forfontsake-${p.chain.map((c) => c.id).join('-')}-${sheetSeed}`
-    const steps = 4
+    const steps = 5
     const at = (n: number, label: string, done = 0, total = 1, eta: number | null = null) =>
       setProgress({ label: `Kit ${n} of ${steps} · ${label}`, done: (n - 1) * total + done, total: steps * total, eta })
     try {
@@ -1024,10 +1028,14 @@ export function Poster(p: Props) {
       files.push(new File([await stillOf({ format: 'post', layout: 'word' }, 1)], `${base}-word-4x5.png`, { type: 'image/png' }))
       at(2, 'set 4:5')
       files.push(new File([await stillOf({ format: 'post', layout: 'chars' }, 1)], `${base}-set-4x5.png`, { type: 'image/png' }))
+      at(3, 'specimen 4:5')
+      files.push(
+        new File([await stillOf({ format: 'post', layout: 'specimen' }, 1)], `${base}-specimen-4x5.png`, { type: 'image/png' }),
+      )
       if (able) {
         const clips = [
-          { n: 3, format: 'post', name: 'feed 4:5', file: `${base}-${layout.id}-4x5.mp4` },
-          { n: 4, format: 'story', name: 'reel 9:16', file: `${base}-${layout.id}-9x16.mp4` },
+          { n: 4, format: 'post', name: 'feed 4:5', file: `${base}-${layout.id}-4x5.mp4` },
+          { n: 5, format: 'story', name: 'reel 9:16', file: `${base}-${layout.id}-9x16.mp4` },
         ]
         for (const c of clips) {
           at(c.n, c.name)
@@ -1373,7 +1381,7 @@ export function Poster(p: Props) {
         }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [p.font, p.fontId, p.chain, p.overrides, sheetSeed, p.word, format.id, palette],
+    [p.font, p.fontId, p.chain, p.overrides, sheetSeed, p.word, p.sentence, format.id, palette],
   )
 
   // out of video the sheet goes back to the font as you made it
@@ -1412,7 +1420,7 @@ export function Poster(p: Props) {
   const KIT_ITEM = {
     id: 'kit',
     label: 'Post kit · .zip',
-    note: `Word and set at 4:5, the clip at 4:5 and 9:16 (${length}s), and a caption — one week's post.`,
+    note: `Word, set and specimen at 4:5, the clip at 4:5 and 9:16 (${length}s), and a caption — one week's post.`,
   }
 
   return (
@@ -1951,8 +1959,10 @@ export function Poster(p: Props) {
                 </div>
               ) : (
                 <p className="note">
-                  The character set is set to the sheet, so there is nothing to place. Switch to the
-                  word to move and resize it.
+                  The {layout.name.toLowerCase()} is set to the sheet, so there is nothing to place.
+                  {layout.id === 'sentence' &&
+                    ' It sets the line you typed on the bench, or a pangram when that is a single word.'}{' '}
+                  Switch to the word to move and resize it.
                 </p>
               )}
             </div>

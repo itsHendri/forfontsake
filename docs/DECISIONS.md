@@ -1839,6 +1839,24 @@ motion are kept in `localStorage` and checked field by field on the way back in,
 finish or a renamed format falls back on its own. Not the picture (one post's, and megabytes),
 not the word's place or the seed (the font's), and not the URL, which stays about the font.
 
+## Four sheets, chosen from a poster round
+
+Templates were drawn twice. The first pass (Figma, Share room band 09) put text on the sheet —
+a label, a headline, a recipe card, an issue number — and new layouts beside the word.
+Hendri's read: the engine's own sheets already work once the caption is gone, he likes seeing
+the word and then every letter, and the one reference worth following was Off Type's launch by
+Bureau Borsche, where the type *is* the poster. The second pass (band 10) drew nine type-only
+layouts in two styles, and he picked four: **Word, Character set, Sentence, Specimen** (L1, L6,
+L7 and L8), with the Specimen's small facts in the margin taken out.
+
+So none of the sheets carries text. The character set drops punctuation (62 cells, letters and
+numerals) and draws its grid, empty cells included. The Sentence sets the bench's own line when
+it has more than one word, a pangram otherwise, at three sizes, its lines spaced by the ink the
+words reach rather than the font's box — Anton's box is half again its caps. The Specimen is
+built from the foot up: the set on thirteen columns, the word between two rules, Aa standing on
+the upper one, all placed by their ink for the same reason. The kit's carousel gained the
+Specimen as a third still. Text templates remain open (below).
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the
@@ -1878,8 +1896,9 @@ what is left is below.
     finish and the motion are all local to `Poster` — the look is now remembered in the
     browser, but a sheet you like still cannot be sent to anybody. That was an open question when the sheet was a modal; now
     that it is a room with real settings in it, it is a hole. Small to medium.
-12. **Text and format templates**, to replace the caption that came off the sheet. Research
-    and options drawn in Figma first, for Hendri to pick. On 9:16 the platforms' own UI covers
+12. **Text and format templates**, to replace the caption that came off the sheet. Drawn
+    twice (Figma bands 09 and 10); the layouts were picked and built, the text was not. The
+    trading card (L9: the dials as stats) is the idea left over. On 9:16 the platforms' own UI covers
     roughly the top 12% and the bottom 20% — where the head and foot used to sit; check the
     platforms' current safe-zone templates before drawing — so a Story template needs a safe
     zone, ideally shown as a guide that is never exported.

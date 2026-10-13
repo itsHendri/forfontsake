@@ -16,6 +16,10 @@ import {
   FORMATS,
   getFormat,
   POSTER_PALETTES,
+  CHARS,
+  PANGRAM,
+  SENTENCE_SIZES,
+  sentenceOf,
 } from './poster'
 import { defaults, getTreatment } from '../engine/treatments/registry'
 import { bindingsFor, getMode, modulate } from './modulate'
@@ -564,5 +568,66 @@ describe('where a turn settles', () => {
       expect(at).toBeGreaterThanOrEqual(0)
       expect(at).toBeLessThan(360)
     }
+  })
+})
+
+describe('the four sheets from the poster round', () => {
+  const groups = (svg: string) => (svg.match(/<g transform=/g) ?? []).length
+
+  it('offers word, character set, sentence and specimen, in that order', () => {
+    expect(LAYOUTS.map((l) => l.id)).toEqual(['word', 'chars', 'sentence', 'specimen'])
+  })
+
+  it('shows letters and numerals only — no punctuation in the set', () => {
+    expect(CHARS).toMatch(/^[A-Za-z0-9]+$/)
+    expect(CHARS).toHaveLength(62)
+  })
+
+  it('carries no text of its own, on any sheet at any format', () => {
+    for (const f of FORMATS) {
+      for (const l of LAYOUTS) {
+        const svg = buildPoster({ ...req(l.id), format: f.id, sentence: 'AB aB BA' })
+        expect(svg, `${l.id}/${f.id}`).not.toContain('<text')
+      }
+    }
+  })
+
+  it('draws the character set’s grid, empty cells and all', () => {
+    const svg = buildPoster(req('chars'))
+    expect(svg).toMatch(/<path d="M[^"]*V[^"]*H[^"]*" fill="none" stroke=/)
+    // the test face has three of the 62, so three glyphs sit in a drawn grid
+    expect(groups(svg)).toBe(3)
+  })
+
+  it('sets the sentence you typed, three times, and falls back to a pangram for one word', () => {
+    expect(sentenceOf({ sentence: 'Grittier letters' })).toBe('Grittier letters')
+    expect(sentenceOf({ sentence: 'Grit' })).toBe(PANGRAM)
+    expect(sentenceOf({})).toBe(PANGRAM)
+    const svg = buildPoster({ ...req('sentence'), sentence: 'AB aB BA' })
+    // three words at each of three sizes
+    expect(groups(svg)).toBe(3 * SENTENCE_SIZES.length)
+  })
+
+  it('keeps the sentence inside the sheet however long it runs', () => {
+    const long = Array.from({ length: 60 }, () => 'AB aB').join(' ')
+    for (const f of FORMATS) {
+      const svg = buildPoster({ ...req('sentence'), format: f.id, sentence: long })
+      const ys = [...svg.matchAll(/translate\(([\d.-]+), ([\d.-]+)\) scale/g)].map((m) => Number(m[2]))
+      expect(Math.max(...ys), f.id).toBeLessThanOrEqual(f.h - 76 + 1)
+    }
+  })
+
+  it('builds the specimen from Aa, the word, two rules and the set', () => {
+    const svg = buildPoster(req('specimen'))
+    expect((svg.match(/height="2"/g) ?? []).length).toBe(2)
+    // Aa and the word are a group each, then the three glyphs the face has
+    expect(groups(svg)).toBe(2 + 3)
+  })
+
+  it('treats the sentence only when the sentence is asked for', () => {
+    // a new sentence is new geometry, so it is part of the cache key
+    const a = buildPoster({ ...req('sentence'), sentence: 'AB aB' })
+    const b = buildPoster({ ...req('sentence'), sentence: 'aB AB BA' })
+    expect(a).not.toBe(b)
   })
 })
