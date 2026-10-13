@@ -127,15 +127,10 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
       <header className="saved-bar">
         <div className="saved-title">
           <h1>Saved fonts</h1>
-          {/* a count and the room left, not "3 of 12", which read as 9 missing;
-              absent when empty, where the page itself says so */}
-          {kept.length > 0 && (
-            <p className="saved-count">
-              {kept.length < SHELF_LIMIT
-                ? `${kept.length} saved · room for ${SHELF_LIMIT - kept.length} more`
-                : `${kept.length} saved · full, the oldest goes next`}
-            </p>
-          )}
+          {/* Nothing until it matters. The count said what the cards already
+              show, and the room left is not news until there is none: only a
+              full shelf gets a line, because the next save will push one off. */}
+          {kept.length >= SHELF_LIMIT && <p className="saved-count">Full · the oldest goes when you save another</p>}
         </div>
         <button type="button" className="sheet-close" onClick={onClose} aria-label="Back to the workbench">
           ✕
