@@ -675,6 +675,7 @@ export default function App() {
         seed={state.seed}
         // one word sets a sheet; a sentence would come out too small to read
         word={specimenText.split(/\s+/)[0] || treatment.name}
+        state={state}
         onClose={() => setView('bench')}
       />
     )

@@ -573,6 +573,17 @@ h1 {
   line-height: 1.45;
   color: var(--mark);
 }
+.sheet-bar .sheet-kit {
+  flex: 0 0 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 14px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
 .sheet-name {
   font-size: 17px;
   font-weight: 600;

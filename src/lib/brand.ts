@@ -5,3 +5,6 @@
 
 /** Hendri's portfolio — the sign-off in the footer points here. */
 export const PORTFOLIO = 'https://hendri.co.za/'
+
+/** The tool's own address — the link a post's caption carries back. */
+export const SITE = 'https://forfontsake.xyz/'

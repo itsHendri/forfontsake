@@ -159,8 +159,27 @@ export function encodeState(s: WorkbenchState): string {
   return bits.join('|')
 }
 
+/**
+ * The state, safe to paste into a post.
+ *
+ * A bare `|` ends a link early in apps that detect links by their own rules,
+ * so the separators are escaped — after escaping every `%` already there, so
+ * a pipe somebody typed into the text (already `%7C`) cannot be mistaken for a
+ * separator on the way back.
+ */
+export function escapeForPost(encoded: string): string {
+  return encoded.replace(/%/g, '%25').replace(/\|/g, '%7C')
+}
+
+function unescapeFromPost(escaped: string): string {
+  return escaped.replace(/%7C/gi, '|').replace(/%25/g, '%')
+}
+
 export function decodeState(hash: string): WorkbenchState | null {
-  const raw = hash.replace(/^#/, '')
+  // A link pasted into a post is written by `escapeForPost`; one with no bare
+  // separator left in it was written that way, and is unescaped first.
+  const stripped = hash.replace(/^#/, '')
+  const raw = stripped.includes('|') ? stripped : unescapeFromPost(stripped)
   if (!raw) return null
   const bits = raw.split('|')
   if (bits.length < 6) return null

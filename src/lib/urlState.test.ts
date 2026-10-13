@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { encodeState, decodeState, type WorkbenchState } from './urlState'
+import { encodeState, decodeState, escapeForPost, type WorkbenchState } from './urlState'
 
 const base: WorkbenchState = {
   fontId: 'pirataone',
@@ -65,6 +65,13 @@ describe('urlState', () => {
   it('encodes text that would otherwise break the field separators', () => {
     const tricky = { ...base, text: 'a|b+c%d' }
     expect(decodeState('#' + encodeState(tricky))!.text).toBe('a|b+c%d')
+  })
+
+  it('opens a link that was escaped to be pasted into a post', () => {
+    const tricky = { ...base, text: 'a|b+c%d %7C' }
+    const escaped = escapeForPost(encodeState(tricky))
+    expect(escaped).not.toContain('|')
+    expect(decodeState('#' + escaped)).toEqual(tricky)
   })
 
   it('round-trips per-glyph overrides in a seventh field', () => {

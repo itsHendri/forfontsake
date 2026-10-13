@@ -17,6 +17,8 @@ import {
   type WordTransform,
 } from '../lib/poster'
 import { saveFile } from '../lib/exportFont'
+import { buildCaption, captionFile, type Caption } from '../lib/caption'
+import { copyText } from '../lib/clipboard'
 import { Menu } from './Menu'
 import { getTreatment } from '../engine/treatments/registry'
 import { DEFAULT_DEPTH, DEFAULT_MODE, MODES, bindingsFor, getMode, modulate } from '../lib/modulate'
@@ -42,7 +44,7 @@ import {
   type FinishView,
 } from '../lib/finish'
 import type { FontData } from '../lib/glyphData'
-import type { Overrides, Step } from '../lib/urlState'
+import type { Overrides, Step, WorkbenchState } from '../lib/urlState'
 
 interface Props {
   font: FontData
@@ -51,6 +53,8 @@ interface Props {
   overrides?: Overrides
   seed: number
   word: string
+  /** the whole workbench state, so a post's caption can link back to this exact font */
+  state: WorkbenchState
   onClose: () => void
 }
 
@@ -497,6 +501,13 @@ export function Poster(p: Props) {
   )
   const abortRef = useRef<AbortController | null>(null)
   useEffect(() => () => abortRef.current?.abort(), [])
+  /**
+   * The last kit made, kept so its caption can be copied and its files shared
+   * after the zip has gone — posting is several apps away from this room, and
+   * the caption is the thing you need again once you get there.
+   */
+  const [kit, setKit] = useState<{ files: File[]; caption: Caption } | null>(null)
+  const [copied, setCopied] = useState(false)
 
   // the room closing abandons any take
   useEffect(
@@ -802,23 +813,24 @@ export function Poster(p: Props) {
    * The sheet is drawn as an SVG string and rasterised through a data URI, so
    * whatever comes in has to travel inside it — a 6 MB photo would be encoded
    * on every rebuild, which is on the path a dial move takes. Redrawn once at
-   * the sheet's own size, it is a couple of hundred kilobytes and nothing
+   * the size the sheets need, it is a few hundred kilobytes and nothing
    * downstream has to care where it came from.
    */
   const takeBackdrop = async (file: File) => {
     setExportNote(null)
     try {
       const bitmap = await createImageBitmap(file)
-      // cover, so a picture of any shape fills the sheet without distorting
-      const k = Math.max(format.w / bitmap.width, format.h / bitmap.height)
+      // Kept at its own shape, just big enough to cover every format: the
+      // sheet crops it to whichever one it is cut to, so changing the format —
+      // or the kit cutting it four ways — never stretches a picture that was
+      // only ever drawn for one of them.
+      const k = Math.max(...FORMATS.map((f) => Math.max(f.w / bitmap.width, f.h / bitmap.height)))
       const c = document.createElement('canvas')
-      c.width = format.w
-      c.height = format.h
+      c.width = Math.round(bitmap.width * k)
+      c.height = Math.round(bitmap.height * k)
       const ctx = c.getContext('2d')
       if (!ctx) throw new Error('could not read that picture')
-      const w = bitmap.width * k
-      const h = bitmap.height * k
-      ctx.drawImage(bitmap, (format.w - w) / 2, (format.h - h) / 2, w, h)
+      ctx.drawImage(bitmap, 0, 0, c.width, c.height)
       bitmap.close()
       setBackdrop(c.toDataURL('image/jpeg', 0.86))
     } catch (e) {
@@ -955,6 +967,114 @@ export function Poster(p: Props) {
     }
   }
 
+  /**
+   * A still of this sheet in any format and layout, through the same pipeline
+   * as the screen. The word keeps its place as a share of the sheet, so a
+   * word set low on a post is set low on a story.
+   */
+  const stillOf = async (cut: { format: string; layout: string }, scale: number) => {
+    const f = getFormat(cut.format)
+    const shot = createFinishView(scale, f.w, f.h)
+    try {
+      shot.setFinishes(finishes)
+      shot.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink)
+      if (cut.layout === 'word') shot.setOffset((wordT.dx / format.w) * f.w, (wordT.dy / format.h) * f.h)
+      const same = cut.format === format.id && cut.layout === layout.id && exactReq === sheetReq
+      const built = same ? layers : buildPosterLayers({ ...exactReq, format: cut.format, layout: cut.layout })
+      await shot.setSheet(built.ground, built.word)
+      shot.draw()
+      return await new Promise<Blob>((resolve, reject) =>
+        shot.canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('could not draw the sheet'))), 'image/png'),
+      )
+    } finally {
+      shot.destroy()
+    }
+  }
+
+  /*
+   * One font, every cut a week's post needs, in one press.
+   *
+   * This knowingly bends "the format belongs to the sheet": the kit re-cuts
+   * the composition on screen to the sizes the platforms take, rather than
+   * asking for four trips through the format menu. Two stills for a carousel
+   * — the word, then the set — and the clip twice, 4:5 for feeds and 9:16 for
+   * Reels, TikTok and Shorts. Stills at 1×, the size every platform shows;
+   * the PNG download stays 2×. The caption comes with it, both lengths.
+   */
+  const renderKit = async () => {
+    const ac = new AbortController()
+    abortRef.current = ac
+    setExportNote(null)
+    setKit(null)
+    setCopied(false)
+    const base = `forfontsake-${p.chain.map((c) => c.id).join('-')}-${sheetSeed}`
+    const steps = 4
+    const at = (n: number, label: string, done = 0, total = 1, eta: number | null = null) =>
+      setProgress({ label: `Kit ${n} of ${steps} · ${label}`, done: (n - 1) * total + done, total: steps * total, eta })
+    try {
+      const able = canRender ?? (await canRenderClips(1080, 1920))
+      setCanRender(able)
+      const files: File[] = []
+      at(1, 'word 4:5')
+      files.push(new File([await stillOf({ format: 'post', layout: 'word' }, 1)], `${base}-word-4x5.png`, { type: 'image/png' }))
+      at(2, 'set 4:5')
+      files.push(new File([await stillOf({ format: 'post', layout: 'chars' }, 1)], `${base}-set-4x5.png`, { type: 'image/png' }))
+      if (able) {
+        const clips = [
+          { n: 3, format: 'post', name: 'feed 4:5', file: `${base}-${layout.id}-4x5.mp4` },
+          { n: 4, format: 'story', name: 'reel 9:16', file: `${base}-${layout.id}-9x16.mp4` },
+        ]
+        for (const c of clips) {
+          at(c.n, c.name)
+          const blob = await renderCut({ format: c.format, layout: layout.id }, ac.signal, (done, total, eta) =>
+            at(c.n, c.name, done, total, eta),
+          )
+          files.push(new File([blob], c.file, { type: 'video/mp4' }))
+        }
+      }
+      const caption = buildCaption({
+        word: p.word,
+        chainName,
+        fontLabel: p.font.label,
+        state: { ...p.state, seed: sheetSeed },
+      })
+      const { default: JSZip } = await import('jszip')
+      const zip = new JSZip()
+      // already compressed, every one of them; deflating them again buys nothing
+      for (const f of files) zip.file(f.name, f, { compression: 'STORE' })
+      zip.file('caption.txt', captionFile(caption))
+      await saveFile(await zip.generateAsync({ type: 'blob' }), `${base}-kit.zip`)
+      setKit({ files, caption })
+      if (!able)
+        setExportNote('This browser cannot render a clip, so the kit has the two stills and the caption only.')
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === 'AbortError'))
+        setExportNote(e instanceof Error ? e.message : String(e))
+    } finally {
+      abortRef.current = null
+      setProgress(null)
+    }
+  }
+
+  const copyCaption = async () => {
+    if (!kit) return
+    setCopied(await copyText(kit.caption.long))
+  }
+
+  /** the share sheet, where the platform has one that takes files — AirDrop to a phone on a Mac */
+  const canShareKit =
+    !!kit && typeof navigator.canShare === 'function' && navigator.canShare({ files: kit.files })
+  const shareKit = async () => {
+    if (!kit) return
+    try {
+      await navigator.share({ files: kit.files, text: kit.caption.long })
+    } catch (e) {
+      // closing the sheet is not a failure
+      if (!(e instanceof DOMException && e.name === 'AbortError'))
+        setExportNote(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   /*
    * The SVG stays letterforms only.
    *
@@ -979,29 +1099,14 @@ export function Poster(p: Props) {
     setBusy(true)
     setExportNote(null)
     try {
-      const shot = createFinishView(2, format.w, format.h)
-      try {
-        shot.setFinishes(finishes)
-        shot.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink)
-        shot.setOffset(wordT.dx, wordT.dy)
-        // built from the live transform, not the sheet on screen: a resize
-        // still settling would otherwise go out at the size before it
-        const exact = exactReq === sheetReq ? layers : buildPosterLayers(exactReq)
-        await shot.setSheet(exact.ground, exact.word)
-        shot.draw()
-        const blob = await new Promise<Blob>((resolve, reject) =>
-          shot.canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('could not draw the sheet'))), 'image/png'),
-        )
-        await saveFile(blob, `${stem}.png`)
-      } finally {
-        shot.destroy()
-      }
+      await saveFile(await stillOf({ format: format.id, layout: layout.id }, 2), `${stem}.png`)
     } catch (e) {
       setExportNote(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
   }
+
 
 
   /** one client-space delta, in sheet pixels */
@@ -1293,7 +1398,17 @@ export function Poster(p: Props) {
   // three rebuilds before it is allowed an opinion; one is just the cold one
   const steppy = samples >= 3 && framesPerSecond !== null && framesPerSecond < 6
 
-  const download = (type: 'png' | 'svg') => (type === 'svg' ? void downloadSvg() : void downloadPng())
+  const download = (type: string) => {
+    if (type === 'kit') void renderKit()
+    else if (type === 'mp4') void renderVideo()
+    else if (type === 'svg') void downloadSvg()
+    else void downloadPng()
+  }
+  const KIT_ITEM = {
+    id: 'kit',
+    label: 'Post kit · .zip',
+    note: `Word and set at 4:5, the clip at 4:5 and 9:16 (${length}s), and a caption — one week's post.`,
+  }
 
   return (
     <div className="sheet-view">
@@ -1350,7 +1465,7 @@ export function Poster(p: Props) {
           button as a tooltip, the way the workbench's download does.
         */}
         <div className="sheet-export">
-          {inVideo && progress ? (
+          {progress ? (
             <>
               {/* how far, and roughly how long — a clip is minutes of work on a heavy chain */}
               <span className="render-progress" role="status">
@@ -1364,23 +1479,26 @@ export function Poster(p: Props) {
                 Cancel
               </button>
             </>
+          ) : inVideo && recording ? (
+            <button type="button" className="is-live" onClick={() => void finishRecording()}>
+              Stop · {recSeconds}s
+            </button>
           ) : inVideo ? (
-            <span className="with-tip">
-              <button
-                type="button"
-                className={recording ? 'is-live' : 'save'}
-                onClick={() => (recording ? void finishRecording() : void renderVideo())}
-              >
-                {recording ? `Stop · ${recSeconds}s` : `${canRender === false ? 'Record' : 'Render'} MP4 · ${length}s`}
-              </button>
-              <span className="tip" role="tooltip">
-                {recording
-                  ? 'It saves itself at the end of the loop, and closing finishes the take rather than losing it.'
-                  : canRender === false
-                    ? 'This browser cannot render a clip frame by frame, so it records the sheet as it plays — a heavy chain will step.'
-                    : `${format.w} × ${format.h}, ${FPS} fps, silent — every frame drawn exactly, and the last runs into the first.`}
-              </span>
-            </span>
+            <Menu
+              label="Download"
+              items={[
+                {
+                  id: 'mp4',
+                  label: `${canRender === false ? 'Record' : 'Render'} MP4 · ${length}s`,
+                  note:
+                    canRender === false
+                      ? 'This browser cannot render a clip frame by frame, so it records the sheet as it plays — a heavy chain will step.'
+                      : `${format.w} × ${format.h}, ${FPS} fps, silent — every frame drawn exactly, and the last runs into the first.`,
+                },
+                KIT_ITEM,
+              ]}
+              onPick={download}
+            />
           ) : (
             <Menu
               label="Download"
@@ -1397,8 +1515,9 @@ export function Poster(p: Props) {
                   label: 'SVG',
                   note: 'Letterforms only — a finish is pixels, so it cannot travel in a vector file.',
                 },
+                KIT_ITEM,
               ]}
-              onPick={(id) => download(id as 'png' | 'svg')}
+              onPick={download}
             />
           )}
         </div>
@@ -1413,6 +1532,23 @@ export function Poster(p: Props) {
         {exportNote && (
           <p className="sheet-problem" role="alert">
             {exportNote}
+          </p>
+        )}
+        {/* after a kit: the two things you need once you are in the app you post from */}
+        {kit && !progress && (
+          <p className="sheet-kit" role="status">
+            Kit saved — {kit.files.length} files and a caption.
+            <button type="button" className="linkish" onClick={() => void copyCaption()}>
+              {copied ? 'Caption copied' : 'Copy caption'}
+            </button>
+            {canShareKit && (
+              <button type="button" className="linkish" onClick={() => void shareKit()}>
+                Share…
+              </button>
+            )}
+            <button type="button" className="linkish" onClick={() => setKit(null)} aria-label="Dismiss">
+              ✕
+            </button>
           </p>
         )}
       </header>
