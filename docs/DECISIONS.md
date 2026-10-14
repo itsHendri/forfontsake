@@ -1857,6 +1857,29 @@ built from the foot up: the set on thirteen columns, the word between two rules,
 the upper one, all placed by their ink for the same reason. The kit's carousel gained the
 Specimen as a third still. Text templates remain open (below).
 
+## Focus: the letters you are editing, large
+
+The grid cell is small enough that a dial's effect on one letter is hard to see, and harder on
+a batch. Options were drawn in Figma (band 14) after Lightroom's Grid/Loupe/Survey/Compare and
+macOS Quick Look; Hendri took the suggestion: **one lightbox with three ways of looking**, not
+three features.
+
+- **Opened** by Space with a selection, a double-click on a cell, the ⤢ that appears on a hovered
+  cell, or the Focus chip above the grid. Escape, ✕, or clearing the scope closes it.
+- **One**: the letter on its guides (cap, x-height, baseline, descender, from the face's own H, x
+  and p), ‹ › and ← → stepping through the face.
+- **Several**: the batch side by side, up to twelve, each with its own reroll and a ✕ that drops
+  it from the batch without touching its edit. Clicking a tile looks at that one alone.
+- **Compare**: the style's version, this letter's, and this letter laid over the style — the
+  difference is what shows. With a batch it compares the first.
+- Under every mode: the letter in context (`nn·nn oo·oo`, `HH·HH OO·OO`, or runs for a batch)
+  and a filmstrip of the whole face — click to look at one, Shift-click to add to the batch.
+
+**Nothing new writes anything.** The dials on the right are the bench's own panel, moved into the
+room while it is open (so there is never a second copy of its controls), scoped to the selection
+exactly as on the bench. Focus only adds render calls: up to twelve glyphs live, and the style
+and the context lines trailing a frame behind on a deferred state.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the

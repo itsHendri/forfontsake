@@ -1189,6 +1189,45 @@ h1 {
   cursor: pointer;
   font: inherit;
 }
+/* A cell and its corner way into Focus. The slot takes the cell's place in
+   the grid; the cell fills it, so the grid lays out exactly as before. */
+.glyph-slot {
+  position: relative;
+  display: flex;
+}
+.glyph-slot .glyph-cell {
+  flex: 1;
+}
+.glyph-expand {
+  position: absolute;
+  z-index: 1;
+  right: 4px;
+  bottom: 4px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  background: var(--paper);
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+.glyph-slot:hover .glyph-expand {
+  opacity: 1;
+}
+.glyph-expand:hover {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+/* no hover on a touch screen: there the Focus chip and a double-tap are the way in */
+@media (hover: none) {
+  .glyph-expand {
+    display: none;
+  }
+}
 .glyph-cell.is-selected {
   box-shadow: inset 0 0 0 2px var(--mark), 0 0 0 1px var(--rule);
 }
@@ -2533,5 +2572,298 @@ button.saved-confirm-delete:hover:not(:disabled) {
   /* the masthead's buttons line up with everything under them */
   .brand-actions {
     margin-left: 0;
+  }
+}
+
+/* ---------- Focus: the selected letters, large ---------- */
+
+/* Over the bench, the full window, in the bench's own colours: the panel's
+   column keeps its width underneath while its dials live in the rail here. */
+.panel-away {
+  min-height: 1px;
+}
+.focus-view {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+}
+.focus-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+  padding: 14px 26px;
+  border-bottom: 1px solid var(--rule);
+}
+.focus-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+.focus-title b {
+  font-size: 22px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.focus-title span {
+  overflow: hidden;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.focus-bar .mode-switch {
+  margin: 0 auto;
+}
+.focus-bar .sheet-close {
+  margin-left: 0;
+}
+.focus-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  flex: 1;
+  min-height: 0;
+}
+.focus-stage {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.focus-rail {
+  overflow-y: auto;
+  padding: 22px 26px;
+  border-left: 1px solid var(--rule);
+}
+/* the bench's panel, at home in a rail: it is sticky on the bench */
+.focus-rail .panel {
+  position: static;
+}
+
+/* the letters drawn in the rail's colours, the guides quietly under them */
+.focus-view svg path {
+  fill: var(--ink);
+}
+.focus-guide {
+  stroke: var(--rule);
+  stroke-width: 1;
+}
+.focus-guide.is-base {
+  stroke: var(--mark);
+  stroke-opacity: 0.6;
+}
+.focus-guide-label {
+  fill: var(--muted);
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+}
+.focus-view svg path.focus-ghost {
+  fill: var(--ink);
+  fill-opacity: 0.25;
+}
+
+/* One: the letter as large as the stage takes it, a step either side */
+.focus-one {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  padding: 18px 20px 6px;
+}
+.focus-big {
+  flex: 1;
+  height: 100%;
+  min-width: 0;
+}
+.focus-big svg,
+.focus-col svg,
+.focus-tile-open svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.focus-step {
+  flex: none;
+  padding: 6px 12px;
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* Several: a tile each, the dials moving all of them */
+.focus-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  align-content: center;
+  overflow-y: auto;
+  padding: 22px 26px;
+}
+.focus-tile {
+  position: relative;
+  aspect-ratio: 5 / 8;
+  background: var(--plate);
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+}
+.focus-tile-open {
+  width: 100%;
+  height: 100%;
+  padding: 12px 8px 34px;
+  border: 0;
+  border-radius: inherit;
+  background: none;
+}
+.focus-tile:has(.focus-tile-open:hover) {
+  border-color: var(--ink);
+}
+.focus-tile-act {
+  position: absolute;
+  padding: 2px 7px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+}
+.focus-tile-act:hover {
+  color: var(--mark);
+}
+.focus-tile-act.is-reroll {
+  left: 6px;
+  bottom: 6px;
+}
+.focus-tile-act.is-drop {
+  top: 6px;
+  right: 6px;
+}
+
+/* Compare: the style, this letter, and one over the other */
+.focus-compare {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: auto;
+  align-content: center;
+  gap: 20px;
+  flex: 1;
+  min-height: 0;
+  padding: 22px 26px 6px;
+}
+.focus-compare figure {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+}
+.focus-compare figcaption,
+.focus-label {
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.focus-compare figcaption.is-mark {
+  color: var(--mark);
+}
+.focus-col {
+  aspect-ratio: 1;
+}
+.focus-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* the context line and the filmstrip, along the foot of the stage */
+.focus-context {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: none;
+  padding: 10px 26px 16px;
+}
+.focus-context svg {
+  display: block;
+  width: 100%;
+  height: 64px;
+}
+.focus-strip {
+  display: flex;
+  gap: 4px;
+  flex: none;
+  overflow-x: auto;
+  padding: 12px 26px;
+  border-top: 1px solid var(--rule);
+}
+.focus-thumb {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  height: 56px;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  background: none;
+  opacity: 0.55;
+}
+.focus-thumb svg {
+  display: block;
+  height: 40px;
+  width: auto;
+}
+.focus-thumb:hover {
+  opacity: 1;
+}
+.focus-thumb.is-on {
+  opacity: 1;
+  border-color: var(--mark);
+}
+.focus-thumb.is-overridden::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--mark);
+}
+
+/* a phone: the rail goes under the stage, and the stage keeps a fixed height */
+@media (max-width: 860px) {
+  .focus-body {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+  .focus-stage {
+    min-height: 70vh;
+  }
+  .focus-rail {
+    overflow: visible;
+    border-left: 0;
+    border-top: 1px solid var(--rule);
+  }
+  .focus-bar {
+    flex-wrap: wrap;
+    padding: 10px 16px;
+  }
+  .focus-bar .mode-switch {
+    order: 3;
+    margin: 0;
+  }
+  .focus-bar .sheet-close {
+    margin-left: auto;
+  }
+  .focus-compare {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

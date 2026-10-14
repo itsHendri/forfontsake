@@ -10,6 +10,8 @@ interface Props {
   onSelect: (next: Set<string>) => void
   /** the dials have moved and this set is the one before them */
   settling?: boolean
+  /** open Focus on a letter, or on the selection */
+  onFocus?: (ch?: string) => void
 }
 
 const CELL_INK = 72 // px of glyph height inside each cell
@@ -64,8 +66,10 @@ function sampleOf(set: GlyphSet, chars: string) {
  * The cells are also the selection surface for per-glyph dials: click to pick
  * a letter, shift-click for a run of them, and the panel's dials then edit
  * just that selection. A corner dot marks glyphs that carry their own values.
+ * Space on a cell, a double-click, or the ⤢ in a hovered cell's corner opens
+ * Focus, where the selection is drawn large.
  */
-function GlyphGridInner({ set, selected, overridden, onSelect, settling }: Props) {
+function GlyphGridInner({ set, selected, overridden, onSelect, settling, onFocus }: Props) {
   const span = set.ascender - set.descender
   const scale = CELL_INK / span
   const lastIndex = useRef<number | null>(null)
@@ -131,6 +135,19 @@ function GlyphGridInner({ set, selected, overridden, onSelect, settling }: Props
               Overridden
             </button>
           )}
+          {/* Focus, for what is selected — the way in that says it exists;
+              Space, a double-click and the corner of a cell are the quick ones */}
+          {onFocus && (
+            <button
+              type="button"
+              className="chip"
+              onClick={() => onFocus()}
+              disabled={selected.size === 0}
+              title="See the selected letters large · Space"
+            >
+              Focus
+            </button>
+          )}
           {/* Always here, dead until there is something to clear. It used to
               appear with the first selection and push the row along under the
               pointer, so the control you were reaching for moved as you
@@ -186,33 +203,58 @@ function GlyphGridInner({ set, selected, overridden, onSelect, settling }: Props
       </div>
       <div className="glyph-grid">
         {set.glyphs.map((g, i) => (
-          <button
-            type="button"
-            className={[
-              'glyph-cell',
-              selected.has(g.ch) ? 'is-selected' : '',
-              overridden.has(g.ch) ? 'is-overridden' : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            key={g.ch}
-            title={g.ch}
-            aria-label={`Glyph ${g.ch}`}
-            aria-pressed={selected.has(g.ch)}
-            onClick={(e) => toggle(i, e.shiftKey)}
-          >
-            <svg
-              width={Math.max(1, Math.round(g.adv * scale))}
-              height={CELL_INK}
-              viewBox={`0 ${-set.ascender} ${Math.max(1, g.adv)} ${span}`}
-              aria-hidden="true"
-              focusable="false"
+          <div className="glyph-slot" key={g.ch}>
+            <button
+              type="button"
+              className={[
+                'glyph-cell',
+                selected.has(g.ch) ? 'is-selected' : '',
+                overridden.has(g.ch) ? 'is-overridden' : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              title={g.ch}
+              aria-label={`Glyph ${g.ch}`}
+              aria-pressed={selected.has(g.ch)}
+              onClick={(e) => toggle(i, e.shiftKey)}
+              onDoubleClick={() => onFocus?.(g.ch)}
+              onKeyDown={(e) => {
+                // Space looks, as Quick Look does; Return still selects
+                if (e.key === ' ' && onFocus) {
+                  e.preventDefault()
+                  onFocus(g.ch)
+                }
+              }}
             >
-              <g transform="scale(1,-1)">
-                <path d={g.d} />
-              </g>
-            </svg>
-          </button>
+              <svg
+                width={Math.max(1, Math.round(g.adv * scale))}
+                height={CELL_INK}
+                viewBox={`0 ${-set.ascender} ${Math.max(1, g.adv)} ${span}`}
+                aria-hidden="true"
+                focusable="false"
+              >
+                <g transform="scale(1,-1)">
+                  <path d={g.d} />
+                </g>
+              </svg>
+            </button>
+            {/* the corner way in, under the pointer only — a sibling of the
+                cell, because a button cannot hold another */}
+            {onFocus && (
+              <button
+                type="button"
+                className="glyph-expand"
+                tabIndex={-1}
+                aria-hidden="true"
+                title={`Focus on ${g.ch}`}
+                onClick={() => onFocus(g.ch)}
+              >
+                <svg viewBox="0 0 12 12" width="12" height="12">
+                  <path d="M7 1.5h3.5V5M10.5 1.5 7 5M5 10.5H1.5V7M1.5 10.5 5 7" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            )}
+          </div>
         ))}
       </div>
     </section>

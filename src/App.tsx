@@ -39,6 +39,8 @@ import { Brand, SignOff } from './components/Brand'
 import { Keep } from './components/Keep'
 import type { Thumb } from './components/Thumb'
 import { GlyphGrid } from './components/GlyphGrid'
+import { Focus } from './components/Focus'
+import { FOCUS_MAX, contextFor, type FocusMode } from './lib/focus'
 import { Waterfall } from './components/Waterfall'
 import { Saved } from './components/Saved'
 import { Poster } from './components/Poster'
@@ -183,6 +185,13 @@ export default function App() {
   const [active, setActive] = useState(0)
   // which glyphs the dials are editing — empty means the whole face
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  /*
+   * Focus: the selected letters, large, over the bench. A layer rather than a
+   * room of its own, because it is the bench's own selection and dials seen
+   * bigger — closing it must leave you exactly where you were in the page.
+   */
+  const [focusOpen, setFocusOpen] = useState(false)
+  const [focusMode, setFocusMode] = useState<FocusMode>('one')
   const [importing, setImporting] = useState(false)
   // what the last uploaded font said about its own licence
   const [licence, setLicence] = useState<Imported['licence'] | null>(null)
@@ -460,6 +469,91 @@ export default function App() {
     }
   }, [library, state, result, specimenText])
 
+  /*
+   * What Focus draws. The letters in the grid's order, and the first twelve
+   * of them drawn live — on every dial move, because seeing the change as it
+   * happens is the point, and a dozen glyphs is a fraction of the sixty-nine
+   * the grid defers. The context line and Compare's style-only letter can
+   * trail by a frame.
+   */
+  const focusChars = useMemo(() => {
+    if (!focusOpen || selected.size === 0) return []
+    const order = glyphSet?.glyphs.map((g) => g.ch) ?? []
+    const at = (c: string) => (order.indexOf(c) < 0 ? order.length : order.indexOf(c))
+    return [...selected].sort((a, b) => at(a) - at(b) || a.localeCompare(b))
+  }, [focusOpen, selected, glyphSet])
+  const focusLive = useMemo(() => {
+    if (!library || !state || focusChars.length === 0) return null
+    try {
+      const shown = focusChars.slice(0, FOCUS_MAX).join('')
+      return renderGlyphSet(library, state.fontId, state.chain, state.seed, state.overrides, shown)
+    } catch {
+      return null
+    }
+  }, [library, state, focusChars])
+  const trailing = useDeferredValue(state)
+  const focusStyle = useMemo(() => {
+    if (!library || !trailing || focusMode !== 'compare' || !focusChars[0]) return null
+    try {
+      // the same letter through the style alone: no exceptions of its own
+      return renderGlyphSet(library, trailing.fontId, trailing.chain, trailing.seed, undefined, focusChars[0])
+    } catch {
+      return null
+    }
+  }, [library, trailing, focusMode, focusChars])
+  const focusContext = useMemo(() => {
+    if (!library || !trailing || focusChars.length === 0) return null
+    try {
+      return render({
+        library,
+        fontId: trailing.fontId,
+        chain: trailing.chain,
+        text: contextFor(focusChars),
+        seed: trailing.seed,
+        alternates: trailing.alternates,
+        overrides: trailing.overrides,
+      })
+    } catch {
+      return null
+    }
+  }, [library, trailing, focusChars])
+
+  /*
+   * Open Focus — on a letter, which becomes the selection unless it is in it
+   * already, or on what is selected. A callback with the selection as its
+   * only input, so the memoised grid is not redrawn for a new function on
+   * renders where nothing it shows has changed.
+   */
+  const openFocus = useCallback(
+    (ch?: string) => {
+      const next = ch && !selected.has(ch) ? new Set([ch]) : selected
+      if (next !== selected) setSelected(next)
+      if (next.size === 0) return
+      setFocusMode(next.size > 1 ? 'several' : 'one')
+      setFocusOpen(true)
+    },
+    [selected],
+  )
+
+  /*
+   * Space opens Focus on the selection, the way it opens Quick Look on a
+   * selected file — but only when nothing else wants the key: a button, a
+   * field or a dial under focus keeps it.
+   */
+  useEffect(() => {
+    if (view !== 'bench' || focusOpen || selected.size === 0) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== ' ' || e.repeat) return
+      const t = e.target instanceof Element ? e.target : null
+      if (t?.closest('input, textarea, select, button, a, [contenteditable="true"]')) return
+      e.preventDefault()
+      setFocusMode(selected.size > 1 ? 'several' : 'one')
+      setFocusOpen(true)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [view, focusOpen, selected])
+
   if (error) {
     return (
       <main className="shell">
@@ -521,6 +615,14 @@ export default function App() {
   const resetOverrides = () => {
     patchOverrides((overrides) => {
       for (const ch of scopeChars) delete overrides[ch]
+    })
+  }
+
+  /** new randomness for one letter of the batch, from its Focus tile */
+  const rerollOne = (ch: string) => {
+    patchOverrides((overrides, chainLength) => {
+      const o = overrideFor(overrides, ch, chainLength)
+      o.nudge = (o.nudge ?? 0) + 1
     })
   }
 
@@ -706,6 +808,36 @@ export default function App() {
     )
   }
 
+  const panelEl = (
+    <Panel
+      treatment={treatment}
+      chain={state.chain}
+      active={step}
+      canAdd={state.chain.length < MAX_STEPS}
+      params={panelParams}
+      seed={state.seed}
+      alternates={state.alternates}
+      thumbs={layerThumbs}
+      onParam={setParam}
+      onSimplify={setSimplify}
+      onSelectStep={setActive}
+      onAddStep={addStep}
+      onRemoveStep={removeStep}
+      onResetStep={resetStep}
+      onSeed={(seed) => patch({ seed })}
+      onAlternates={(alternates) => patch({ alternates })}
+      scope={scopeChars}
+      overriddenKeys={overriddenKeys}
+      scopeHasOverrides={scopeChars.some((ch) => overriddenChars.has(ch))}
+      onClearScope={() => {
+        setSelected(new Set())
+        setFocusOpen(false)
+      }}
+      onResetOverrides={resetOverrides}
+      onReroll={reroll}
+    />
+  )
+
   return (
     <div className="wrap">
       {/*
@@ -778,6 +910,7 @@ export default function App() {
               overridden={overriddenChars}
               onSelect={setSelected}
               settling={settling}
+              onFocus={openFocus}
             />
           )}
           {/*
@@ -788,33 +921,35 @@ export default function App() {
           <Waterfall result={specimen ?? result} text={specimenText} />
         </main>
 
-        <Panel
-          treatment={treatment}
-          chain={state.chain}
-          active={step}
-          canAdd={state.chain.length < MAX_STEPS}
-          params={panelParams}
-          seed={state.seed}
-          alternates={state.alternates}
-          thumbs={layerThumbs}
-          onParam={setParam}
-          onSimplify={setSimplify}
-          onSelectStep={setActive}
-          onAddStep={addStep}
-          onRemoveStep={removeStep}
-          onResetStep={resetStep}
-          onSeed={(seed) => patch({ seed })}
-          onAlternates={(alternates) => patch({ alternates })}
-          scope={scopeChars}
-          overriddenKeys={overriddenKeys}
-          scopeHasOverrides={scopeChars.some((ch) => overriddenChars.has(ch))}
-          onClearScope={() => setSelected(new Set())}
-          onResetOverrides={resetOverrides}
-          onReroll={reroll}
-        />
+        {/* while Focus is open the panel lives in its rail — one panel, so no
+            two dials share an id — and the bench keeps the column's width */}
+        {focusOpen ? <div className="panel-away" aria-hidden="true" /> : panelEl}
       </div>
 
       <SignOff />
+
+      {focusOpen && focusChars.length > 0 && (
+        <Focus
+          mode={focusMode === 'several' && selected.size < 2 ? 'one' : focusMode}
+          onMode={setFocusMode}
+          chars={focusChars}
+          live={focusLive}
+          style={focusStyle}
+          context={focusContext}
+          font={library[state.fontId]}
+          all={glyphSet}
+          selected={selected}
+          overridden={overriddenChars}
+          onSelect={(next) => {
+            // nothing left to look at closes it
+            setSelected(next)
+            if (next.size === 0) setFocusOpen(false)
+          }}
+          onRerollOne={rerollOne}
+          onClose={() => setFocusOpen(false)}
+          rail={panelEl}
+        />
+      )}
 
       {/* the region is always there, so a screen reader hears what lands in it */}
       <div className="toast-region" role="status">
