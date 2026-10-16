@@ -135,27 +135,22 @@ because the same two are the whole job on any future host or domain.
 
 1. **Pages enabled.** Repo → Settings → Pages → **Source: GitHub Actions**. Custom domain
    `forfontsake.xyz`, *Enforce HTTPS* on. `http://` and `www.` both 301 to the apex.
-2. **DNS pointed at GitHub.** The domain is at **GoDaddy**, on their own nameservers
-   (`ns13/ns14.domaincontrol.com`), so the records are edited in GoDaddy's DNS panel:
-   *Domain portfolio → forfontsake.xyz → DNS → Records*.
+2. **DNS pointed at GitHub.** The domain is registered at **Cloudflare** and its DNS is
+   there too (`ali/brodie.ns.cloudflare.com`). It moved from GoDaddy on 16 October 2026 for
+   the cheaper renewals. Records are under *Cloudflare → forfontsake.xyz → DNS → Records*:
 
-   | Type | Name | Value |
-   | --- | --- | --- |
-   | `A` | `@` | `185.199.108.153` |
-   | `A` | `@` | `185.199.109.153` |
-   | `A` | `@` | `185.199.110.153` |
-   | `A` | `@` | `185.199.111.153` |
-   | `CNAME` | `www` | `itshendri.github.io` |
+   | Type | Name | Value | Proxy |
+   | --- | --- | --- | --- |
+   | `A` | `@` | `185.199.108.153` | DNS only |
+   | `A` | `@` | `185.199.109.153` | DNS only |
+   | `A` | `@` | `185.199.110.153` | DNS only |
+   | `A` | `@` | `185.199.111.153` | DNS only |
+   | `CNAME` | `www` | `itshendri.github.io` | DNS only |
 
-   Two GoDaddy-specific traps:
-
-   - **The apex already has an `A` record** pointing at GoDaddy's parking page
-     (`3.33.130.190` / `15.197.148.33` at the time of writing). Edit that one and delete any
-     other `@` records rather than adding alongside — leaving a parking record in place
-     means the domain resolves there part of the time, which looks like an intermittent
-     outage and is miserable to diagnose.
-   - **GoDaddy does not offer `ALIAS`/`ANAME` at the apex**, so the four `A` records are the
-     only route. That is why they are listed rather than offered as a fallback.
+   **Keep them grey (DNS only).** Proxied through Cloudflare, GitHub can no longer see the
+   domain to renew its Let's Encrypt certificate, and HTTPS fails months later when the
+   certificate expires. Cloudflare nags about this ("Proxy DNS records"); the nag is wrong
+   here. A leftover `_domainconnect` CNAME from GoDaddy does nothing and can go.
 
    Then Settings → Pages → Custom domain → `forfontsake.xyz`, wait for the certificate, and
    tick **Enforce HTTPS**.
@@ -180,6 +175,13 @@ Both are satisfied in the repo; keep them satisfied on the site.
 ## What this does *not* need
 
 Worth saying, because it is easy to over-build a static site: no accounts, no auth, no
-database, no server-side font processing, no CDN beyond what the host gives you, no
-analytics to launch. If usage ever justifies them, they can be added without changing the
-architecture — the app would keep working exactly as it does now with the network off.
+database, no server-side font processing, no CDN beyond what the host gives you. If usage
+ever justifies more, it can be added without changing the architecture — the app would keep
+working exactly as it does now with the network off.
+
+**Analytics, added October 2026:** Cloudflare Web Analytics (`src/lib/analytics.ts`), the
+manual JS snippet because the records are DNS only. Cookieless, so no consent banner; it
+loads only on `forfontsake.xyz`, and its beacon strips the query and hash before reporting,
+so a font's recipe never leaves the browser. Read it at *Cloudflare → Observability →
+Analytics → Web analytics*. The zone's own Analytics tab stays at zero — it counts proxied
+traffic only.
