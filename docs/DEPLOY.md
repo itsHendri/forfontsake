@@ -150,7 +150,7 @@ because the same two are the whole job on any future host or domain.
    **Keep them grey (DNS only).** Proxied through Cloudflare, GitHub can no longer see the
    domain to renew its Let's Encrypt certificate, and HTTPS fails months later when the
    certificate expires. Cloudflare nags about this ("Proxy DNS records"); the nag is wrong
-   here. A leftover `_domainconnect` CNAME from GoDaddy does nothing and can go.
+   here.
 
    Then Settings → Pages → Custom domain → `forfontsake.xyz`, wait for the certificate, and
    tick **Enforce HTTPS**.
