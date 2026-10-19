@@ -83,9 +83,13 @@ state and not the rendered outlines — see `src/lib/savedStyles.ts` for why tha
 A static site with no backend can go almost anywhere, so the decision is about constraints
 rather than capability.
 
-**Decided: GitHub Pages.** The repo is already public there, it is free for public repos
-including the custom domain and automatic TLS, and it needs no new account. Cloudflare Pages
-would work equally well; its advantage is bandwidth headroom this will not reach.
+**Decided: Cloudflare Workers (static assets), October 2026.** It launched on GitHub Pages
+— free, and the repo was already there. It moved because the domain, its DNS and the two
+other sites (tinypixeltown.com, halftonedesignsystem.com) all live on Cloudflare. Pages
+needed the records left grey (DNS only), which kept Cloudflare's HTTPS, bot and analytics
+settings from applying and left a standing pile of security-insight warnings. Workers with
+assets only and no script cost nothing and have no request quota. The site is the same
+`dist/` folder either way.
 
 ### Serve it from the domain root, from the very first deploy
 
@@ -103,15 +107,23 @@ logged. Anyone debugging that without knowing would go looking in `Plate.tsx`, w
 wrong place entirely.
 
 So attach the custom domain as part of the first deploy rather than testing on the github.io
-URL first. If a subpath deploy is ever genuinely wanted, set Vite's `base` **and** convert
+URL first (the Worker has no `*.workers.dev` address for the same reason). If a subpath deploy is ever genuinely wanted, set Vite's `base` **and** convert
 those absolute CSS URLs — changing one without the other reproduces exactly this bug.
 
 ### What is already done
 
-- `.github/workflows/deploy.yml` builds and publishes `dist/` to Pages on every push to
-  `main`. It runs `typecheck` and `test` first and will not publish a red build — for a
-  project whose whole claim is that the download works, that gate is the point. It uses
-  `npm run build`, not `build:workbench`.
+- **Workers Builds** (Cloudflare's CI, connected to this GitHub repo) builds and deploys on
+  every push to `main`:
+
+  ```
+  build:  npm ci && npm run typecheck && npm run test && npm run build && npm run check:dist
+  deploy: npx wrangler deploy
+  ```
+
+  `typecheck` and `test` come first and a red build does not deploy. For a project whose
+  whole claim is that the download works, that gate is the point. It uses `npm run build`,
+  not `build:workbench`. `.node-version` pins Node 24 for the build.
+- `wrangler.jsonc` serves `dist/` as static assets, with `workers_dev` and preview URLs off.
 - The Python venv is **not** needed in CI. It is only for `verify:font` and for recutting the
   preview subsets; those subsets are committed, and `make-glyph-data` warns and carries on
   when `fonttools` is missing rather than failing, leaving the committed ones in place.
@@ -119,42 +131,29 @@ those absolute CSS URLs — changing one without the other reproduces exactly th
   `public/glyph-data.json` is gitignored and the page *fetches* it at runtime. The first
   deploy went out without it and the site died on a 404 — `build` used to assume the file
   was already lying around from a `build:workbench` run, which is true on a machine that has
-  built the artifact and false everywhere else. A post-build step in the workflow now asserts
-  that everything fetched at runtime is actually in `dist/`.
-- `public/CNAME` carries `forfontsake.xyz`, so the apex domain is attached from the first
-  deploy rather than after a spell on the github.io subpath — which is the failure described
-  above.
+  built the artifact and false everywhere else. `npm run check:dist`
+  (`scripts/check-dist.sh`) asserts that everything fetched at runtime is actually in
+  `dist/`, and Workers Builds runs it before deploying.
 
-Before Pages was switched on the workflow was inert — the build ran and the deploy step
-failed with "Ensure GitHub Pages has been enabled", which is the harmless half of the run.
+### The settings a human had to flip
 
-### The two settings a human had to flip — both done
+Recorded because they are the live configuration, and because the same few are the whole job
+on any future host or domain. The domain is registered at **Cloudflare** and its DNS is there
+too (`ali/brodie.ns.cloudflare.com`). It moved from GoDaddy on 16 October 2026 for the cheaper
+renewals.
 
-Neither could be done from a shell. Recorded because they are the live configuration, and
-because the same two are the whole job on any future host or domain.
-
-1. **Pages enabled.** Repo → Settings → Pages → **Source: GitHub Actions**. Custom domain
-   `forfontsake.xyz`, *Enforce HTTPS* on. `http://` and `www.` both 301 to the apex.
-2. **DNS pointed at GitHub.** The domain is registered at **Cloudflare** and its DNS is
-   there too (`ali/brodie.ns.cloudflare.com`). It moved from GoDaddy on 16 October 2026 for
-   the cheaper renewals. Records are under *Cloudflare → forfontsake.xyz → DNS → Records*:
-
-   | Type | Name | Value | Proxy |
-   | --- | --- | --- | --- |
-   | `A` | `@` | `185.199.108.153` | DNS only |
-   | `A` | `@` | `185.199.109.153` | DNS only |
-   | `A` | `@` | `185.199.110.153` | DNS only |
-   | `A` | `@` | `185.199.111.153` | DNS only |
-   | `CNAME` | `www` | `itshendri.github.io` | DNS only |
-
-   **Keep them grey (DNS only).** Proxied through Cloudflare, GitHub can no longer see the
-   domain to renew its Let's Encrypt certificate, and HTTPS fails months later when the
-   certificate expires. Cloudflare nags about this ("Proxy DNS records"); the nag is wrong
-   here.
-
-   Then Settings → Pages → Custom domain → `forfontsake.xyz`, wait for the certificate, and
-   tick **Enforce HTTPS**.
-3. **Click Download on the deployed site.** The one check worth doing before telling anyone
+1. **Worker connected to the repo.** *Cloudflare → Workers & Pages → forfontsake → Settings →
+   Build*, with the build and deploy commands above.
+2. **Custom domains.** *Worker → Settings → Domains & Routes*: `forfontsake.xyz` and
+   `www.forfontsake.xyz`. Cloudflare creates and proxies the DNS records itself. The old
+   GitHub Pages records (four `A` records to `185.199.108–111.153` and `www` → `itshendri.github.io`)
+   had to be deleted first, because a custom domain won't attach over existing records.
+3. **`www` → apex.** *forfontsake.xyz → Rules → Redirect Rules*: `www.forfontsake.xyz/*` 301s to
+   `https://forfontsake.xyz/${1}`, keeping the query string. That matches what GitHub Pages did.
+4. **Always Use HTTPS** on (*SSL/TLS → Edge Certificates*), so `http://` 301s to `https://`.
+5. **GitHub Pages turned off** (repo → Settings → Pages), once the domains served from the
+   Worker.
+6. **Click Download on the deployed site.** The one check worth doing before telling anyone
    it exists.
 
 ---
@@ -183,5 +182,4 @@ working exactly as it does now with the network off.
 manual JS snippet because the records are DNS only. Cookieless, so no consent banner; it
 loads only on `forfontsake.xyz`, and its beacon strips the query and hash before reporting,
 so a font's recipe never leaves the browser. Read it at *Cloudflare → Observability →
-Analytics → Web analytics*. The zone's own Analytics tab stays at zero — it counts proxied
-traffic only.
+Analytics → Web analytics*. Since the move to Workers the zone's own Analytics tab counts traffic too.

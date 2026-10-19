@@ -7,6 +7,7 @@
     "predev": "npm run build:data",
     "dev": "vite",
     "build": "npm run build:data && tsc -b && vite build",
+    "check:dist": "sh scripts/check-dist.sh",
     "build:data": "tsx scripts/make-glyph-data.ts && cp out/glyph-data.json public/glyph-data.json",
     "build:font": "tsx scripts/build-font.ts",
     "build:share": "tsx scripts/make-share-image.ts",

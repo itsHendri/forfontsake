@@ -1,0 +1,13 @@
+// Cloudflare Workers, static assets only: no Worker script, so no request or CPU quotas apply.
+// Workers Builds runs on every push to main:
+//   build:  npm ci && npm run typecheck && npm run test && npm run build && npm run check:dist
+//   deploy: npx wrangler deploy
+// forfontsake.xyz and www are attached as custom domains in the dashboard; www 301s to the apex
+// through a zone redirect rule. See docs/DEPLOY.md.
+{
+  "name": "forfontsake",
+  "compatibility_date": "2026-10-06",
+  "workers_dev": false, // only forfontsake.xyz, no *.workers.dev address
+  "preview_urls": false,
+  "assets": { "directory": "./dist" }
+}
