@@ -1944,6 +1944,39 @@ room while it is open (so there is never a second copy of its controls), scoped 
 exactly as on the bench. Focus only adds render calls: up to twelve glyphs live, and the style
 and the context lines trailing a frame behind on a deferred state.
 
+## Compose in the Figma model
+
+Two complaints from Hendri on 23 October. **Static and Video was a mode nobody needed**: Video
+grew a second rail of settings, when a still is only a sheet whose motion is off. And **the rail
+felt like a form**: each layer swapped in a different block of it. A round of options went into
+Figma (band 11, after Canva, Figma, Framer, Jitter and Instagram's editor); he picked the one
+where what you select is what the panel edits, and asked to go all the way to Figma's room.
+Band 12 drew it with every setting Compose has, and the open questions were settled one at a
+time.
+
+- **Motion is a section of the sheet, not a mode.** Still, Pulse, Breathe or Shimmer. Picking a
+  motion plays it, shows the transport, and turns Download into Download MP4; its dials exist only
+  while it moves, and the sheet's first sections fold to one line so it fits. A bottom-bar mode
+  switch, Figma's own pattern, was drawn and turned down: one place for everything beat a second
+  room. Compose remembers whether it was moving (`motionOn`); a look kept before opens still.
+- **Layers on the left, always open; the selection on the right.** The canvas and the list select
+  the same things — the word, the paper, off the sheet for the sheet — and the list is the only
+  way to the finishes, which have nothing to click. Each finish that is on is a row under the
+  group, with × to take it off and "+ Add finish" for the rest; one turned off keeps its dials.
+- **Both export spots stay.** Export at the foot of the sheet panel, where Figma keeps it, and
+  Download in the bar. One list of choices behind both.
+- **On a phone, one sheet.** The layers turn sideways into four chips — sheet, finishes (one chip
+  with a count, opening the list), word, background — and the rest of the sheet is the
+  selection's properties. There is no select/hand bar: on glass you pinch and drag.
+- **Finish order stays fixed.** The drawing had drag to reorder; the shader's uniforms are
+  positional and the order is a fact about what each finish does (see *Finishes stack*), so the
+  list says top to bottom instead.
+
+Not built, because there is nothing behind them yet: zoom and pan (the sheet always fits), a
+Share… of its own in the bar (it still comes after a kit), and "Alternates", fill opacity and
+Cover/Fit, which were drawn but are not features. `composeLayers.ts` holds the list as data and is
+tested; the panels are `ComposeLayers.tsx` and `ComposePanels.tsx`.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the
