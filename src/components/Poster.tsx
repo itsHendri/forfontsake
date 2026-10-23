@@ -24,9 +24,9 @@ import { copyFor, copySets } from '../lib/copyBank'
 import { getTemplate } from '../lib/templates'
 import { TemplateGallery } from './TemplateGallery'
 import { Menu } from './Menu'
-import { ComposeLayers } from './ComposeLayers'
+import { ComposeLayers, LayerChips } from './ComposeLayers'
 import { EffectStack, FinishPanel, FinishesPanel, Section, Seg, Swatch } from './ComposePanels'
-import { finishOf, layerRows, type Selection } from '../lib/composeLayers'
+import { finishOf, layerRows, sheetSummary, type Selection } from '../lib/composeLayers'
 import { getTreatment } from '../engine/treatments/registry'
 import { DEFAULT_DEPTH, MODES, bindingsFor, getMode, modulate } from '../lib/modulate'
 import {
@@ -103,6 +103,17 @@ const SNAP_PX = 6
 const BAKE_MS = 150
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+
+/** where the room stops having two side panels and becomes a sheet over the poster */
+const PHONE = '(max-width: 900px)'
+
+/**
+ * The three heights the phone's sheet rests at: a peek that leaves the poster
+ * the screen, half, and most of it. In CSS units, so they hold through a
+ * rotation without anything measuring.
+ */
+const SNAPS = { peek: '176px', half: '46dvh', full: '86dvh' } as const
+type Snap = keyof typeof SNAPS
 
 /** a sheet coordinate as a percentage of the sheet, which is how the frame is laid out */
 const pct = (v: number, of: number) => `${(v / of) * 100}%`
@@ -270,6 +281,52 @@ export function Poster(p: Props) {
   const [selected, setSelected] = useState<Selection>('sheet')
   /** which finish is open in the Finishes list */
   const [openFinish, setOpenFinish] = useState<string | null>(null)
+
+  /*
+   * The phone's sheet: how far up it is. It rests at one of three heights and
+   * follows the hand between them, written straight to a CSS variable while
+   * the finger is down so a drag is not a render a pixel.
+   */
+  const [snap, setSnap] = useState<Snap>('peek')
+  const viewEl = useRef<HTMLDivElement>(null)
+  const gripRef = useRef<{ y: number; h: number; moved: boolean } | null>(null)
+  useEffect(() => {
+    viewEl.current?.style.setProperty('--sheet-h', SNAPS[snap])
+  }, [snap])
+  const onGripDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const rail = e.currentTarget.closest('.sheet-rail')
+    if (!rail) return
+    gripRef.current = { y: e.clientY, h: rail.getBoundingClientRect().height, moved: false }
+    e.currentTarget.setPointerCapture(e.pointerId)
+    viewEl.current?.classList.add('is-dragging')
+  }
+  const onGripMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const g = gripRef.current
+    if (!g) return
+    const dy = g.y - e.clientY
+    if (Math.abs(dy) > 4) g.moved = true
+    if (!g.moved) return
+    viewEl.current?.style.setProperty('--sheet-h', `${clamp(g.h + dy, 120, window.innerHeight * 0.9)}px`)
+  }
+  const onGripUp = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const g = gripRef.current
+    gripRef.current = null
+    viewEl.current?.classList.remove('is-dragging')
+    if (!g) return
+    let next: Snap
+    if (!g.moved) {
+      // a tap is the short way: up to half, or back down to the peek
+      next = snap === 'peek' ? 'half' : 'peek'
+    } else {
+      // wherever it was let go, it settles on the nearest of the three
+      const h = clamp(g.h + (g.y - e.clientY), 120, window.innerHeight * 0.9)
+      const px = { peek: 176, half: window.innerHeight * 0.46, full: window.innerHeight * 0.86 }
+      next = (Object.keys(px) as Snap[]).reduce((a, b) => (Math.abs(px[b] - h) < Math.abs(px[a] - h) ? b : a))
+    }
+    setSnap(next)
+    // set here as well: letting go at the height it already had changes no state
+    viewEl.current?.style.setProperty('--sheet-h', SNAPS[next])
+  }
   /** colours set by hand, over whatever the palette roll last landed on */
   const [colours, setColours] = useState<Partial<PosterPalette>>(look.colours)
   /** what the sheet is printed on: a drawn texture, or a picture you brought */
@@ -1383,10 +1440,15 @@ export function Poster(p: Props) {
     picture: pictureFx,
     motionOn,
   })
-  /** the list and the canvas select the same things; the word's frame comes with it */
+  /**
+   * The list and the canvas select the same things; the word's frame comes
+   * with it. On a phone a chip is also a request to see the panel, so a
+   * sheet sitting at its peek comes up to half.
+   */
   const select = (sel: Selection) => {
     setSelected(sel)
     setFramed(sel === 'word' && layout.id === 'word')
+    if (snap === 'peek' && window.matchMedia(PHONE).matches) setSnap('half')
   }
   /** a finish back on, with the dials it was left at, opened where you asked for it */
   const addFinish = (id: string) => {
@@ -1406,7 +1468,11 @@ export function Poster(p: Props) {
   /** what the panel's head says: the kind of thing, its name, and a line about it */
   const head: [string, string, string] =
     selected === 'sheet'
-      ? ['#', 'Sheet', `${layout.name.toLowerCase()} · ${format.name.toLowerCase()} · seed ${sheetSeed}`]
+      ? [
+          '#',
+          'Sheet',
+          `${sheetSummary({ layout, format, motion: motionOn ? getMode(motionModeId).name : null })} · seed ${sheetSeed}`,
+        ]
       : selected === 'word'
         ? ['T', wordRow.name, layout.id === 'word' ? 'the word from the workbench' : layout.note]
         : selected === 'background'
@@ -1416,7 +1482,7 @@ export function Poster(p: Props) {
             : ['✦', 'Finishes', 'passes over the whole printed sheet, top to bottom']
 
   return (
-    <div className="sheet-view">
+    <div className="sheet-view" ref={viewEl}>
       <header className="sheet-bar">
         <b className="sheet-name">{chainName}</b>
         <span className="sheet-font">on {p.font.label}</span>
@@ -1620,6 +1686,19 @@ export function Poster(p: Props) {
           nothing selected means the sheet itself.
         */}
         <aside className="sheet-rail" aria-label={`${head[1]} properties`}>
+          {/* a phone's way in: the grip that sizes the sheet, and the layers as chips */}
+          <div className="sheet-rail-top">
+            <button
+              type="button"
+              className="sheet-grip"
+              aria-label={snap === 'peek' ? 'Show more of the panel' : 'Show less of the panel'}
+              onPointerDown={onGripDown}
+              onPointerMove={onGripMove}
+              onPointerUp={onGripUp}
+              onPointerCancel={onGripUp}
+            />
+            <LayerChips rows={rows} selected={selected} onSelect={select} finishes={finishes} />
+          </div>
           <header className="inspector-head">
             <h2>
               <span className="layer-icon" aria-hidden="true">

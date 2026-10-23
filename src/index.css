@@ -1029,26 +1029,75 @@ h1 {
   text-decoration: underline;
 }
 
+/* On a phone the two panels are one sheet over the bottom of the poster: the
+   layers as chips across its top, the selection's properties under them. It
+   rests at three heights (see SNAPS in Poster.tsx) and the poster keeps to
+   whatever is left above it, so a change is seen while it is made. */
 @media (max-width: 900px) {
+  .sheet-view {
+    --sheet-h: 176px;
+    height: 100dvh;
+  }
   .sheet-body {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto auto;
-    overflow-y: auto;
+    display: block;
+    position: relative;
+    overflow: hidden;
   }
-  .sheet-stage,
-  .template-gallery {
-    grid-column: 1;
+  .sheet-layers {
+    display: none;
   }
-  .sheet-layers,
-  .sheet-rail {
-    grid-column: 1;
-    grid-row: auto;
-    overflow: visible;
-    border: 0;
-    border-top: 1px solid var(--rule);
+  /* above the sheet, so Download's action sheet opens over it */
+  .sheet-bar {
+    z-index: 30;
+  }
+  .sheet-stage {
+    height: calc(100% - var(--sheet-h));
+    padding: 12px 16px;
   }
   .sheet-stage canvas {
-    max-height: 60vh;
+    max-height: calc(100dvh - var(--sheet-h) - 96px);
+  }
+  .sheet-stage.has-transport canvas {
+    max-height: calc(100dvh - var(--sheet-h) - 150px);
+  }
+  .template-gallery {
+    position: absolute;
+    inset: 0 0 var(--sheet-h) 0;
+    padding: 12px 16px 0;
+  }
+  .sheet-rail {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    height: var(--sheet-h);
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    border: 0;
+    border-radius: 18px 18px 0 0;
+    background: var(--paper);
+    box-shadow: 0 -6px 28px color-mix(in srgb, var(--ink) 16%, transparent);
+    transition: height 0.22s ease-out;
+  }
+  .sheet-view.is-dragging .sheet-rail {
+    transition: none;
+  }
+  .sheet-rail .sheet-rail-top {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 0 0 10px;
+    border-bottom: 1px solid var(--rule);
+    background: var(--paper);
+  }
+  .inspector-head {
+    padding-top: 12px;
+  }
+}
+@media (max-width: 900px) and (prefers-reduced-motion: reduce) {
+  .sheet-rail {
+    transition: none;
   }
 }
 
@@ -1060,32 +1109,42 @@ h1 {
 @media (max-width: 620px) {
   .sheet-bar {
     flex-wrap: wrap;
-    row-gap: 10px;
+    gap: 8px 10px;
     padding: 10px 16px;
   }
   .mode-switch {
     order: 3;
     margin: 0;
   }
-  .sheet-close {
-    order: 2;
-    margin-left: auto;
-  }
-  .sheet-export {
-    order: 5;
-    flex: 1 1 auto;
-  }
-  .sheet-export .with-tip {
-    flex: 1 1 auto;
-  }
-  .sheet-export .save {
-    width: 100%;
+  /* one line: the name gives way, Download and the close keep their size */
+  .sheet-bar .sheet-name {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   .sheet-font {
-    font-size: 11px;
+    display: none;
   }
-  .sheet-stage {
-    padding: 14px 16px 18px;
+  /* Download's menu opens as an action sheet from the bottom of the screen,
+     over the panel, the way a phone asks what to do with a thing */
+  .sheet-export .menu-panel {
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 40;
+    min-width: 0;
+    max-width: none;
+    padding: 10px 10px calc(14px + env(safe-area-inset-bottom));
+    border: 0;
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -8px 40px rgb(0 0 0 / 0.22);
+  }
+  .sheet-export .menu-item {
+    padding: 13px 12px;
   }
 }
 
@@ -3257,4 +3316,59 @@ button.saved-confirm-delete:hover:not(:disabled) {
 }
 .finish-item-body .linkish {
   align-self: flex-start;
+}
+
+/* the phone's way into the sheet: hidden until the panels become one */
+.sheet-rail-top {
+  display: none;
+}
+.sheet-grip {
+  display: block;
+  width: 100%;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: grab;
+  touch-action: none;
+}
+.sheet-grip::before {
+  content: '';
+  display: block;
+  width: 36px;
+  height: 4px;
+  margin: 9px auto 0;
+  border-radius: 2px;
+  background: var(--rule);
+}
+/* the layers turned sideways: four chips, scrolling if a long word needs it */
+.layer-chips {
+  display: flex;
+  gap: 6px;
+  padding: 0 16px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.layer-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 13px;
+  border: 1px solid var(--rule);
+  border-radius: 17px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.layer-chip.is-on {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 500;
+}
+.layer-chip-count {
+  font-size: 11px;
+  opacity: 0.75;
 }
