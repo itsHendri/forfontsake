@@ -5,7 +5,6 @@ import {
   dissolveFor,
   FORMATS,
   getFormat,
-  getGround,
   GROUNDS,
   LAYOUTS,
   getLayout,
@@ -14,7 +13,6 @@ import {
   snapAngle,
   snapLines,
   POSTER_PALETTES,
-  type PosterLayout,
   type PosterPalette,
   type WordTransform,
 } from '../lib/poster'
@@ -26,6 +24,9 @@ import { copyFor, copySets } from '../lib/copyBank'
 import { getTemplate } from '../lib/templates'
 import { TemplateGallery } from './TemplateGallery'
 import { Menu } from './Menu'
+import { ComposeLayers } from './ComposeLayers'
+import { EffectStack, FinishPanel, FinishesPanel, Section, Seg, Swatch } from './ComposePanels'
+import { finishOf, layerRows, type Selection } from '../lib/composeLayers'
 import { getTreatment } from '../engine/treatments/registry'
 import { DEFAULT_DEPTH, MODES, bindingsFor, getMode, modulate } from '../lib/modulate'
 import {
@@ -42,7 +43,6 @@ import {
   FINISHES,
   PICTURE_EFFECTS,
   createFinishView,
-  type Finish,
   type FinishState,
   type FinishView,
 } from '../lib/finish'
@@ -65,60 +65,6 @@ interface Props {
 
 const IDENTITY: WordTransform = { dx: 0, dy: 0, scale: 1, rotate: 0 }
 
-/**
- * The sheet, stated as its layers — topmost first, the way every layer list
- * in the world reads.
- *
- * `sub` is what the row says about itself without being opened, which is the
- * whole reason the list is worth having: you can see the sheet is on two
- * finishes and a story format without selecting anything.
- */
-const LAYERS: {
-  id: 'background' | 'type' | 'finishes'
-  name: (layout: PosterLayout) => string
-  sub: (s: {
-    palette: PosterPalette
-    finishes: FinishState
-    layout: PosterLayout
-    wordT: WordTransform
-    ground: string
-    backdrop: string | null
-    picture: FinishState
-  }) => string
-  /** which colour the row shows a chip of, if any */
-  swatch?: 'paper' | 'ink'
-}[] = [
-  {
-    id: 'finishes',
-    name: () => 'Finishes',
-    sub: ({ finishes }) => {
-      const on = FINISHES.filter((f) => finishes[f.id]?.on).map((f) => f.name.toLowerCase())
-      return on.length > 0 ? on.join(' · ') : 'none'
-    },
-  },
-  {
-    id: 'type',
-    name: (layout) => layout.name,
-    sub: ({ layout, wordT }) =>
-      layout.id !== 'word'
-        ? 'set to the sheet'
-        : wordT.dx === 0 && wordT.dy === 0 && wordT.scale === 1
-          ? 'centred'
-          : `placed · ${wordT.scale.toFixed(2)}×`,
-    swatch: 'ink',
-  },
-  {
-    id: 'background',
-    name: () => 'Background',
-    sub: ({ ground, backdrop, picture }) => {
-      if (!backdrop) return getGround(ground).name.toLowerCase()
-      const on = PICTURE_EFFECTS.filter((f) => picture[f.id]?.on).map((f) => f.name.toLowerCase())
-      return on.length > 0 ? `your picture · ${on.join(' · ')}` : 'your picture'
-    },
-    swatch: 'paper',
-  },
-]
-
 /** a ground drawn small, for the picker — the same function that draws the sheet */
 function groundArt(id: string, palette: PosterPalette): string {
   /*
@@ -133,151 +79,6 @@ function groundArt(id: string, palette: PosterPalette): string {
   return `<svg viewBox="0 0 360 240" width="100%" height="100%" preserveAspectRatio="none">${
     (GROUNDS.find((g) => g.id === id) ?? GROUNDS[0]).draw(360, 240, palette)
   }</svg>`
-}
-
-/**
- * One colour, on the layer it belongs to.
- *
- * The platform's own picker rather than a grid of swatches: it is the control
- * people already know, it is reachable from the keyboard, and a sheet is a
- * thing somebody wants an exact colour on. The hex is shown because it is what
- * gets typed into the thing this ends up next to.
- */
-function Swatch({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
-  const id = `swatch-${label.replace(/\W+/g, '-').toLowerCase()}`
-  /*
-   * One colour a frame, latest wins.
-   *
-   * Dragging across the picker's spectrum fires an event a pixel, and every
-   * one of them repaints the sheet and re-uploads two textures. Nobody can see
-   * more than one colour a frame, so the ones in between are work for a
-   * picture that is never shown.
-   */
-  // What the picker is showing. It has to be this component's own state and
-  // it has to move on the event: a controlled input whose value prop is a
-  // frame behind gets snapped back to the old colour by the render in between,
-  // and the swatch fights the hand dragging it.
-  const [shown, setShown] = useState(value)
-  useEffect(() => {
-    setShown(value)
-  }, [value])
-  const pending = useRef<string | null>(null)
-  const frame = useRef<number | null>(null)
-  const latest = useRef(onChange)
-  latest.current = onChange
-  useEffect(
-    () => () => {
-      if (frame.current !== null) cancelAnimationFrame(frame.current)
-    },
-    [],
-  )
-  const take = (v: string) => {
-    pending.current = v
-    if (frame.current !== null) return
-    frame.current = requestAnimationFrame(() => {
-      frame.current = null
-      const next = pending.current
-      pending.current = null
-      if (next !== null) latest.current(next)
-    })
-  }
-  return (
-    <div className="swatch-row">
-      <label htmlFor={id}>{label}</label>
-      <span className="swatch-value">{shown.toUpperCase()}</span>
-      <input
-        id={id}
-        type="color"
-        className="swatch"
-        value={shown}
-        onChange={(e) => {
-          setShown(e.target.value)
-          take(e.target.value)
-        }}
-      />
-    </div>
-  )
-}
-
-/**
- * A stack of switch-gated effects with their dials.
- *
- * Dimmed rather than absent when off, which is Ditther's one really good idea
- * and the reason its rail holds twelve of these where ours held five: you can
- * see what you are not using and what turning it on would cost. Shared by the
- * finishes over the whole sheet and the effects on a picture, because two
- * copies of this would be two things to keep agreeing.
- */
-function EffectStack({
-  list,
-  state,
-  onChange,
-  idPrefix,
-}: {
-  list: Finish[]
-  state: FinishState
-  onChange: (next: (v: FinishState) => FinishState) => void
-  idPrefix: string
-}) {
-  return (
-    <>
-      {list.map((f) => {
-        const held = state[f.id]
-        const on = !!held?.on
-        return (
-          <div className={on ? 'finish' : 'finish is-off'} key={f.id}>
-            <div className="finish-head">
-              <span className="finish-name">{f.name}</span>
-              <input
-                type="checkbox"
-                role="switch"
-                className="ctl-switch"
-                checked={on}
-                aria-label={f.name}
-                onChange={(e) => onChange((v) => ({ ...v, [f.id]: { ...v[f.id], on: e.target.checked } }))}
-              />
-            </div>
-            <p className="note">{f.blurb}</p>
-            {f.params.map((spec) => {
-              const id = `${idPrefix}-${f.id}-${spec.key}`
-              const at = held?.params[spec.key] ?? spec.default
-              return (
-                <div className="ctl" key={spec.key}>
-                  <div className="ctl-head">
-                    <label htmlFor={id}>{spec.label}</label>
-                    <output htmlFor={id} className={at === spec.default ? 'is-default' : undefined}>
-                      {at}
-                    </output>
-                  </div>
-                  <input
-                    id={id}
-                    type="range"
-                    min={spec.min}
-                    max={spec.max}
-                    step={spec.step}
-                    disabled={!on}
-                    value={at}
-                    onChange={(e) =>
-                      onChange((v) => ({
-                        ...v,
-                        [f.id]: { ...v[f.id], params: { ...v[f.id].params, [spec.key]: Number(e.target.value) } },
-                      }))
-                    }
-                    onDoubleClick={() =>
-                      onChange((v) => ({
-                        ...v,
-                        [f.id]: { ...v[f.id], params: { ...v[f.id].params, [spec.key]: spec.default } },
-                      }))
-                    }
-                  />
-                </div>
-              )
-            })}
-          </div>
-        )
-      })}
-    </>
-  )
 }
 
 // The geometry rebuilds as fast as the chain can afford — a light chain on a
@@ -359,6 +160,8 @@ export function Poster(p: Props) {
   const [formatId, setFormatId] = useState(look.formatId)
   const [motionModeId, setMotionModeId] = useState(look.motionModeId)
   const [busy, setBusy] = useState(false)
+  /** the type the Export section is set to; the bar's Download asks each time */
+  const [exportPick, setExportPick] = useState('png')
   // a message about the export belongs beside the export, in the bar
   const [exportNote, setExportNote] = useState<string | null>(null)
   /*
@@ -456,15 +259,17 @@ export function Poster(p: Props) {
   const [pictureFx, setPictureFx] = useState<FinishState>(look.pictureFx)
 
   /*
-   * Which layer the rail is editing, or null for the sheet's own settings.
+   * What is selected, which is what the right panel edits — the sheet when
+   * nothing else is, the way Figma shows the frame.
    *
    * The room had one rail showing everything at once, so colour was a button
    * that cycled six palettes — the only shape a control can take when it has
-   * nothing to belong to. With the sheet stated as its layers, colour is a
-   * property of the one you picked, which is what "recolour" was always
-   * reaching for.
+   * nothing to belong to. With the sheet stated as its layers, every setting
+   * has an owner, and selecting the owner is how you reach it.
    */
-  const [selected, setSelected] = useState<'background' | 'type' | 'finishes' | null>(null)
+  const [selected, setSelected] = useState<Selection>('sheet')
+  /** which finish is open in the Finishes list */
+  const [openFinish, setOpenFinish] = useState<string | null>(null)
   /** colours set by hand, over whatever the palette roll last landed on */
   const [colours, setColours] = useState<Partial<PosterPalette>>(look.colours)
   /** what the sheet is printed on: a drawn texture, or a picture you brought */
@@ -502,7 +307,7 @@ export function Poster(p: Props) {
    * thing to back out of, and once there is nothing selected the next press
    * leaves.
    */
-  const selectedRef = useRef<string | null>(null)
+  const selectedRef = useRef<Selection>('sheet')
   const deselectRef = useRef<() => void>(() => {})
   const galleryRef = useRef(false)
   useEffect(() => {
@@ -516,7 +321,7 @@ export function Poster(p: Props) {
         setGallery(false)
         return
       }
-      if (selectedRef.current !== null) {
+      if (selectedRef.current !== 'sheet') {
         deselectRef.current()
         return
       }
@@ -977,7 +782,7 @@ export function Poster(p: Props) {
     closeRef.current = handleClose
     selectedRef.current = selected
     deselectRef.current = () => {
-      setSelected(null)
+      setSelected('sheet')
       setFramed(false)
     }
   })
@@ -1350,7 +1155,7 @@ export function Poster(p: Props) {
    */
   const onStagePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (layout.id === 'word' && onWord(e.clientX, e.clientY)) {
-      setSelected('type')
+      setSelected('word')
       startGesture('move', e)
       return
     }
@@ -1358,7 +1163,8 @@ export function Poster(p: Props) {
     // the ground is the last thing under everything — a press off the sheet
     // goes back to the sheet's own settings
     const at = toPoint(e.clientX, e.clientY)
-    setSelected(at ? 'background' : null)
+    const inside = !!at && at.x >= 0 && at.y >= 0 && at.x <= format.w && at.y <= format.h
+    setSelected(inside ? 'background' : 'sheet')
   }
 
   /*
@@ -1532,6 +1338,82 @@ export function Poster(p: Props) {
     label: 'Post kit · .zip',
     note: `Word, set and specimen${template ? ` and the ${layout.name.toLowerCase()}` : ''} at 4:5, the clip at 4:5 and 9:16 (${length}s), and a caption — one week's post.`,
   }
+  /*
+   * What can be downloaded, which follows the motion: a still sheet is a
+   * picture or a vector, a moving one is a clip. The same list behind the
+   * Download button in the bar and the Export section at the foot of the
+   * sheet — both kept, the way Figma keeps both.
+   */
+  const exportItems = motionOn
+    ? [
+        {
+          id: 'mp4',
+          label: `${canRender === false ? 'Record' : 'Render'} MP4 · ${length}s`,
+          note:
+            canRender === false
+              ? 'This browser cannot render a clip frame by frame, so it records the sheet as it plays — a heavy chain will step.'
+              : `${format.w} × ${format.h}, ${FPS} fps, silent — every frame drawn exactly, and the last runs into the first.`,
+        },
+        KIT_ITEM,
+      ]
+    : [
+        {
+          id: 'png',
+          label: 'PNG · 2×',
+          note: `${format.w} × ${format.h}, drawn again at 2× so it holds up posted large.`,
+        },
+        {
+          id: 'svg',
+          label: 'SVG',
+          note: 'Letterforms only — a finish is pixels, so it cannot travel in a vector file.',
+        },
+        KIT_ITEM,
+      ]
+  const exportType = exportItems.some((it) => it.id === exportPick) ? exportPick : exportItems[0].id
+  const exportBusy = busy || recording || !!progress
+
+  const rows = layerRows({
+    layout,
+    word: p.word,
+    format,
+    finishes,
+    wordT,
+    ground: groundId,
+    backdrop,
+    picture: pictureFx,
+    motionOn,
+  })
+  /** the list and the canvas select the same things; the word's frame comes with it */
+  const select = (sel: Selection) => {
+    setSelected(sel)
+    setFramed(sel === 'word' && layout.id === 'word')
+  }
+  /** a finish back on, with the dials it was left at, opened where you asked for it */
+  const addFinish = (id: string) => {
+    setFinishes((v) => ({ ...v, [id]: { ...v[id], on: true } }))
+    setOpenFinish(id)
+    if (selected !== 'finishes') setSelected(`finish:${id}`)
+  }
+  const removeFinish = (id: string) => {
+    setFinishes((v) => ({ ...v, [id]: { ...v[id], on: false } }))
+    if (selected === `finish:${id}`) setSelected('finishes')
+  }
+  const selectedFinish = finishOf(selected)
+  const wordRow = rows.find((r) => r.sel === 'word')!
+  // with motion on, the sheet's first sections fold to a line so Motion fits
+  const fold = (line: string) => (motionOn ? line : undefined)
+
+  /** what the panel's head says: the kind of thing, its name, and a line about it */
+  const head: [string, string, string] =
+    selected === 'sheet'
+      ? ['#', 'Sheet', `${layout.name.toLowerCase()} · ${format.name.toLowerCase()} · seed ${sheetSeed}`]
+      : selected === 'word'
+        ? ['T', wordRow.name, layout.id === 'word' ? 'the word from the workbench' : layout.note]
+        : selected === 'background'
+          ? ['▢', 'Background', backdrop ? 'your picture, under the type' : 'the paper under the type']
+          : selectedFinish
+            ? ['✦', selectedFinish.name, 'a pass over the whole printed sheet']
+            : ['✦', 'Finishes', 'passes over the whole printed sheet, top to bottom']
 
   return (
     <div className="sheet-view">
@@ -1539,28 +1421,11 @@ export function Poster(p: Props) {
         <b className="sheet-name">{chainName}</b>
         <span className="sheet-font">on {p.font.label}</span>
 
-        <label className="visually-hidden" htmlFor="sheet-format">
-          Sheet size
-        </label>
-        <select
-          id="sheet-format"
-          className="sheet-format"
-          value={format.id}
-          disabled={recording || !!progress}
-          onChange={(e) => setFormatId(e.target.value)}
-        >
-          {FORMATS.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.name} {f.ratio} · {f.w} × {f.h}
-            </option>
-          ))}
-        </select>
         {/*
           The way out with the artefact, in the bar rather than at the foot of
           a rail you have to reach the bottom of. One type and one button: a
           second row of verbs beside a download is furniture, and the type
-          already says what they said. What each type gives you rides the
-          button as a tooltip, the way the workbench's download does.
+          already says what they said.
         */}
         <div className="sheet-export">
           {progress ? (
@@ -1581,40 +1446,12 @@ export function Poster(p: Props) {
             <button type="button" className="is-live" onClick={() => void finishRecording()}>
               Stop · {recSeconds}s
             </button>
-          ) : motionOn ? (
-            <Menu
-              label="Download MP4"
-              items={[
-                {
-                  id: 'mp4',
-                  label: `${canRender === false ? 'Record' : 'Render'} MP4 · ${length}s`,
-                  note:
-                    canRender === false
-                      ? 'This browser cannot render a clip frame by frame, so it records the sheet as it plays — a heavy chain will step.'
-                      : `${format.w} × ${format.h}, ${FPS} fps, silent — every frame drawn exactly, and the last runs into the first.`,
-                },
-                KIT_ITEM,
-              ]}
-              onPick={download}
-            />
           ) : (
             <Menu
-              label="Download"
+              label={motionOn ? 'Download MP4' : 'Download'}
               busyLabel={busy ? 'Rendering…' : null}
               disabled={busy}
-              items={[
-                {
-                  id: 'png',
-                  label: 'PNG · 2×',
-                  note: `${format.w} × ${format.h}, drawn again at 2× so it holds up posted large.`,
-                },
-                {
-                  id: 'svg',
-                  label: 'SVG',
-                  note: 'Letterforms only — a finish is pixels, so it cannot travel in a vector file.',
-                },
-                KIT_ITEM,
-              ]}
+              items={exportItems}
               onPick={download}
             />
           )}
@@ -1652,6 +1489,17 @@ export function Poster(p: Props) {
       </header>
 
       <div className="sheet-body">
+        <aside className="sheet-layers" aria-label="Layers">
+          <ComposeLayers
+            rows={rows}
+            selected={selected}
+            onSelect={select}
+            finishes={finishes}
+            onAdd={addFinish}
+            onRemove={removeFinish}
+          />
+        </aside>
+
         <div
           className={[
             'sheet-stage',
@@ -1765,451 +1613,470 @@ export function Poster(p: Props) {
             onClose={() => setGallery(false)}
           />
         )}
-        <aside className="sheet-rail">
-          {/*
-            The sheet, said as its layers.
 
-            Everything used to be on the rail at once, which is why colour was
-            a button that cycled six palettes: with nothing to belong to, that
-            is the only shape the control could take. Naming the layers gives
-            every property an owner — and it is the same list the workbench
-            keeps, on purpose, so the two rooms are read the same way.
-          */}
-          <div className="group">
-            <h2>Layers</h2>
-            <div className="layer-list">
-              {LAYERS.map((l) => {
-                const on = selected === l.id
-                return (
-                  <button
-                    type="button"
-                    key={l.id}
-                    className={on ? 'layer-row is-on' : 'layer-row'}
-                    aria-pressed={on}
-                    onClick={() => setSelected(l.id)}
-                  >
-                    <span className="layer-row-text">
-                      <span className="layer-row-name">{l.name(layout)}</span>
-                      <span className="layer-row-sub">
-                        {l.sub({ palette, finishes, layout, wordT, ground: groundId, backdrop, picture: pictureFx })}
-                      </span>
-                    </span>
-                    {l.swatch && (
-                      <span className="layer-row-swatch" style={{ background: palette[l.swatch] }} aria-hidden="true" />
-                    )}
-                  </button>
-                )
-              })}
-              {/*
-                The sheet itself, at the foot of its own layers.
+        {/*
+          The selection's properties — Figma's right panel. Whatever is
+          selected on the canvas or in the list is what this edits, and
+          nothing selected means the sheet itself.
+        */}
+        <aside className="sheet-rail" aria-label={`${head[1]} properties`}>
+          <header className="inspector-head">
+            <h2>
+              <span className="layer-icon" aria-hidden="true">
+                {head[0]}
+              </span>{' '}
+              {head[1]}
+            </h2>
+            <p>{head[2]}</p>
+          </header>
 
-                It was the state of having nothing selected, and the only way
-                back to it was clicking the highlighted row a second time —
-                which nothing said, so the layout picker and the two rolls read
-                as gone the moment you touched a layer. A row you can see is a
-                row you can press.
-              */}
-              <button
-                type="button"
-                className={selected === null ? 'layer-row is-sheet is-on' : 'layer-row is-sheet'}
-                aria-pressed={selected === null}
-                onClick={() => setSelected(null)}
-              >
-                <span className="layer-row-text">
-                  <span className="layer-row-name">Sheet</span>
-                  <span className="layer-row-sub">
-                    {layout.name.toLowerCase()} · {format.name.toLowerCase()} · seed {sheetSeed}
-                  </span>
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {/* The sheet itself: how it is laid out, and the two rolls that move
-              everything at once. */}
-          {selected === null && (
-            <div className="group ruled">
-              <h2>Sheet</h2>
-              <div className="layout-pick">
-                {pickable.map((l, i) => {
-                  const on = l.id === layout.id
-                  return (
-                    <button
-                      type="button"
-                      key={l.id}
-                      className={`layout-cell${on ? ' is-on' : ''}`}
-                      aria-pressed={on}
-                      title={l.note}
-                      onClick={() => setLayoutId(l.id)}
-                    >
-                      {layoutThumbs[i] ? (
-                        <img src={layoutThumbs[i]!} alt="" />
-                      ) : (
-                        <span className="layout-blank" />
-                      )}
-                      <span>{l.name}</span>
-                    </button>
-                  )
-                })}
-              </div>
-              <button
-                type="button"
-                className={gallery ? 'gallery-open is-live' : 'gallery-open'}
-                aria-pressed={gallery}
-                onClick={() => setGallery((g) => !g)}
-              >
-                {gallery ? 'Back to the sheet' : 'Browse all templates'}
-              </button>
-              {motionOn && steppy && (
-                <p className="note">
-                  This chain redraws {layout.id === 'chars' ? 'the character set' : 'the word'} about{' '}
-                  {framesPerSecond!.toFixed(1)} times a second, so the letters will step between
-                  shapes rather than morph through them. A lighter chain, or one layer fewer, moves
-                  smoothly.
-                </p>
-              )}
-              <div className="row">
-                <button type="button" onClick={() => setSheetSeed(Math.floor(Math.random() * 9999) + 1)}>
-                  Randomise
-                </button>
+          {selected === 'sheet' && (
+            <>
+              <Section key={`layout-${motionOn}`} title="Layout" fold={fold(layout.name)}>
+                <div className="layout-pick">
+                  {pickable.map((l, i) => {
+                    const on = l.id === layout.id
+                    return (
+                      <button
+                        type="button"
+                        key={l.id}
+                        className={`layout-cell${on ? ' is-on' : ''}`}
+                        aria-pressed={on}
+                        title={l.note}
+                        onClick={() => setLayoutId(l.id)}
+                      >
+                        {layoutThumbs[i] ? <img src={layoutThumbs[i]!} alt="" /> : <span className="layout-blank" />}
+                        <span>{l.name}</span>
+                      </button>
+                    )
+                  })}
+                </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setPaletteIndex((i) => i + 1)
-                    // a roll is a whole sheet, so it clears what was set by hand
-                    setColours({})
-                  }}
+                  className={gallery ? 'gallery-open is-live' : 'gallery-open'}
+                  aria-pressed={gallery}
+                  onClick={() => setGallery((g) => !g)}
                 >
-                  Recolour
+                  {gallery ? 'Back to the sheet' : 'Browse all templates'}
                 </button>
-              </div>
-            </div>
+              </Section>
+
+              {/* The sheet's size is a property of the sheet, not of the export. */}
+              <Section
+                key={`format-${motionOn}`}
+                title="Format"
+                fold={fold(`${format.name} ${format.ratio}`)}
+                aside={
+                  <span className="inspector-aside">
+                    {format.w} × {format.h}
+                  </span>
+                }
+              >
+                <Seg
+                  label="Sheet size"
+                  items={FORMATS.map((f) => ({ id: f.id, name: `${f.name} ${f.ratio}`, title: `${f.w} × ${f.h}` }))}
+                  value={format.id}
+                  disabled={recording || !!progress}
+                  onChange={setFormatId}
+                />
+              </Section>
+
+              <Section
+                key={`colours-${motionOn}`}
+                title="Colours"
+                fold={fold(`${palette.paper.toUpperCase()} · ${palette.ink.toUpperCase()}`)}
+                aside={
+                  <button
+                    type="button"
+                    className="inspector-icon"
+                    title="Recolour: the next palette, over anything set by hand"
+                    aria-label="Recolour"
+                    onClick={() => {
+                      setPaletteIndex((i) => i + 1)
+                      // a roll is a whole sheet, so it clears what was set by hand
+                      setColours({})
+                    }}
+                  >
+                    ↻
+                  </button>
+                }
+              >
+                <Swatch label="Paper" value={palette.paper} onChange={(v) => setColours((c) => ({ ...c, paper: v }))} />
+                <Swatch label="Ink" value={palette.ink} onChange={(v) => setColours((c) => ({ ...c, ink: v }))} />
+              </Section>
+
+              <Section key={`seed-${motionOn}`} title="Seed" fold={fold(String(sheetSeed))}>
+                <div className="row inspector-seed">
+                  <span className="inspector-aside">{sheetSeed}</span>
+                  <button type="button" onClick={() => setSheetSeed(Math.floor(Math.random() * 9999) + 1)}>
+                    Randomise
+                  </button>
+                </div>
+              </Section>
+
+              {/*
+                Motion is a setting of the sheet: Still, or one of the three. It
+                is a loop — every curve goes round a whole number of times in the
+                clip's length, so the length is part of the motion rather than a
+                setting on the export — and its dials only exist while it moves.
+              */}
+              <Section title="Motion" className={motionOn ? 'motion is-moving' : 'motion'}>
+                <Seg
+                  label="Motion"
+                  items={[{ id: 'still', name: 'Still' }, ...MODES.map((m) => ({ id: m.id, name: m.name, title: m.note }))]}
+                  value={motionOn ? motionModeId : 'still'}
+                  disabled={recording || !!progress}
+                  onChange={(id) => pickMotion(id === 'still' ? null : id)}
+                />
+                <p className="note">
+                  {motionOn
+                    ? `${getMode(motionModeId).note[0].toUpperCase()}${getMode(motionModeId).note.slice(1)}.`
+                    : 'The sheet holds still and downloads as a picture. Pick a motion and it moves, and the download becomes an MP4.'}
+                </p>
+                {motionOn && steppy && (
+                  <p className="note">
+                    This chain redraws {layout.id === 'chars' ? 'the character set' : 'the word'} about{' '}
+                    {framesPerSecond!.toFixed(1)} times a second, so the letters will step between shapes rather
+                    than morph through them here. The MP4 draws every frame exactly.
+                  </p>
+                )}
+                {motionOn && (
+                  <>
+                    <div className="ctl">
+                      <div className="ctl-head">
+                        <label htmlFor="motion-depth">Depth</label>
+                        <output htmlFor="motion-depth" className={depth === DEFAULT_DEPTH ? 'is-default' : undefined}>
+                          {Math.round(depth * 100)}%
+                        </output>
+                      </div>
+                      <input
+                        id="motion-depth"
+                        type="range"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        value={depth}
+                        disabled={!!progress}
+                        onChange={(e) => setDepth(Number(e.target.value))}
+                        onDoubleClick={() => setDepth(DEFAULT_DEPTH)}
+                      />
+                    </div>
+                    <div className="ctl">
+                      <div className="ctl-head">
+                        <label htmlFor="motion-speed">Speed</label>
+                        <output htmlFor="motion-speed" className={speed === DEFAULT_SPEED ? 'is-default' : undefined}>
+                          {speed.toFixed(2)}×
+                        </output>
+                      </div>
+                      <input
+                        id="motion-speed"
+                        type="range"
+                        min={MIN_SPEED}
+                        max={MAX_SPEED}
+                        step={0.05}
+                        value={speed}
+                        disabled={!!progress}
+                        onChange={(e) => setSpeed(Number(e.target.value))}
+                        onDoubleClick={() => setSpeed(DEFAULT_SPEED)}
+                      />
+                    </div>
+                    <div className="ctl">
+                      <div className="ctl-head">
+                        <span>Length</span>
+                      </div>
+                      <Seg
+                        label="Clip length"
+                        items={LENGTHS.map((l) => ({ id: l, name: `${l} s` }))}
+                        value={length}
+                        disabled={recording || !!progress}
+                        onChange={setLength}
+                      />
+                    </div>
+                  </>
+                )}
+              </Section>
+
+              {/* Export at the foot of the sheet, where Figma keeps it: the same
+                  choices as Download in the bar, with the one picked left showing. */}
+              <Section title="Export">
+                <label className="visually-hidden" htmlFor="sheet-export-type">
+                  Export as
+                </label>
+                <select
+                  id="sheet-export-type"
+                  className="inspector-select"
+                  value={exportType}
+                  disabled={exportBusy}
+                  onChange={(e) => setExportPick(e.target.value)}
+                >
+                  {exportItems.map((it) => (
+                    <option key={it.id} value={it.id}>
+                      {it.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="note">{exportItems.find((it) => it.id === exportType)?.note}</p>
+                <button type="button" className="save inspector-export" disabled={exportBusy} onClick={() => download(exportType)}>
+                  {busy ? 'Rendering…' : exportItems.find((it) => it.id === exportType)?.label}
+                </button>
+              </Section>
+            </>
+          )}
+
+          {selected === 'word' && (
+            <>
+              {layout.id === 'word' && (
+                <Section
+                  title="Position"
+                  aside={
+                    moved ? (
+                      <button type="button" className="linkish" onClick={() => setWordT(IDENTITY)}>
+                        Put it back
+                      </button>
+                    ) : undefined
+                  }
+                >
+                  {/* the numbers the drag sets, in sheet pixels from where the sheet would centre it */}
+                  <div className="xy">
+                    {(['dx', 'dy'] as const).map((k) => (
+                      <label key={k} className="xy-field">
+                        <span>{k === 'dx' ? 'X' : 'Y'}</span>
+                        <input
+                          type="number"
+                          className="ctl-value"
+                          step={1}
+                          value={Math.round(wordT[k])}
+                          onChange={(e) => {
+                            const v = Number(e.target.value)
+                            if (Number.isFinite(v)) setWordT((t) => ({ ...t, [k]: v }))
+                          }}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <div className="ctl word-place">
+                    <div className="ctl-head">
+                      <label htmlFor="word-size">Size</label>
+                      <output htmlFor="word-size" className={wordT.scale === 1 ? 'is-default' : undefined}>
+                        {wordT.scale.toFixed(2)}×
+                      </output>
+                    </div>
+                    <input
+                      id="word-size"
+                      type="range"
+                      min={0.25}
+                      max={2}
+                      step={0.05}
+                      value={wordT.scale}
+                      onChange={(e) => setWordT((t) => ({ ...t, scale: Number(e.target.value) }))}
+                      onDoubleClick={() => setWordT((t) => ({ ...t, scale: 1 }))}
+                    />
+                    {/*
+                      A turn is something you do to the word, not a value you set
+                      on a track — Figma, Canva and tldraw all turn from a handle
+                      and keep a number beside it for the one you can name. So
+                      this is the number, and the knob on the sheet is the verb.
+                    */}
+                    <div className="ctl-head">
+                      <label htmlFor="word-spin">Turn</label>
+                      <span className="stepper">
+                        <button
+                          type="button"
+                          className="step-btn"
+                          aria-label="Turn back fifteen degrees"
+                          onClick={() => setWordT((t) => ({ ...t, rotate: ((t.rotate ?? 0) - 15 + 360) % 360 }))}
+                        >
+                          −
+                        </button>
+                        <input
+                          id="word-spin"
+                          type="number"
+                          className={(wordT.rotate ?? 0) === 0 ? 'ctl-value is-default' : 'ctl-value'}
+                          min={0}
+                          max={359}
+                          step={15}
+                          value={Math.round(wordT.rotate ?? 0)}
+                          onChange={(e) =>
+                            setWordT((t) => ({
+                              ...t,
+                              rotate: ((Math.round(Number(e.target.value)) % 360) + 360) % 360,
+                            }))
+                          }
+                        />
+                        <button
+                          type="button"
+                          className="step-btn"
+                          aria-label="Turn on fifteen degrees"
+                          onClick={() => setWordT((t) => ({ ...t, rotate: ((t.rotate ?? 0) + 15) % 360 }))}
+                        >
+                          +
+                        </button>
+                      </span>
+                    </div>
+                    <p className="note">
+                      Drag the word to move it, a corner to resize, the knob to turn. A turn settles on the square
+                      and fifteen-degree angles; hold Shift to put it anywhere.
+                    </p>
+                  </div>
+                </Section>
+              )}
+
+              <Section title="Fill">
+                <Swatch label="Ink" value={palette.ink} onChange={(v) => setColours((c) => ({ ...c, ink: v }))} />
+              </Section>
+
+              <Section title="Text">
+                {layout.id === 'word' ? (
+                  <>
+                    <p className="inspector-text">{p.word}</p>
+                    <p className="note">
+                      The word comes from the workbench.{' '}
+                      <button type="button" className="linkish" onClick={handleClose}>
+                        Edit it on the bench
+                      </button>
+                    </p>
+                  </>
+                ) : template?.lines ? (
+                  <CopyLines
+                    id={layout.id}
+                    hint={template.lines}
+                    lines={lines ?? []}
+                    own={!!copy[layout.id]?.own}
+                    font={p.font}
+                    picture={!!template.picture}
+                    hasPicture={!!backdrop}
+                    onChange={(next) => setCopy((c) => ({ ...c, [layout.id]: { pick: c[layout.id]?.pick ?? 0, own: next } }))}
+                    onShuffle={() => shuffle(layout.id)}
+                  />
+                ) : (
+                  <p className="note">
+                    The {layout.name.toLowerCase()} is set to the sheet, so there is nothing to place.
+                    {layout.id === 'sentence' &&
+                      ' It sets the line you typed on the bench, or a pangram when that is a single word.'}
+                    {template && ' It sets the font itself, so there is nothing to write.'} Switch the layout to
+                    Word to move and resize it.
+                  </p>
+                )}
+              </Section>
+            </>
           )}
 
           {selected === 'background' && (
-            <div className="group ruled">
-              <h2>Background</h2>
-              <Swatch label="Colour" value={palette.paper} onChange={(v) => setColours((c) => ({ ...c, paper: v }))} />
+            <>
+              <Section title="Fill">
+                <Swatch label="Paper" value={palette.paper} onChange={(v) => setColours((c) => ({ ...c, paper: v }))} />
+              </Section>
               {/*
-                Textures are drawn, not shipped — a gradient and a dot screen
-                are a few tags each, and an asset would be a download every
-                visitor pays for whether or not they open this room. They take
-                their colours from the palette, so recolouring the ground
-                recolours the texture with it.
+                Textures are drawn, not shipped — a gradient and a dot screen are
+                a few tags each, and an asset would be a download every visitor
+                pays for whether or not they open this room. They take their
+                colours from the palette, so recolouring the ground recolours the
+                texture with it. Upload sits in the row: it is one more answer to
+                "what is this printed on", not a separate feature.
               */}
-              <div className="grounds">
-                {GROUNDS.map((g) => {
-                  // a template with a picture box prints the picture in the box
-                  // and the ground round it, so there both are on at once
-                  const boxed = !!template?.picture
-                  const on = (boxed || !backdrop) && g.id === groundId
-                  return (
-                    <button
-                      type="button"
-                      key={g.id}
-                      className={on ? 'ground is-on' : 'ground'}
-                      aria-pressed={on}
-                      onClick={() => {
-                        setGroundId(g.id)
-                        if (!boxed) setBackdrop(null)
-                      }}
-                    >
-                      <span
-                        className="ground-art"
-                        aria-hidden="true"
-                        dangerouslySetInnerHTML={{ __html: groundArt(g.id, palette) }}
-                      />
-                      <span>{g.name}</span>
-                    </button>
-                  )
-                })}
-                {/* Upload sits in the row rather than beside it: it is one more
-                    answer to "what is this printed on", not a separate feature. */}
-                <button
-                  type="button"
-                  className={backdrop ? 'ground is-on' : 'ground'}
-                  aria-pressed={!!backdrop}
-                  onClick={() => fileRef.current?.click()}
-                >
-                  <span className="ground-art is-upload" aria-hidden="true">
-                    {backdrop ? <img src={backdrop} alt="" /> : '+'}
-                  </span>
-                  <span>{backdrop ? 'Yours' : 'Upload'}</span>
-                </button>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  hidden
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    // cleared so choosing the same file twice still fires
-                    e.target.value = ''
-                    if (file) void takeBackdrop(file)
-                  }}
-                />
-              </div>
-              {backdrop && (
-                <div className="row">
-                  <button type="button" className="linkish" onClick={() => setBackdrop(null)}>
-                    Remove the picture
+              <Section title="Ground">
+                <div className="grounds">
+                  {GROUNDS.map((g) => {
+                    // a template with a picture box prints the picture in the box
+                    // and the ground round it, so there both are on at once
+                    const boxed = !!template?.picture
+                    const on = (boxed || !backdrop) && g.id === groundId
+                    return (
+                      <button
+                        type="button"
+                        key={g.id}
+                        className={on ? 'ground is-on' : 'ground'}
+                        aria-pressed={on}
+                        onClick={() => {
+                          setGroundId(g.id)
+                          if (!boxed) setBackdrop(null)
+                        }}
+                      >
+                        <span
+                          className="ground-art"
+                          aria-hidden="true"
+                          dangerouslySetInnerHTML={{ __html: groundArt(g.id, palette) }}
+                        />
+                        <span>{g.name}</span>
+                      </button>
+                    )
+                  })}
+                  <button
+                    type="button"
+                    className={backdrop ? 'ground is-on' : 'ground'}
+                    aria-pressed={!!backdrop}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    <span className="ground-art is-upload" aria-hidden="true">
+                      {backdrop ? <img src={backdrop} alt="" /> : '+'}
+                    </span>
+                    <span>{backdrop ? 'Yours' : 'Upload'}</span>
                   </button>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    hidden
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      // cleared so choosing the same file twice still fires
+                      e.target.value = ''
+                      if (file) void takeBackdrop(file)
+                    }}
+                  />
                 </div>
-              )}
+                {backdrop && (
+                  <div className="row">
+                    <button type="button" className="linkish" onClick={() => fileRef.current?.click()}>
+                      Replace the picture
+                    </button>
+                    <button type="button" className="linkish" onClick={() => setBackdrop(null)}>
+                      Remove it
+                    </button>
+                  </div>
+                )}
+              </Section>
               {/*
                 What can be done to a picture, and only to a picture.
 
                 A finish is a pass over the whole page; these are on the
                 Background layer and reach no further than what is printed on
-                it — an effect's scope is where you put it. They are print
-                processes rather than filters, which is the vocabulary the rest
-                of the tool speaks, and they only appear when there is a
-                photograph to put through one.
+                it — an effect's scope is where you put it. They only appear when
+                there is a photograph to put through one.
               */}
               {backdrop && (
-                <>
-                  <h2 className="sub">The picture</h2>
+                <Section title="Picture effects">
                   <p className="note">
-                    Reprinted in the sheet&rsquo;s own two colours, under the word rather than
-                    over it — so the letters stay letters.
+                    Reprinted in the sheet&rsquo;s own two colours, under the word rather than over it — so the
+                    letters stay letters.
                   </p>
-                  <EffectStack
-                    list={PICTURE_EFFECTS}
-                    state={pictureFx}
-                    onChange={setPictureFx}
-                    idPrefix="picture"
-                  />
-                </>
+                  <EffectStack list={PICTURE_EFFECTS} state={pictureFx} onChange={setPictureFx} idPrefix="picture" />
+                </Section>
               )}
-            </div>
+            </>
           )}
 
-          {selected === 'type' && (
-            <div className="group ruled">
-              <h2>{layout.name}</h2>
-              <Swatch label="Ink" value={palette.ink} onChange={(v) => setColours((c) => ({ ...c, ink: v }))} />
-              {layout.id === 'word' ? (
-                <div className="ctl word-place">
-                  <div className="ctl-head">
-                    <label htmlFor="word-size">Size</label>
-                    <output htmlFor="word-size" className={wordT.scale === 1 ? 'is-default' : undefined}>
-                      {wordT.scale.toFixed(2)}
-                    </output>
-                  </div>
-                  <input
-                    id="word-size"
-                    type="range"
-                    min={0.25}
-                    max={2}
-                    step={0.05}
-                    value={wordT.scale}
-                    onChange={(e) => setWordT((t) => ({ ...t, scale: Number(e.target.value) }))}
-                    onDoubleClick={() => setWordT((t) => ({ ...t, scale: 1 }))}
-                  />
-                  {/*
-                    A turn is something you do to the word, not a value you set
-                    on a track — Figma, Canva and tldraw all turn from a handle
-                    and keep a number beside it for the one you can name. So
-                    this is the number, and the knob on the sheet is the verb.
-                  */}
-                  <div className="ctl-head">
-                    <label htmlFor="word-spin">Turn</label>
-                    <span className="stepper">
-                      {/* the same divided rectangle the dials use, so a number
-                          you can type reads the same wherever it appears */}
-                      <button
-                        type="button"
-                        className="step-btn"
-                        aria-label="Turn back fifteen degrees"
-                        onClick={() =>
-                          setWordT((t) => ({ ...t, rotate: (((t.rotate ?? 0) - 15 + 360) % 360) }))
-                        }
-                      >
-                        −
-                      </button>
-                      <input
-                        id="word-spin"
-                        type="number"
-                        className={(wordT.rotate ?? 0) === 0 ? 'ctl-value is-default' : 'ctl-value'}
-                        min={0}
-                        max={359}
-                        step={15}
-                        value={Math.round(wordT.rotate ?? 0)}
-                        onChange={(e) =>
-                          setWordT((t) => ({
-                            ...t,
-                            rotate: ((Math.round(Number(e.target.value)) % 360) + 360) % 360,
-                          }))
-                        }
-                      />
-                      <button
-                        type="button"
-                        className="step-btn"
-                        aria-label="Turn on fifteen degrees"
-                        onClick={() =>
-                          setWordT((t) => ({ ...t, rotate: (((t.rotate ?? 0) + 15) % 360) }))
-                        }
-                      >
-                        +
-                      </button>
-                    </span>
-                  </div>
-                  <p className="note">
-                    Click the word to take hold of it: drag to move, a corner to resize, the knob
-                    to turn. A turn settles on the square and fifteen-degree angles; hold Shift to
-                    put it anywhere.
-                    {moved && ' · '}
-                    {moved && (
-                      <button type="button" className="linkish" onClick={() => setWordT(IDENTITY)}>
-                        Put it back
-                      </button>
-                    )}
-                  </p>
-                </div>
-              ) : template?.lines ? (
-                <CopyLines
-                  id={layout.id}
-                  hint={template.lines}
-                  lines={lines ?? []}
-                  own={!!copy[layout.id]?.own}
-                  font={p.font}
-                  picture={!!template.picture}
-                  hasPicture={!!backdrop}
-                  onChange={(next) => setCopy((c) => ({ ...c, [layout.id]: { pick: c[layout.id]?.pick ?? 0, own: next } }))}
-                  onShuffle={() => shuffle(layout.id)}
-                />
-              ) : (
-                <p className="note">
-                  The {layout.name.toLowerCase()} is set to the sheet, so there is nothing to place.
-                  {layout.id === 'sentence' &&
-                    ' It sets the line you typed on the bench, or a pangram when that is a single word.'}
-                  {template && ' It sets the font itself, so there is nothing to write.'}{' '}
-                  Switch to the word to move and resize it.
-                </p>
-              )}
-            </div>
-          )}
-
-          {/*
-            Every finish on the page, dimmed rather than absent when it is off,
-            so you can see what you are not using and what turning it on would
-            cost. Order is fixed and stated, because it is a fact about what
-            they do: the two that resample the sheet run while there is still a
-            sheet to read, and grain goes over whatever came out.
-          */}
           {selected === 'finishes' && (
-            <div className="group ruled">
-              <h2>Finishes</h2>
-              <p className="note">Applied top to bottom.</p>
-              <EffectStack list={FINISHES} state={finishes} onChange={setFinishes} idPrefix="finish" />
-            </div>
+            <Section title="On this sheet">
+              <FinishesPanel
+                finishes={finishes}
+                onChange={setFinishes}
+                open={openFinish}
+                onOpen={setOpenFinish}
+                onRemove={removeFinish}
+                onAdd={addFinish}
+              />
+            </Section>
           )}
 
-          {/*
-            Motion is a setting of the sheet: Still, or one of the three. It is
-            a loop — every curve goes round a whole number of times in the
-            clip's length, so the length is part of the motion rather than a
-            setting on the export — and its dials only exist while it moves.
-          */}
-          {selected === null && (
-            <div className="group ruled motion">
-              <h2>Motion</h2>
-              <div className="chips" role="group" aria-label="Motion">
-                <button
-                  type="button"
-                  className={motionOn ? 'chip' : 'chip is-on'}
-                  aria-pressed={!motionOn}
-                  disabled={recording || !!progress}
-                  onClick={() => pickMotion(null)}
-                >
-                  Still
-                </button>
-                {MODES.map((m) => {
-                  const on = motionOn && m.id === motionModeId
-                  return (
-                    <button
-                      type="button"
-                      key={m.id}
-                      className={on ? 'chip is-on' : 'chip'}
-                      aria-pressed={on}
-                      disabled={recording || !!progress}
-                      onClick={() => pickMotion(m.id)}
-                      title={m.note}
-                    >
-                      {m.name}
-                    </button>
-                  )
-                })}
-              </div>
-              <p className="note">
-                {motionOn
-                  ? getMode(motionModeId).note
-                  : 'The sheet holds still and downloads as a picture. Pick a motion and it moves, and the download becomes an MP4.'}
-              </p>
-              {motionOn && (
-                <>
-                  <div className="ctl">
-                    <div className="ctl-head">
-                      <label htmlFor="motion-depth">Depth</label>
-                      <output htmlFor="motion-depth" className={depth === DEFAULT_DEPTH ? 'is-default' : undefined}>
-                        {Math.round(depth * 100)}%
-                      </output>
-                    </div>
-                    <input
-                      id="motion-depth"
-                      type="range"
-                      min={0}
-                      max={1}
-                      step={0.05}
-                      value={depth}
-                      disabled={!!progress}
-                      onChange={(e) => setDepth(Number(e.target.value))}
-                      onDoubleClick={() => setDepth(DEFAULT_DEPTH)}
-                    />
-                  </div>
-                  <div className="ctl">
-                    <div className="ctl-head">
-                      <label htmlFor="motion-speed">Speed</label>
-                      <output htmlFor="motion-speed" className={speed === DEFAULT_SPEED ? 'is-default' : undefined}>
-                        {speed.toFixed(2)}×
-                      </output>
-                    </div>
-                    <input
-                      id="motion-speed"
-                      type="range"
-                      min={MIN_SPEED}
-                      max={MAX_SPEED}
-                      step={0.05}
-                      value={speed}
-                      disabled={!!progress}
-                      onChange={(e) => setSpeed(Number(e.target.value))}
-                      onDoubleClick={() => setSpeed(DEFAULT_SPEED)}
-                    />
-                  </div>
-                  <div className="ctl">
-                    <div className="ctl-head">
-                      <span>Length</span>
-                    </div>
-                    <div className="chips" role="group" aria-label="Clip length">
-                      {LENGTHS.map((l) => (
-                        <button
-                          type="button"
-                          key={l}
-                          className={l === length ? 'chip is-on' : 'chip'}
-                          aria-pressed={l === length}
-                          disabled={recording || !!progress}
-                          onClick={() => setLength(l)}
-                        >
-                          {l}s
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+          {selectedFinish && (
+            <FinishPanel
+              f={selectedFinish}
+              finishes={finishes}
+              onChange={setFinishes}
+              onRemove={() => removeFinish(selectedFinish.id)}
+            />
           )}
-
         </aside>
       </div>
     </div>

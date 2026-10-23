@@ -648,22 +648,33 @@ h1 {
 .sheet-bar > * {
   flex: none;
 }
-/* the size and the way out sit at the bar's right, after the name */
-.sheet-bar .sheet-format {
+/* the way out sits at the bar's right, after the name */
+.sheet-bar .sheet-export {
   margin-left: auto;
 }
 
+/* Figma's room: the layers on the left, the sheet in the middle, whatever is
+   selected on the right — each side scrolling on its own, so a long panel
+   never moves the sheet. */
 .sheet-body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 320px;
-  gap: 30px;
-  padding: 20px 26px 24px;
+  grid-template-columns: 232px minmax(0, 1fr) 288px;
+  grid-template-rows: minmax(0, 1fr);
+}
+.sheet-layers {
+  grid-column: 1;
+  grid-row: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 8px 24px;
+  border-right: 1px solid var(--rule);
 }
 .sheet-stage {
   position: relative;
   min-width: 0;
+  padding: 20px 26px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -716,12 +727,13 @@ h1 {
 }
 
 .sheet-rail {
+  grid-column: 3;
+  grid-row: 1;
   display: flex;
   flex-direction: column;
-  gap: 16px;
   min-height: 0;
   overflow-y: auto;
-  padding-left: 26px;
+  padding-bottom: 24px;
   border-left: 1px solid var(--rule);
 }
 .sheet-rail .group {
@@ -740,56 +752,6 @@ h1 {
   color: var(--muted);
   font-weight: 500;
 }
-/* The sheet, said as its layers. Same shape as the workbench's own list, on
-   purpose: two rooms that are read the same way. */
-.layer-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.layer-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 7px 9px;
-  border-radius: 3px;
-  background: var(--plate);
-  text-align: left;
-}
-.layer-row.is-on {
-  border-color: var(--ink);
-  border-width: 2px;
-  padding: 6px 8px;
-}
-.layer-row-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  flex: 1;
-}
-.layer-row-name {
-  font-size: 13px;
-}
-.layer-row.is-on .layer-row-name {
-  font-weight: 500;
-}
-.layer-row-sub {
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 9.5px;
-  color: var(--muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.layer-row-swatch {
-  flex: none;
-  width: 16px;
-  height: 16px;
-  border-radius: 2px;
-  box-shadow: inset 0 0 0 1px var(--rule);
-}
-
 /* One colour, on the layer it belongs to. The platform's own picker, because a
    sheet is a thing somebody wants an exact colour on. */
 .swatch-row {
@@ -1070,12 +1032,20 @@ h1 {
 @media (max-width: 900px) {
   .sheet-body {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
     overflow-y: auto;
   }
+  .sheet-stage,
+  .template-gallery {
+    grid-column: 1;
+  }
+  .sheet-layers,
   .sheet-rail {
-    padding-left: 0;
-    border-left: 0;
+    grid-column: 1;
+    grid-row: auto;
     overflow: visible;
+    border: 0;
+    border-top: 1px solid var(--rule);
   }
   .sheet-stage canvas {
     max-height: 60vh;
@@ -1097,13 +1067,6 @@ h1 {
     order: 3;
     margin: 0;
   }
-  /* the direct child only: the export's own type menu is a select too, and
-     ordering it would put Download in front of the thing it downloads */
-  .sheet-bar > select {
-    order: 4;
-    flex: 1 1 auto;
-    min-width: 0;
-  }
   .sheet-close {
     order: 2;
     margin-left: auto;
@@ -1121,9 +1084,8 @@ h1 {
   .sheet-font {
     font-size: 11px;
   }
-  .sheet-body {
+  .sheet-stage {
     padding: 14px 16px 18px;
-    gap: 20px;
   }
 }
 
@@ -1391,13 +1353,6 @@ h1 {
   background: var(--frame);
   border-radius: 3px;
   white-space: nowrap;
-}
-
-/* The sheet row closes the list it belongs to: it is what everything above is
-   drawn on, so it reads as the ground rather than as a fifth layer. */
-.layer-row.is-sheet {
-  margin-top: 6px;
-  border-style: dashed;
 }
 
 /* ---------- the menu a verb opens ---------- */
@@ -2877,11 +2832,12 @@ button.saved-confirm-delete:hover:not(:disabled) {
    the sheet underneath keeps its canvas — closing is instant, nothing rebuilds. */
 .sheet-stage,
 .template-gallery {
-  grid-column: 1;
+  grid-column: 2;
   grid-row: 1;
 }
 .template-gallery {
   z-index: 3;
+  padding: 20px 26px 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -2996,4 +2952,309 @@ button.saved-confirm-delete:hover:not(:disabled) {
 .copy-hint {
   font-size: 12px;
   color: var(--muted);
+}
+
+/* ---------- Compose's two panels ---------- */
+
+/* The layer list, always open: a tree in the order the sheet stacks, the
+   selected row tinted in the selection colour the canvas frame uses. */
+.layers-title {
+  margin: 0 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.layer-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.layer-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border-radius: 5px;
+}
+.layer-item:hover {
+  background: var(--plate);
+}
+.layer-item.is-on {
+  background: color-mix(in srgb, var(--frame) 14%, transparent);
+}
+.layer-item-row {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.layer-item-row:focus-visible {
+  outline-offset: -2px;
+}
+.layer-item.is-nested .layer-item-row {
+  padding-left: 30px;
+}
+.layer-icon {
+  flex: none;
+  width: 14px;
+  color: var(--muted);
+  text-align: center;
+}
+.layer-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.layer-item.is-on .layer-name {
+  font-weight: 600;
+}
+.layer-sub {
+  flex: none;
+  max-width: 55%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  color: var(--muted);
+}
+.layer-remove {
+  position: absolute;
+  right: 4px;
+  padding: 2px 6px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0;
+  cursor: pointer;
+}
+.layer-item:hover .layer-remove,
+.layer-remove:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .layer-remove {
+    opacity: 1;
+  }
+}
+.add-finish {
+  margin-top: 8px;
+}
+.sheet-layers .add-finish {
+  margin-left: 30px;
+}
+.add-finish .save {
+  margin-left: 0;
+  padding: 4px 8px;
+  border-color: transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+}
+.add-finish .save:hover {
+  color: var(--ink);
+}
+/* it opens from the left edge of a panel, so it opens rightwards */
+.add-finish .menu-panel {
+  left: 0;
+  right: auto;
+}
+
+/* The selection's properties: a head that says what is selected, then
+   sections, each ruled off from the one above. */
+.inspector-head {
+  padding: 16px 16px 12px;
+}
+.sheet-rail .inspector-head h2 {
+  margin: 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+}
+.inspector-head p {
+  margin: 4px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.inspector-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid var(--rule);
+}
+.inspector-section.is-folded {
+  padding-bottom: 12px;
+}
+.inspector-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 20px;
+}
+.inspector-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+}
+.motion.is-moving .inspector-title {
+  color: var(--mark);
+}
+.inspector-aside {
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+}
+.inspector-icon {
+  padding: 2px 8px;
+  font-size: 14px;
+  line-height: 1;
+}
+.inspector-fold {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.inspector-fold-value {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  color: var(--muted);
+}
+.sheet-rail .inspector-select {
+  width: 100%;
+}
+.sheet-rail .inspector-export {
+  width: 100%;
+  margin-left: 0;
+}
+.inspector-text {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+.inspector-seed {
+  align-items: center;
+  justify-content: space-between;
+}
+.sheet-rail .note {
+  margin: 0;
+}
+
+/* a segmented control: the choices side by side, the one in force lifted */
+.seg-row {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 6px;
+  background: var(--plate);
+}
+.seg-row .seg {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 4px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+.seg-row .seg.is-on {
+  border-color: var(--rule);
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 500;
+}
+.seg-row .seg:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.seg-row .seg:focus-visible {
+  outline-offset: -2px;
+}
+
+/* where the word sits, as the two numbers the drag sets */
+.xy {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.xy-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--plate);
+  font-size: 11px;
+  color: var(--muted);
+}
+.xy-field .ctl-value {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  text-align: left;
+  color: var(--ink);
+}
+
+/* the finishes as a list you open one at a time */
+.finish-list {
+  display: flex;
+  flex-direction: column;
+}
+.finish-item + .finish-item {
+  border-top: 1px solid var(--rule);
+}
+.finish-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 8px 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.finish-item-chev {
+  color: var(--muted);
+}
+.finish-item-body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  padding-bottom: 12px;
+}
+.finish-item-body .linkish {
+  align-self: flex-start;
 }
