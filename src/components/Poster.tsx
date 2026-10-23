@@ -1463,7 +1463,7 @@ export function Poster(p: Props) {
   const selectedFinish = finishOf(selected)
   const wordRow = rows.find((r) => r.sel === 'word')!
   // with motion on, the sheet's first sections fold to a line so Motion fits
-  const fold = (line: string) => (motionOn ? line : undefined)
+  const fold = (line: React.ReactNode) => (motionOn ? line : undefined)
 
   /** what the panel's head says: the kind of thing, its name, and a line about it */
   const head: [string, string, string] =
@@ -1519,6 +1519,7 @@ export function Poster(p: Props) {
               disabled={busy}
               items={exportItems}
               onPick={download}
+              sheet
             />
           )}
         </div>
@@ -1699,7 +1700,7 @@ export function Poster(p: Props) {
             />
             <LayerChips rows={rows} selected={selected} onSelect={select} finishes={finishes} />
           </div>
-          <header className="inspector-head">
+          <header className={selected === 'sheet' ? 'inspector-head is-sheet' : 'inspector-head'}>
             <h2>
               <span className="layer-icon" aria-hidden="true">
                 {head[0]}
@@ -1763,7 +1764,16 @@ export function Poster(p: Props) {
               <Section
                 key={`colours-${motionOn}`}
                 title="Colours"
-                fold={fold(`${palette.paper.toUpperCase()} · ${palette.ink.toUpperCase()}`)}
+                fold={fold(
+                  <>
+                    {(['paper', 'ink'] as const).map((k) => (
+                      <span key={k}>
+                        <span className="fold-swatch" style={{ background: palette[k] }} aria-hidden="true" />
+                        {palette[k].toUpperCase()}
+                      </span>
+                    ))}
+                  </>,
+                )}
                 aside={
                   <button
                     type="button"
@@ -1865,7 +1875,7 @@ export function Poster(p: Props) {
                       </div>
                       <Seg
                         label="Clip length"
-                        items={LENGTHS.map((l) => ({ id: l, name: `${l} s` }))}
+                        items={LENGTHS.map((l) => ({ id: l, name: `${l}s` }))}
                         value={length}
                         disabled={recording || !!progress}
                         onChange={setLength}
@@ -1895,7 +1905,7 @@ export function Poster(p: Props) {
                   ))}
                 </select>
                 <p className="note">{exportItems.find((it) => it.id === exportType)?.note}</p>
-                <button type="button" className="save inspector-export" disabled={exportBusy} onClick={() => download(exportType)}>
+                <button type="button" className="inspector-export" disabled={exportBusy} onClick={() => download(exportType)}>
                   {busy ? 'Rendering…' : exportItems.find((it) => it.id === exportType)?.label}
                 </button>
               </Section>

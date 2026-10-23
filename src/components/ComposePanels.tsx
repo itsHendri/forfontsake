@@ -30,7 +30,7 @@ export function Section({
 }: {
   title: string
   aside?: React.ReactNode
-  fold?: string
+  fold?: React.ReactNode
   className?: string
   children: React.ReactNode
 }) {
@@ -325,7 +325,7 @@ export function FinishesPanel({
                 {isOpen && (
                   <div className="finish-item-body">
                     <EffectDials f={f} state={finishes} onChange={onChange} idPrefix="finishes" />
-                    <button type="button" className="linkish" onClick={() => onRemove(f.id)}>
+                    <button type="button" className="text-btn" onClick={() => onRemove(f.id)}>
                       Remove {f.name}
                     </button>
                   </div>
@@ -365,11 +365,9 @@ export function FinishPanel({
             ? `${on.findIndex((x) => x.id === f.id) + 1} of ${on.length}. ${ORDER_NOTE}`
             : 'The only finish on this sheet.'}
         </p>
-        <div className="row">
-          <button type="button" onClick={onRemove}>
-            Remove {f.name}
-          </button>
-        </div>
+        <button type="button" className="text-btn" onClick={onRemove}>
+          Remove {f.name}
+        </button>
       </Section>
     </>
   )

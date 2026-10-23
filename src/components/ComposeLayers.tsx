@@ -92,7 +92,10 @@ export function LayerChips({
             aria-pressed={on}
             onClick={() => onSelect(r.sel)}
           >
-            <span aria-hidden="true">{r.icon}</span> {r.name}
+            <span className="layer-chip-icon" aria-hidden="true">
+              {r.icon}
+            </span>
+            <span className="layer-chip-name">{r.name}</span>
             {r.sel === 'finishes' && count > 0 && <span className="layer-chip-count">{count}</span>}
             {r.sel === 'word' && r.sub === '~ moves' && <span aria-label="moves"> ~</span>}
           </button>

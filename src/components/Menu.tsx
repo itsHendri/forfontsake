@@ -19,6 +19,12 @@ interface Props {
   foot?: React.ReactNode
   /** the name the button answers to for a screen reader, if the label is not it */
   title?: string
+  /**
+   * Whether it may open as a sheet from the bottom of a phone: then it brings
+   * a backdrop that closes it and a Cancel at the foot. The CSS decides when
+   * they show; on a desktop they are not drawn.
+   */
+  sheet?: boolean
 }
 
 /**
@@ -40,7 +46,7 @@ interface Props {
  * Home/End to move, Escape to close and give the button its focus back, and a
  * click anywhere else to dismiss.
  */
-export function Menu({ label, busyLabel, items, onPick, disabled, foot, title }: Props) {
+export function Menu({ label, busyLabel, items, onPick, disabled, foot, title, sheet }: Props) {
   const [open, setOpen] = useState(false)
   const [at, setAt] = useState(0)
   const id = useId()
@@ -128,6 +134,7 @@ export function Menu({ label, busyLabel, items, onPick, disabled, foot, title }:
       >
         {busyLabel ?? label}
       </button>
+      {open && sheet && <div className="menu-scrim" aria-hidden="true" onClick={() => close()} />}
       {open && (
         <div className="menu-panel" id={id} role="menu" ref={list} onKeyDown={onKey}>
           {items.map((it, i) => (
@@ -145,6 +152,11 @@ export function Menu({ label, busyLabel, items, onPick, disabled, foot, title }:
             </button>
           ))}
           {foot && <p className="menu-foot">{foot}</p>}
+          {sheet && (
+            <button type="button" className="menu-cancel" tabIndex={-1} onClick={() => close()}>
+              Cancel
+            </button>
+          )}
         </div>
       )}
     </div>

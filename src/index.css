@@ -1094,6 +1094,45 @@ h1 {
   .inspector-head {
     padding-top: 12px;
   }
+  /* the chip already says what is selected; only the sheet's summary line
+     earns the room on a short screen */
+  .inspector-head:not(.is-sheet) {
+    display: none;
+  }
+  /* fingers, not a pointer: nothing to tap smaller than about 44 px */
+  .sheet-grip {
+    height: 36px;
+  }
+  .sheet-grip::before {
+    margin-top: 14px;
+  }
+  .layer-chip {
+    min-height: 40px;
+  }
+  .seg-row .seg {
+    min-height: 40px;
+  }
+  .inspector-icon {
+    min-width: 40px;
+    min-height: 36px;
+  }
+}
+/* four chips across a 390 px phone: the icons go, and a long word gives way */
+@media (max-width: 430px) {
+  .layer-chips {
+    padding: 0 12px;
+  }
+  .layer-chip {
+    padding: 7px 12px;
+  }
+  .layer-chip-icon {
+    display: none;
+  }
+  .layer-chip-name {
+    max-width: 96px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 @media (max-width: 900px) and (prefers-reduced-motion: reduce) {
   .sheet-rail {
@@ -1146,6 +1185,29 @@ h1 {
   .sheet-export .menu-item {
     padding: 13px 12px;
   }
+  .sheet-export .menu-scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: rgb(0 0 0 / 0.35);
+  }
+  .sheet-export .menu-cancel {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 13px 12px;
+    border-top: 1px solid var(--rule);
+    background: none;
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 500;
+  }
+}
+/* the backdrop and Cancel are for menus that open as a sheet on a phone */
+.menu-scrim,
+.menu-cancel {
+  display: none;
 }
 
 /* ---------- glyphs ---------- */
@@ -3062,6 +3124,9 @@ button.saved-confirm-delete:hover:not(:disabled) {
 .layer-item.is-nested .layer-item-row {
   padding-left: 30px;
 }
+.layer-item.is-nested .layer-icon {
+  opacity: 0.55;
+}
 .layer-icon {
   flex: none;
   width: 14px;
@@ -3212,7 +3277,29 @@ button.saved-confirm-delete:hover:not(:disabled) {
 }
 .sheet-rail .inspector-export {
   width: 100%;
-  margin-left: 0;
+}
+/* a quiet verb that is not the room's main one: Remove, mostly */
+.text-btn {
+  align-self: flex-start;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+.text-btn:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+/* the colours, folded: the two inks as chips, the hexes beside them */
+.fold-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin: 0 4px -1px 8px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px var(--rule);
 }
 .inspector-text {
   margin: 0;
@@ -3223,8 +3310,12 @@ button.saved-confirm-delete:hover:not(:disabled) {
   align-items: center;
   justify-content: space-between;
 }
+/* help text is quieter than the controls it explains, never louder */
 .sheet-rail .note {
   margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
 }
 
 /* a segmented control: the choices side by side, the one in force lifted */
@@ -3263,10 +3354,11 @@ button.saved-confirm-delete:hover:not(:disabled) {
 /* where the word sits, as the two numbers the drag sets */
 .xy {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 .xy-field {
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3278,7 +3370,7 @@ button.saved-confirm-delete:hover:not(:disabled) {
 }
 .xy-field .ctl-value {
   flex: 1;
-  width: auto;
+  width: 100%;
   min-width: 0;
   text-align: left;
   color: var(--ink);

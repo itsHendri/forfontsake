@@ -86,7 +86,7 @@ export function layerRows(s: LayerState): LayerRow[] {
       sub: on.length > 0 ? on.map((f) => f.name).join(' · ') : 'none',
       icon: '✦',
     },
-    ...on.map((f): LayerRow => ({ sel: `finish:${f.id}`, name: f.name, sub: '', icon: '·', nested: true })),
+    ...on.map((f): LayerRow => ({ sel: `finish:${f.id}`, name: f.name, sub: '', icon: '✦', nested: true })),
     {
       sel: 'word',
       name: s.layout.id === 'word' && s.word.trim() ? s.word.trim() : s.layout.name,
