@@ -648,9 +648,27 @@ h1 {
 .sheet-bar > * {
   flex: none;
 }
-/* the way out sits at the bar's right, after the name */
-.sheet-bar .sheet-export {
+/* undo and the way out sit at the bar's right, after the name */
+.sheet-bar .sheet-history {
+  display: flex;
+  gap: 2px;
   margin-left: auto;
+}
+.sheet-history-btn {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  padding: 6px 8px;
+  border-color: transparent;
+  background: none;
+  color: var(--ink);
+}
+.sheet-history-btn:hover:not(:disabled) {
+  border-color: var(--rule);
+}
+.sheet-history-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
 }
 
 /* Figma's room: the layers on the left, the sheet in the middle, whatever is
@@ -674,6 +692,9 @@ h1 {
 .sheet-stage {
   position: relative;
   min-width: 0;
+  /* the canvas is a window, as in Figma: a word pushed past the sheet takes
+     its frame off the edge rather than over the panels */
+  overflow: hidden;
   padding: 20px 26px 24px;
   display: flex;
   flex-direction: column;
@@ -1112,9 +1133,15 @@ h1 {
   .seg-row .seg {
     min-height: 40px;
   }
-  .inspector-icon {
+  .inspector-icon,
+  .sheet-history-btn {
     min-width: 40px;
     min-height: 36px;
+  }
+  .finish-item-row .layer-eye {
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 13px;
   }
 }
 /* four chips across a 390 px phone: the icons go, and a long word gives way */
@@ -3168,6 +3195,29 @@ button.saved-confirm-delete:hover:not(:disabled) {
 .layer-remove:focus-visible {
   opacity: 1;
 }
+/* Figma's eye: hide a finish for a look without it, without losing it */
+.layer-eye {
+  flex: none;
+  padding: 2px 6px;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.layer-eye:hover {
+  color: var(--ink);
+}
+.layer-item .layer-eye {
+  position: absolute;
+  right: 26px;
+}
+.layer-item.is-hidden .layer-name,
+.finish-item.is-hidden .finish-name {
+  color: var(--muted);
+  text-decoration: line-through;
+}
 @media (hover: none) {
   .layer-remove {
     opacity: 1;
@@ -3397,6 +3447,21 @@ button.saved-confirm-delete:hover:not(:disabled) {
   cursor: pointer;
 }
 .finish-item-chev {
+  color: var(--muted);
+}
+.finish-item-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.finish-item-row .finish-item-head {
+  flex: 1;
+  min-width: 0;
+}
+.finish-item-hidden {
+  margin-left: 8px;
+  margin-right: auto;
+  font-size: 11px;
   color: var(--muted);
 }
 .finish-item-body {

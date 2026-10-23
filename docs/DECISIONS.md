@@ -1972,6 +1972,24 @@ time.
   positional and the order is a fact about what each finish does (see *Finishes stack*), so the
   list says top to bottom instead.
 
+**Then what every design tool has** (after a look at Penpot, Excalidraw, tldraw, Fontra and
+OpenCut, 23 October):
+
+- **Undo and redo**, ⌘Z and ⇧⌘Z (or ⌘Y), and two buttons in the bar because a phone has no
+  keyboard. Snapshots of the whole sheet — the look, the word's place, the seed, the picture —
+  taken once a change has been still for 400 ms, so a slider's sweep is one step. Not the
+  selection or the playhead; nothing is undone while a clip renders. `history.ts`, tested.
+- **The keys**: arrows nudge the selected word a sheet pixel, ten with Shift, as Figma's do;
+  Delete takes off the selected finish. None of them while a control has the keyboard.
+- **Pinch**: two fingers on the stage resize, turn and move the word together — what Figma's
+  phone frame promised and the one-pointer handles could not do. The turn settles on the
+  square and fifteen-degree angles, as the knob's does.
+- **The eye**: hide a finish to see the sheet without it, without removing it. Hidden is not
+  drawn and not exported, as a hidden layer is anywhere, and it is a way of looking rather
+  than part of the look, so it is neither remembered nor undone.
+- The canvas clips, so a word pushed past the sheet takes its frame off the edge rather than
+  over the panels.
+
 Not built, because there is nothing behind them yet: zoom and pan (the sheet always fits), a
 Share… of its own in the bar (it still comes after a kit), and "Alternates", fill opacity and
 Cover/Fit, which were drawn but are not features. `composeLayers.ts` holds the list as data and is

@@ -290,6 +290,8 @@ export function FinishesPanel({
   onOpen,
   onRemove,
   onAdd,
+  hidden,
+  onToggleHidden,
 }: {
   finishes: FinishState
   onChange: StackChange
@@ -297,6 +299,8 @@ export function FinishesPanel({
   onOpen: (id: string | null) => void
   onRemove: (id: string) => void
   onAdd: (id: string) => void
+  hidden: ReadonlySet<string>
+  onToggleHidden: (id: string) => void
 }) {
   const on = finishesOn(finishes)
   return (
@@ -309,19 +313,32 @@ export function FinishesPanel({
         <div className="finish-list">
           {on.map((f) => {
             const isOpen = open === f.id
+            const off = hidden.has(f.id)
             return (
-              <div className={isOpen ? 'finish-item is-open' : 'finish-item'} key={f.id}>
-                <button
-                  type="button"
-                  className="finish-item-head"
-                  aria-expanded={isOpen}
-                  onClick={() => onOpen(isOpen ? null : f.id)}
-                >
-                  <span className="finish-name">{f.name}</span>
-                  <span className="finish-item-chev" aria-hidden="true">
-                    {isOpen ? '⌃' : '⌄'}
-                  </span>
-                </button>
+              <div className={['finish-item', isOpen ? 'is-open' : '', off ? 'is-hidden' : ''].filter(Boolean).join(' ')} key={f.id}>
+                <div className="finish-item-row">
+                  <button
+                    type="button"
+                    className="finish-item-head"
+                    aria-expanded={isOpen}
+                    onClick={() => onOpen(isOpen ? null : f.id)}
+                  >
+                    <span className="finish-name">{f.name}</span>
+                    {off && <span className="finish-item-hidden">hidden</span>}
+                    <span className="finish-item-chev" aria-hidden="true">
+                      {isOpen ? '⌃' : '⌄'}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="layer-eye"
+                    aria-label={off ? `Show ${f.name}` : `Hide ${f.name}`}
+                    aria-pressed={off}
+                    onClick={() => onToggleHidden(f.id)}
+                  >
+                    {off ? '○' : '◉'}
+                  </button>
+                </div>
                 {isOpen && (
                   <div className="finish-item-body">
                     <EffectDials f={f} state={finishes} onChange={onChange} idPrefix="finishes" />

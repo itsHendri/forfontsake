@@ -27,6 +27,7 @@ import { Menu } from './Menu'
 import { ComposeLayers, LayerChips } from './ComposeLayers'
 import { EffectStack, FinishPanel, FinishesPanel, Section, Seg, Swatch } from './ComposePanels'
 import { finishOf, layerRows, sheetSummary, type Selection } from '../lib/composeLayers'
+import { emptyHistory, record, redo, undo, type History } from '../lib/history'
 import { getTreatment } from '../engine/treatments/registry'
 import { DEFAULT_DEPTH, MODES, bindingsFor, getMode, modulate } from '../lib/modulate'
 import {
@@ -101,6 +102,13 @@ const SNAP_PX = 6
  * rather than a second thought.
  */
 const BAKE_MS = 150
+
+/**
+ * How long the sheet has to stay still before a change becomes one step of
+ * undo. A slider's whole sweep, or a held arrow key, is one step back rather
+ * than sixty.
+ */
+const SETTLE_MS = 400
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
 
@@ -268,6 +276,27 @@ export function Poster(p: Props) {
    * mind about the photograph does not cost you the treatment of it.
    */
   const [pictureFx, setPictureFx] = useState<FinishState>(look.pictureFx)
+  /*
+   * Finishes hidden for a look without them — Figma's eye. Not removed: the
+   * finish stays in the list with its dials, and comes back with one click.
+   * Hidden means not drawn and not exported, as a hidden layer is in every
+   * tool, and it is a way of looking rather than part of the look, so it is
+   * neither remembered nor undone.
+   */
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
+  const shownFinishes = useMemo<FinishState>(() => {
+    if (hidden.size === 0) return finishes
+    const out: FinishState = {}
+    for (const [id, f] of Object.entries(finishes)) out[id] = hidden.has(id) ? { ...f, on: false } : f
+    return out
+  }, [finishes, hidden])
+  const toggleHidden = (id: string) =>
+    setHidden((h) => {
+      const next = new Set(h)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
   /*
    * What is selected, which is what the right panel edits — the sheet when
@@ -353,6 +382,78 @@ export function Poster(p: Props) {
     })
   }, [paletteIndex, colours, groundId, finishes, pictureFx, formatId, motionOn, motionModeId, depth, speed, length, layoutId, copy])
 
+  /*
+   * Undo. A snapshot of everything that makes the sheet what it is — the look,
+   * the word's place, the seed and the picture — taken once a change has
+   * settled. Not the selection or whether it is playing: those are where you
+   * are looking, not what you made.
+   */
+  const doc = useMemo(
+    () => ({
+      paletteIndex,
+      colours,
+      groundId,
+      finishes,
+      pictureFx,
+      formatId,
+      motionOn,
+      motionModeId,
+      depth,
+      speed,
+      length,
+      layoutId,
+      copy,
+      wordT,
+      sheetSeed,
+      backdrop,
+    }),
+    [paletteIndex, colours, groundId, finishes, pictureFx, formatId, motionOn, motionModeId, depth, speed, length, layoutId, copy, wordT, sheetSeed, backdrop],
+  )
+  type Doc = typeof doc
+  const historyRef = useRef<History<Doc>>(emptyHistory())
+  const [steps, setSteps] = useState({ back: 0, forward: 0 })
+  /** the snapshot the history last knew: what an undo goes back past */
+  const settledRef = useRef(doc)
+  const docRef = useRef(doc)
+  /** set while an undo is being applied, so applying it is not itself a change */
+  const restoringRef = useRef(false)
+  const settleTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const setHistory = (h: History<Doc>) => {
+    historyRef.current = h
+    setSteps({ back: h.past.length, forward: h.future.length })
+  }
+  const commitStep = () => {
+    if (settleTimer.current !== null) clearTimeout(settleTimer.current)
+    settleTimer.current = null
+    const before = settledRef.current
+    const now = docRef.current
+    settledRef.current = now
+    // a change made and taken back before it settled is no step at all
+    const same = (Object.keys(now) as (keyof Doc)[]).every((k) => now[k] === before[k])
+    if (!same) setHistory(record(historyRef.current, before))
+  }
+  const commitRef = useRef(commitStep)
+  useEffect(() => {
+    commitRef.current = commitStep
+  })
+  useEffect(() => {
+    docRef.current = doc
+    if (restoringRef.current) {
+      restoringRef.current = false
+      settledRef.current = doc
+      return
+    }
+    if (doc === settledRef.current) return
+    if (settleTimer.current !== null) clearTimeout(settleTimer.current)
+    settleTimer.current = setTimeout(() => commitRef.current(), SETTLE_MS)
+  }, [doc])
+  useEffect(
+    () => () => {
+      if (settleTimer.current !== null) clearTimeout(settleTimer.current)
+    },
+    [],
+  )
+
   // Closing must never discard work: a take in flight is finished and saved
   // on the way out.
   const closeRef = useRef<() => void>(p.onClose)
@@ -366,13 +467,18 @@ export function Poster(p: Props) {
    */
   const selectedRef = useRef<Selection>('sheet')
   const deselectRef = useRef<() => void>(() => {})
+  /** every other key the room answers to — undo, nudge, delete — kept fresh below */
+  const keyRef = useRef<(e: KeyboardEvent) => void>(() => {})
   const galleryRef = useRef(false)
   useEffect(() => {
     galleryRef.current = gallery
   }, [gallery])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
+      if (e.key !== 'Escape') {
+        keyRef.current(e)
+        return
+      }
       // the gallery is over everything else, so it is the first thing out
       if (galleryRef.current) {
         setGallery(false)
@@ -799,13 +905,13 @@ export function Poster(p: Props) {
     }
   }
 
-  const anyFinish = FINISHES.some((f) => finishes[f.id]?.on)
+  const anyFinish = FINISHES.some((f) => shownFinishes[f.id]?.on)
   /** anything the SVG cannot carry, which is all of it: these are pixels */
   const anyPictureFx = !!backdrop && PICTURE_EFFECTS.some((f) => pictureFx[f.id]?.on)
   useEffect(() => {
-    viewRef.current?.setFinishes(finishes)
+    viewRef.current?.setFinishes(shownFinishes)
     requestDraw()
-  }, [finishes, requestDraw])
+  }, [shownFinishes, requestDraw])
 
   useEffect(() => {
     viewRef.current?.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink, pictureBoxOf({ layout: layout.id, format: format.id }))
@@ -895,7 +1001,7 @@ export function Poster(p: Props) {
         return buildPosterLayers({ ...base, chain })
       },
       prepare: (view) => {
-        view.setFinishes(finishes)
+        view.setFinishes(shownFinishes)
         view.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink, pictureBoxOf(cut))
         if (cut.layout === 'word') view.setOffset((wordT.dx / format.w) * f.w, (wordT.dy / format.h) * f.h)
       },
@@ -937,7 +1043,7 @@ export function Poster(p: Props) {
     const f = getFormat(cut.format)
     const shot = createFinishView(scale, f.w, f.h)
     try {
-      shot.setFinishes(finishes)
+      shot.setFinishes(shownFinishes)
       shot.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink, pictureBoxOf(cut))
       if (cut.layout === 'word') shot.setOffset((wordT.dx / format.w) * f.w, (wordT.dy / format.h) * f.h)
       const same = cut.format === format.id && cut.layout === layout.id && exactReq === sheetReq
@@ -1210,7 +1316,48 @@ export function Poster(p: Props) {
    * — lets the artwork be the way in and keeps the list as the second one. So:
    * the word, then the ground, which is also how they are stacked.
    */
+  /*
+   * Two fingers on the stage take hold of the word wherever they landed: they
+   * spread to resize, twist to turn and travel together to move it — the
+   * gesture every photo editor on a phone has taught. The first finger may
+   * already have started a move; the second takes over from wherever that had
+   * got to. The turn settles on the square and fifteen-degree angles as the
+   * knob's does, and the outlines are rebuilt once the fingers stop.
+   */
+  const touches = useRef(new Map<number, { x: number; y: number }>())
+  const pinchRef = useRef<{ base: WordTransform; dist: number; angle: number; mx: number; my: number } | null>(null)
+  const pair = () => {
+    const [a, b] = [...touches.current.values()]
+    return {
+      dist: Math.hypot(b.x - a.x, b.y - a.y),
+      angle: Math.atan2(b.y - a.y, b.x - a.x),
+      mx: (a.x + b.x) / 2,
+      my: (a.y + b.y) / 2,
+    }
+  }
+  const startPinch = (e: React.PointerEvent<HTMLDivElement>) => {
+    const base = moveRef.current ?? wordT
+    moveRef.current = null
+    dragRef.current = null
+    setGuides({ x: [], y: [] })
+    pinchRef.current = { base, ...pair() }
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setSelected('word')
+    setFramed(true)
+    setWordT(base)
+  }
+
   const onStagePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // a first finger is a new gesture, whatever a lost pointerup left behind
+    if (e.isPrimary) {
+      touches.current.clear()
+      pinchRef.current = null
+    }
+    touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    if (touches.current.size >= 2) {
+      if (touches.current.size === 2 && layout.id === 'word' && framedBox) startPinch(e)
+      return
+    }
     if (layout.id === 'word' && onWord(e.clientX, e.clientY)) {
       setSelected('word')
       startGesture('move', e)
@@ -1269,6 +1416,20 @@ export function Poster(p: Props) {
   }
 
   const onStagePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (touches.current.has(e.pointerId)) touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+    const pinch = pinchRef.current
+    if (pinch && touches.current.size >= 2) {
+      const now = pair()
+      const k = pinch.dist > 0 ? now.dist / pinch.dist : 1
+      setWordT({
+        ...pinch.base,
+        scale: clamp(pinch.base.scale * k, 0.25, 2),
+        rotate: snapAngle((pinch.base.rotate ?? 0) + ((now.angle - pinch.angle) * 180) / Math.PI),
+        dx: pinch.base.dx + toSheet(now.mx - pinch.mx),
+        dy: pinch.base.dy + toSheet(now.my - pinch.my),
+      })
+      return
+    }
     const drag = dragRef.current
     if (!drag) {
       trackHover(e.clientX, e.clientY)
@@ -1297,6 +1458,13 @@ export function Poster(p: Props) {
   }
 
   const onStagePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    touches.current.delete(e.pointerId)
+    // the pinch ends with the first finger off; the outlines catch up on their
+    // own once the word stops changing (BAKE_MS)
+    if (pinchRef.current) {
+      if (touches.current.size < 2) pinchRef.current = null
+      return
+    }
     const drag = dragRef.current
     if (!drag) return
     dragRef.current = null
@@ -1460,6 +1628,74 @@ export function Poster(p: Props) {
     setFinishes((v) => ({ ...v, [id]: { ...v[id], on: false } }))
     if (selected === `finish:${id}`) setSelected('finishes')
   }
+
+  /** a snapshot put back: every part of the sheet set to what it was */
+  const applyDoc = (d: Doc) => {
+    restoringRef.current = true
+    setPaletteIndex(d.paletteIndex)
+    setColours(d.colours)
+    setGroundId(d.groundId)
+    setFinishes(d.finishes)
+    setPictureFx(d.pictureFx)
+    setFormatId(d.formatId)
+    setMotionModeId(d.motionModeId)
+    setDepth(d.depth)
+    setSpeed(d.speed)
+    setLength(d.length)
+    setLayoutId(d.layoutId)
+    setCopy(d.copy)
+    setWordT(d.wordT)
+    setBakedT(d.wordT)
+    setSheetSeed(d.sheetSeed)
+    setBackdrop(d.backdrop)
+    if (d.motionOn !== motionOn) pickMotion(d.motionOn ? d.motionModeId : null)
+  }
+  /** nothing is undone while a clip renders or records: the export is reading the sheet */
+  const historyLocked = recording || !!progress
+  const step = (dir: 'undo' | 'redo') => {
+    if (historyLocked) return
+    // whatever is still settling counts as done before stepping over it
+    if (settleTimer.current !== null) commitStep()
+    const r = (dir === 'undo' ? undo : redo)(historyRef.current, docRef.current)
+    if (!r) return
+    setHistory(r.history)
+    applyDoc(r.to)
+  }
+
+  /*
+   * The keys a design tool answers to. ⌘Z and ⇧⌘Z (or ⌘Y) everywhere except
+   * in a text field, which has its own; the arrows nudge the word a sheet
+   * pixel, ten with Shift, as Figma's do; Delete takes off the selected finish.
+   * None of them while a control has the keyboard — an arrow on a slider
+   * moves the slider.
+   */
+  useEffect(() => {
+    keyRef.current = (e: KeyboardEvent) => {
+      const t = e.target instanceof Element ? e.target : null
+      const mod = e.metaKey || e.ctrlKey
+      const key = e.key.toLowerCase()
+      if (mod && (key === 'z' || key === 'y')) {
+        if (t?.closest('textarea, input[type="text"], input[type="number"], [contenteditable="true"]')) return
+        e.preventDefault()
+        step(key === 'y' || e.shiftKey ? 'redo' : 'undo')
+        return
+      }
+      if (mod || e.altKey || t?.closest('input, textarea, select, [contenteditable="true"]')) return
+      if (e.key.startsWith('Arrow') && selected === 'word' && layout.id === 'word') {
+        e.preventDefault()
+        const n = e.shiftKey ? 10 : 1
+        const dx = e.key === 'ArrowLeft' ? -n : e.key === 'ArrowRight' ? n : 0
+        const dy = e.key === 'ArrowUp' ? -n : e.key === 'ArrowDown' ? n : 0
+        setWordT((w) => ({ ...w, dx: w.dx + dx, dy: w.dy + dy }))
+        return
+      }
+      const f = finishOf(selected)
+      if (f && (e.key === 'Delete' || e.key === 'Backspace')) {
+        e.preventDefault()
+        removeFinish(f.id)
+      }
+    }
+  })
   const selectedFinish = finishOf(selected)
   const wordRow = rows.find((r) => r.sel === 'word')!
   // with motion on, the sheet's first sections fold to a line so Motion fits
@@ -1493,6 +1729,29 @@ export function Poster(p: Props) {
           second row of verbs beside a download is furniture, and the type
           already says what they said.
         */}
+        {/* undo where a phone can reach it too: it has no ⌘Z */}
+        <div className="sheet-history" role="group" aria-label="History">
+          <button
+            type="button"
+            className="sheet-history-btn"
+            aria-label="Undo"
+            title="Undo · ⌘Z"
+            disabled={steps.back === 0 || historyLocked}
+            onClick={() => step('undo')}
+          >
+            <HistoryIcon />
+          </button>
+          <button
+            type="button"
+            className="sheet-history-btn"
+            aria-label="Redo"
+            title="Redo · ⇧⌘Z"
+            disabled={steps.forward === 0 || historyLocked}
+            onClick={() => step('redo')}
+          >
+            <HistoryIcon redo />
+          </button>
+        </div>
         <div className="sheet-export">
           {progress ? (
             <>
@@ -1564,6 +1823,8 @@ export function Poster(p: Props) {
             finishes={finishes}
             onAdd={addFinish}
             onRemove={removeFinish}
+            hidden={hidden}
+            onToggleHidden={toggleHidden}
           />
         </aside>
 
@@ -1579,6 +1840,7 @@ export function Poster(p: Props) {
           onPointerDown={onStagePointerDown}
           onPointerMove={onStagePointerMove}
           onPointerUp={onStagePointerUp}
+          onPointerCancel={onStagePointerUp}
         >
           {recording && (
             <p className="rec-pill" role="status">
@@ -2154,6 +2416,8 @@ export function Poster(p: Props) {
                 onOpen={setOpenFinish}
                 onRemove={removeFinish}
                 onAdd={addFinish}
+                hidden={hidden}
+                onToggleHidden={toggleHidden}
               />
             </Section>
           )}
@@ -2169,6 +2433,27 @@ export function Poster(p: Props) {
         </aside>
       </div>
     </div>
+  )
+}
+
+/** a curved arrow back, or mirrored, forward — drawn, because the ↶ glyph comes out a hairline */
+function HistoryIcon({ redo }: { redo?: boolean }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={redo ? { transform: 'scaleX(-1)' } : undefined}
+    >
+      <path d="M5.5 3.5 2.5 6.5l3 3" />
+      <path d="M2.5 6.5h7a4 4 0 0 1 0 8H7" />
+    </svg>
   )
 }
 

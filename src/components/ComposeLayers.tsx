@@ -17,6 +17,8 @@ export function ComposeLayers({
   finishes,
   onAdd,
   onRemove,
+  hidden,
+  onToggleHidden,
 }: {
   rows: LayerRow[]
   selected: Selection
@@ -24,6 +26,9 @@ export function ComposeLayers({
   finishes: FinishState
   onAdd: (id: string) => void
   onRemove: (id: string) => void
+  /** finishes hidden from view without being removed */
+  hidden: ReadonlySet<string>
+  onToggleHidden: (id: string) => void
 }) {
   return (
     <>
@@ -32,8 +37,14 @@ export function ComposeLayers({
         {rows.map((r) => {
           const on = r.sel === selected
           const id = r.sel.startsWith('finish:') ? r.sel.slice('finish:'.length) : null
+          const off = !!id && hidden.has(id)
           return (
-            <li key={r.sel} className={['layer-item', r.nested ? 'is-nested' : '', on ? 'is-on' : ''].filter(Boolean).join(' ')}>
+            <li
+              key={r.sel}
+              className={['layer-item', r.nested ? 'is-nested' : '', on ? 'is-on' : '', off ? 'is-hidden' : '']
+                .filter(Boolean)
+                .join(' ')}
+            >
               <button type="button" className="layer-item-row" aria-pressed={on} onClick={() => onSelect(r.sel)}>
                 <span className="layer-icon" aria-hidden="true">
                   {r.icon}
@@ -41,6 +52,18 @@ export function ComposeLayers({
                 <span className="layer-name">{r.name}</span>
                 {r.sub && <span className="layer-sub">{r.sub}</span>}
               </button>
+              {id && (
+                <button
+                  type="button"
+                  className="layer-eye"
+                  aria-label={off ? `Show ${r.name}` : `Hide ${r.name}`}
+                  aria-pressed={off}
+                  title={off ? 'Hidden — click to show' : 'Hide, without removing'}
+                  onClick={() => onToggleHidden(id)}
+                >
+                  {off ? '○' : '◉'}
+                </button>
+              )}
               {id && (
                 <button
                   type="button"
