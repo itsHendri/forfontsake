@@ -648,6 +648,10 @@ h1 {
 .sheet-bar > * {
   flex: none;
 }
+/* the size and the way out sit at the bar's right, after the name */
+.sheet-bar .sheet-format {
+  margin-left: auto;
+}
 
 .sheet-body {
   flex: 1;

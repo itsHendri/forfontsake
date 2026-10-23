@@ -26,6 +26,9 @@ export interface ComposeLook {
   finishes: FinishState
   pictureFx: FinishState
   formatId: string
+  /** whether the sheet moves — off is a still, on makes the export a clip */
+  motionOn: boolean
+  /** which motion, kept while it is off so turning it back on finds the same one */
   motionModeId: string
   depth: number
   speed: number
@@ -51,6 +54,7 @@ export function defaultLook(): ComposeLook {
     finishes: finishState(),
     pictureFx: pictureState(),
     formatId: FORMATS[0].id,
+    motionOn: false,
     motionModeId: MODES[0].id,
     depth: DEFAULT_DEPTH,
     speed: DEFAULT_SPEED,
@@ -120,6 +124,8 @@ export function readLook(raw: unknown): ComposeLook {
     finishes: effects(FINISHES, d.finishes, r.finishes),
     pictureFx: effects(PICTURE_EFFECTS, d.pictureFx, r.pictureFx),
     formatId: FORMATS.some((f) => f.id === r.formatId) ? (r.formatId as string) : d.formatId,
+    // a look kept before motion was a setting opens still, as the room always did
+    motionOn: r.motionOn === true,
     motionModeId: MODES.some((m) => m.id === r.motionModeId) ? (r.motionModeId as string) : d.motionModeId,
     depth: isNum(r.depth) && r.depth >= 0 && r.depth <= 1 ? r.depth : d.depth,
     speed: isNum(r.speed) && r.speed >= MIN_SPEED && r.speed <= MAX_SPEED ? r.speed : d.speed,

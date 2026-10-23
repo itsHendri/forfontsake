@@ -344,14 +344,16 @@ export function Poster(p: Props) {
   /** the gallery of every sheet and template, over the stage */
   const [gallery, setGallery] = useState(false)
   /*
-   * Static or video: the one choice the whole room hangs off.
+   * Whether the sheet moves.
    *
-   * The clip is the capability nobody else in this niche has, and a mode
-   * nobody can see is a mode nobody uses. In video the sheet moves as soon as
-   * you are in it — there is nothing to switch on first, because the motion is
-   * a function of time rather than a sound that has to be started.
+   * It was a mode — Static or Video in the bar, the whole room hanging off it,
+   * and a second rail of settings appearing on the way in. But a still is
+   * just a sheet whose motion is off: Hendri's point, and Figma's, where
+   * motion is a property of the frame rather than a room you go to. So it is
+   * a setting of the sheet, Still by default, and turning it on is what makes
+   * the export a clip.
    */
-  const [mode, setMode] = useState<'static' | 'video'>('static')
+  const [motionOn, setMotionOn] = useState(look.motionOn)
   // The sheet's size is a property of the sheet, not of the export. Every tool
   // in this category splits them that way; the download stays type and scale.
   const [formatId, setFormatId] = useState(look.formatId)
@@ -400,11 +402,11 @@ export function Poster(p: Props) {
   const moveRef = useRef<WordTransform | null>(null)
 
   /*
-   * Motion. It plays whenever the room is in video and nobody has paused it;
-   * `clock` is where in the loop it is, kept across a pause so the sheet
-   * resumes from the frame it stopped on rather than jumping.
+   * Motion. It plays whenever it is on and nobody has paused it; `clock` is
+   * where in the loop it is, kept across a pause so the sheet resumes from the
+   * frame it stopped on rather than jumping.
    */
-  const [playing, setPlaying] = useState(false)
+  const [playing, setPlaying] = useState(look.motionOn)
   const clock = useRef(0)
   const [modChain, setModChain] = useState<Step[] | null>(null)
   // how fast the letters move: a multiplier on how many times each curve goes
@@ -479,6 +481,7 @@ export function Poster(p: Props) {
       finishes,
       pictureFx,
       formatId,
+      motionOn,
       motionModeId,
       depth,
       speed,
@@ -486,7 +489,7 @@ export function Poster(p: Props) {
       layoutId,
       copy,
     })
-  }, [paletteIndex, colours, groundId, finishes, pictureFx, formatId, motionModeId, depth, speed, length, layoutId, copy])
+  }, [paletteIndex, colours, groundId, finishes, pictureFx, formatId, motionOn, motionModeId, depth, speed, length, layoutId, copy])
 
   // Closing must never discard work: a take in flight is finished and saved
   // on the way out.
@@ -570,7 +573,7 @@ export function Poster(p: Props) {
    * its own exact time, however long that takes.
    */
   useEffect(() => {
-    if (mode !== 'video' || !playing) return
+    if (!motionOn || !playing) return
     const tier = p.chain.some((s) => HEAVY.has(s.id)) ? TICK_MS_HEAVY : TICK_MS
     let last = performance.now()
     let lastBuild = 0
@@ -592,7 +595,7 @@ export function Poster(p: Props) {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
-  }, [mode, playing, p.chain])
+  }, [motionOn, playing, p.chain])
 
   // The roll underneath, and whatever has been set by hand over it. Recolour
   // still moves all four at once, which is the fast way to a different sheet;
@@ -649,7 +652,7 @@ export function Poster(p: Props) {
    * layout, and the rail reports it instead of the picker forbidding it.
    */
 
-  const sheetChain = mode === 'video' && modChain ? modChain : p.chain
+  const sheetChain = motionOn && modChain ? modChain : p.chain
 
   const sheetReq = useMemo(
     () => ({
@@ -1450,7 +1453,6 @@ export function Poster(p: Props) {
 
   const moved = wordT.dx !== 0 || wordT.dy !== 0 || wordT.scale !== 1 || (wordT.rotate ?? 0) !== 0
   const chainName = p.chain.map((c) => getTreatment(c.id).name).join(' + ')
-  const inVideo = mode === 'video'
 
   /*
    * A picture of each layout, drawn from the real engine.
@@ -1484,19 +1486,27 @@ export function Poster(p: Props) {
   /** the sheet the gallery draws its tiles from: as you made it, not mid-motion */
   const galleryReq = useMemo(() => ({ ...sheetReq, chain: p.chain, wordTransform: IDENTITY }), [sheetReq, p.chain])
 
-  // out of video the sheet goes back to the font as you made it
-  const setStatic = () => {
-    setMode('static')
-    setPlaying(false)
-    setModChain(null)
-    clock.current = 0
-  }
-  // into it, it plays — and the browser is asked, once, whether it can render
-  const setVideo = () => {
-    setMode('video')
+  /**
+   * Still, or one of the motions. Still puts the sheet back to the font as you
+   * made it; a motion plays at once.
+   */
+  const pickMotion = (id: string | null) => {
+    if (id === null) {
+      setMotionOn(false)
+      setPlaying(false)
+      setModChain(null)
+      clock.current = 0
+      return
+    }
+    setMotionModeId(id)
+    setMotionOn(true)
     setPlaying(true)
-    if (canRender === null) void canRenderClips(1080, 1920).then(setCanRender)
   }
+  // with motion on the export is a clip, so the browser is asked, once,
+  // whether it can render one — on the way in, if the room opened moving
+  useEffect(() => {
+    if (motionOn && canRender === null) void canRenderClips(1080, 1920).then(setCanRender)
+  }, [motionOn, canRender])
 
   /*
    * What the motion will actually get out of this chain, live.
@@ -1529,37 +1539,12 @@ export function Poster(p: Props) {
         <b className="sheet-name">{chainName}</b>
         <span className="sheet-font">on {p.font.label}</span>
 
-        {/*
-          Static or video, centred above everything it governs. It is the only
-          control disabled while a take runs: you cannot change what you are
-          recording halfway through it.
-        */}
-        <div className="mode-switch" role="group" aria-label="Still or video">
-          <button
-            type="button"
-            className={inVideo ? 'seg' : 'seg is-on'}
-            aria-pressed={!inVideo}
-            disabled={recording || !!progress}
-            onClick={setStatic}
-          >
-            Static
-          </button>
-          <button
-            type="button"
-            className={inVideo ? 'seg is-on' : 'seg'}
-            aria-pressed={inVideo}
-            disabled={recording || !!progress}
-            onClick={setVideo}
-          >
-            Video
-          </button>
-        </div>
-
         <label className="visually-hidden" htmlFor="sheet-format">
           Sheet size
         </label>
         <select
           id="sheet-format"
+          className="sheet-format"
           value={format.id}
           disabled={recording || !!progress}
           onChange={(e) => setFormatId(e.target.value)}
@@ -1592,13 +1577,13 @@ export function Poster(p: Props) {
                 Cancel
               </button>
             </>
-          ) : inVideo && recording ? (
+          ) : motionOn && recording ? (
             <button type="button" className="is-live" onClick={() => void finishRecording()}>
               Stop · {recSeconds}s
             </button>
-          ) : inVideo ? (
+          ) : motionOn ? (
             <Menu
-              label="Download"
+              label="Download MP4"
               items={[
                 {
                   id: 'mp4',
@@ -1670,7 +1655,7 @@ export function Poster(p: Props) {
         <div
           className={[
             'sheet-stage',
-            inVideo ? 'has-transport' : '',
+            motionOn ? 'has-transport' : '',
             hover ? 'is-over-word' : '',
           ]
             .filter(Boolean)
@@ -1747,8 +1732,8 @@ export function Poster(p: Props) {
               </div>
             )}
           </div>
-          {/* the motion's transport, on the sheet where somebody in video is looking */}
-          {inVideo && (
+          {/* the motion's transport, on the sheet where somebody watching it is looking */}
+          {motionOn && (
             <div className="transport">
               <button
                 type="button"
@@ -1875,7 +1860,7 @@ export function Poster(p: Props) {
               >
                 {gallery ? 'Back to the sheet' : 'Browse all templates'}
               </button>
-              {inVideo && steppy && (
+              {motionOn && steppy && (
                 <p className="note">
                   This chain redraws {layout.id === 'chars' ? 'the character set' : 'the word'} about{' '}
                   {framesPerSecond!.toFixed(1)} times a second, so the letters will step between
@@ -2121,86 +2106,107 @@ export function Poster(p: Props) {
           )}
 
           {/*
-            Motion exists only in video. It is a loop: every curve goes round a
-            whole number of times in the clip's length, so the length is part
-            of the motion rather than a setting on the export.
+            Motion is a setting of the sheet: Still, or one of the three. It is
+            a loop — every curve goes round a whole number of times in the
+            clip's length, so the length is part of the motion rather than a
+            setting on the export — and its dials only exist while it moves.
           */}
-          {inVideo && (
+          {selected === null && (
             <div className="group ruled motion">
               <h2>Motion</h2>
-              <div className="chips">
-                {MODES.map((m) => (
-                  <button
-                    type="button"
-                    key={m.id}
-                    className={m.id === motionModeId ? 'chip is-on' : 'chip'}
-                    aria-pressed={m.id === motionModeId}
-                    disabled={!!progress}
-                    onClick={() => setMotionModeId(m.id)}
-                    title={m.note}
-                  >
-                    {m.name}
-                  </button>
-                ))}
-              </div>
-              <p className="note">{getMode(motionModeId).note}</p>
-              <div className="ctl">
-                <div className="ctl-head">
-                  <label htmlFor="motion-depth">Depth</label>
-                  <output htmlFor="motion-depth" className={depth === DEFAULT_DEPTH ? 'is-default' : undefined}>
-                    {Math.round(depth * 100)}%
-                  </output>
-                </div>
-                <input
-                  id="motion-depth"
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={depth}
-                  disabled={!!progress}
-                  onChange={(e) => setDepth(Number(e.target.value))}
-                  onDoubleClick={() => setDepth(DEFAULT_DEPTH)}
-                />
-              </div>
-              <div className="ctl">
-                <div className="ctl-head">
-                  <label htmlFor="motion-speed">Speed</label>
-                  <output htmlFor="motion-speed" className={speed === DEFAULT_SPEED ? 'is-default' : undefined}>
-                    {speed.toFixed(2)}×
-                  </output>
-                </div>
-                <input
-                  id="motion-speed"
-                  type="range"
-                  min={MIN_SPEED}
-                  max={MAX_SPEED}
-                  step={0.05}
-                  value={speed}
-                  disabled={!!progress}
-                  onChange={(e) => setSpeed(Number(e.target.value))}
-                  onDoubleClick={() => setSpeed(DEFAULT_SPEED)}
-                />
-              </div>
-              <div className="ctl">
-                <div className="ctl-head">
-                  <span>Length</span>
-                </div>
-                <div className="chips" role="group" aria-label="Clip length">
-                  {LENGTHS.map((l) => (
+              <div className="chips" role="group" aria-label="Motion">
+                <button
+                  type="button"
+                  className={motionOn ? 'chip' : 'chip is-on'}
+                  aria-pressed={!motionOn}
+                  disabled={recording || !!progress}
+                  onClick={() => pickMotion(null)}
+                >
+                  Still
+                </button>
+                {MODES.map((m) => {
+                  const on = motionOn && m.id === motionModeId
+                  return (
                     <button
                       type="button"
-                      key={l}
-                      className={l === length ? 'chip is-on' : 'chip'}
-                      aria-pressed={l === length}
+                      key={m.id}
+                      className={on ? 'chip is-on' : 'chip'}
+                      aria-pressed={on}
                       disabled={recording || !!progress}
-                      onClick={() => setLength(l)}
+                      onClick={() => pickMotion(m.id)}
+                      title={m.note}
                     >
-                      {l}s
+                      {m.name}
                     </button>
-                  ))}
-                </div>
+                  )
+                })}
               </div>
+              <p className="note">
+                {motionOn
+                  ? getMode(motionModeId).note
+                  : 'The sheet holds still and downloads as a picture. Pick a motion and it moves, and the download becomes an MP4.'}
+              </p>
+              {motionOn && (
+                <>
+                  <div className="ctl">
+                    <div className="ctl-head">
+                      <label htmlFor="motion-depth">Depth</label>
+                      <output htmlFor="motion-depth" className={depth === DEFAULT_DEPTH ? 'is-default' : undefined}>
+                        {Math.round(depth * 100)}%
+                      </output>
+                    </div>
+                    <input
+                      id="motion-depth"
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={depth}
+                      disabled={!!progress}
+                      onChange={(e) => setDepth(Number(e.target.value))}
+                      onDoubleClick={() => setDepth(DEFAULT_DEPTH)}
+                    />
+                  </div>
+                  <div className="ctl">
+                    <div className="ctl-head">
+                      <label htmlFor="motion-speed">Speed</label>
+                      <output htmlFor="motion-speed" className={speed === DEFAULT_SPEED ? 'is-default' : undefined}>
+                        {speed.toFixed(2)}×
+                      </output>
+                    </div>
+                    <input
+                      id="motion-speed"
+                      type="range"
+                      min={MIN_SPEED}
+                      max={MAX_SPEED}
+                      step={0.05}
+                      value={speed}
+                      disabled={!!progress}
+                      onChange={(e) => setSpeed(Number(e.target.value))}
+                      onDoubleClick={() => setSpeed(DEFAULT_SPEED)}
+                    />
+                  </div>
+                  <div className="ctl">
+                    <div className="ctl-head">
+                      <span>Length</span>
+                    </div>
+                    <div className="chips" role="group" aria-label="Clip length">
+                      {LENGTHS.map((l) => (
+                        <button
+                          type="button"
+                          key={l}
+                          className={l === length ? 'chip is-on' : 'chip'}
+                          aria-pressed={l === length}
+                          disabled={recording || !!progress}
+                          onClick={() => setLength(l)}
+                        >
+                          {l}s
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 

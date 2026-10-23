@@ -39,6 +39,14 @@ describe('the look Compose remembers', () => {
     expect(back.finishes[FINISHES[0].id].params).toEqual(d.finishes[FINISHES[0].id].params)
   })
 
+  it('opens still unless motion was on, and keeps the motion picked either way', () => {
+    expect(defaultLook().motionOn).toBe(false)
+    // kept before motion was a setting of the sheet: still, whatever mode it names
+    expect(readLook({ motionModeId: 'breathe' })).toMatchObject({ motionOn: false, motionModeId: 'breathe' })
+    expect(readLook({ motionOn: true, motionModeId: 'shimmer' })).toMatchObject({ motionOn: true, motionModeId: 'shimmer' })
+    expect(readLook({ motionOn: 'yes' }).motionOn).toBe(false)
+  })
+
   it('keeps a finish dial inside its range', () => {
     const f = FINISHES.find((x) => x.params.length > 0)!
     const spec = f.params[0]
