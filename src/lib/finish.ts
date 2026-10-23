@@ -213,6 +213,7 @@ uniform vec2 uPx;          // one pixel, in uv
 // stays letterforms over a screened photograph rather than being screened
 // with it.
 uniform vec4 uPic;         // halftone · dither · duotone · mosaic, 0 or 1
+uniform vec4 uPicBox;      // where the picture is, in uv: left · top · right · bottom
 uniform vec3 uHalf;        // pitch · angle (radians) · unused
 uniform vec3 uDith;        // levels · weight · unused
 uniform vec3 uDuo;         // mix · contrast · unused
@@ -266,6 +267,9 @@ float bayer(vec2 cell) {
  * is but decides by where it is. Only duotone is a pure recolouring.
  */
 vec3 pictured(sampler2D g, vec2 p) {
+  // A picture in a template's box is only part of the ground; the paper
+  // round it is paper, and screening it would print a halftone of nothing.
+  if (p.x < uPicBox.x || p.y < uPicBox.y || p.x > uPicBox.z || p.y > uPicBox.w) return texture(g, p).rgb;
   vec2 at = p;
   if (uPic.w > 0.5) {
     // one tone to a tile: snap the read to the middle of the tile it is in
@@ -427,9 +431,16 @@ export interface FinishView {
   /**
    * What is being done to the picture on the Background layer, and the two
    * inks the effects that reprint it use. Ignored when the ground is a drawn
-   * texture rather than a photograph: there is nothing to reprint.
+   * texture rather than a photograph: there is nothing to reprint. `box` is
+   * where the picture sits, in sheet pixels, when it does not fill the sheet.
    */
-  setPicture(state: FinishState, on: boolean, paper: string, ink: string): void
+  setPicture(
+    state: FinishState,
+    on: boolean,
+    paper: string,
+    ink: string,
+    box?: { x: number; y: number; w: number; h: number } | null,
+  ): void
   /** 0 to 1, how much of the previous sheet still shows */
   setFade(fade: number): void
   draw(): void
@@ -499,6 +510,7 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
     grain: u('uGrain'),
     px: u('uPx'),
     pic: u('uPic'),
+    picBox: u('uPicBox'),
     half: u('uHalf'),
     dith: u('uDith'),
     duo: u('uDuo'),
@@ -527,6 +539,7 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
   let picture: FinishState = pictureState()
   /** there is a photograph to reprint; a drawn texture is left alone */
   let hasPicture = false
+  let picBox: [number, number, number, number] = [0, 0, 1, 1]
   let paperRgb: [number, number, number] = [1, 1, 1]
   let inkRgb: [number, number, number] = [0, 0, 0]
   let dead = false
@@ -595,7 +608,8 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
     setFinishes(next) {
       finishes = next
     },
-    setPicture(next, on, paper, ink) {
+    setPicture(next, on, paper, ink, box) {
+      picBox = box ? [box.x / sheetW, box.y / sheetH, (box.x + box.w) / sheetW, (box.y + box.h) / sheetH] : [0, 0, 1, 1]
       picture = next
       hasPicture = on
       paperRgb = rgb(paper)
@@ -639,6 +653,7 @@ export function createFinishView(scale = 1, sheetW = SHEET_W, sheetH = SHEET_H):
       const [half, dith, duo, mosaic] = PICTURE_EFFECTS
       const lit = (f: Finish) => (hasPicture && picture[f.id]?.on ? 1 : 0)
       gl.uniform4f(loc.pic, lit(half), lit(dith), lit(duo), lit(mosaic))
+      gl.uniform4f(loc.picBox, ...picBox)
       gl.uniform3f(loc.half, ...packed(half, picture))
       gl.uniform3f(loc.dith, ...packed(dith, picture))
       gl.uniform3f(loc.duo, ...packed(duo, picture))

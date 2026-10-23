@@ -1,7 +1,8 @@
 import { FINISHES, PICTURE_EFFECTS, finishState, pictureState, type Finish, type FinishState } from './finish'
 import { DEFAULT_DEPTH, MODES } from './modulate'
 import { DEFAULT_LENGTH, DEFAULT_SPEED, LENGTHS, MAX_SPEED, MIN_SPEED } from './motion'
-import { FORMATS, GROUNDS, POSTER_PALETTES, type PosterPalette } from './poster'
+import { FORMATS, GROUNDS, LAYOUTS, POSTER_PALETTES, type PosterPalette } from './poster'
+import { copySets } from './copyBank'
 
 /**
  * How Compose looked when you last left it.
@@ -11,7 +12,9 @@ import { FORMATS, GROUNDS, POSTER_PALETTES, type PosterPalette } from './poster'
  * you settled on had to be rebuilt by hand each week. This is that look, kept
  * in the browser.
  *
- * Only the look: colours, ground, finishes, format, motion. Not the picture
+ * The look: colours, ground, finishes, format, motion — and, since the
+ * templates, the layout and what each template says, because a series is as
+ * much the same template every week as the same colours. Not the picture
  * you brought (megabytes, and a photo belongs to one post), not the word's
  * placement or the seed (those belong to the font, and the font changes
  * weekly), and not in the URL, which is still about the font alone.
@@ -27,6 +30,15 @@ export interface ComposeLook {
   depth: number
   speed: number
   length: number
+  /** which of LAYOUTS the sheet is set in */
+  layoutId: string
+  /** per template: where Shuffle has got to in the bank, and any lines typed over it */
+  copy: Record<string, TemplateCopy>
+}
+
+export interface TemplateCopy {
+  pick: number
+  own?: string[]
 }
 
 const KEY = 'ffs:compose:v1'
@@ -43,7 +55,24 @@ export function defaultLook(): ComposeLook {
     depth: DEFAULT_DEPTH,
     speed: DEFAULT_SPEED,
     length: DEFAULT_LENGTH,
+    layoutId: LAYOUTS[0].id,
+    copy: {},
   }
+}
+
+/** a stored copy record, kept only for templates that exist and take copy, its lines trimmed to strings */
+function copyRecord(raw: unknown): Record<string, TemplateCopy> {
+  const out: Record<string, TemplateCopy> = {}
+  if (!raw || typeof raw !== 'object') return out
+  for (const [id, held] of Object.entries(raw as Record<string, unknown>)) {
+    if (copySets(id) === 0 || !held || typeof held !== 'object') continue
+    const h = held as { pick?: unknown; own?: unknown }
+    const pick = isNum(h.pick) && h.pick >= 0 ? Math.floor(h.pick) : 0
+    const own =
+      Array.isArray(h.own) && h.own.every((l) => typeof l === 'string') ? (h.own as string[]).slice(0, 40) : undefined
+    out[id] = own ? { pick, own } : { pick }
+  }
+  return out
 }
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
@@ -95,6 +124,8 @@ export function readLook(raw: unknown): ComposeLook {
     depth: isNum(r.depth) && r.depth >= 0 && r.depth <= 1 ? r.depth : d.depth,
     speed: isNum(r.speed) && r.speed >= MIN_SPEED && r.speed <= MAX_SPEED ? r.speed : d.speed,
     length: (LENGTHS as readonly number[]).includes(r.length as number) ? (r.length as number) : d.length,
+    layoutId: LAYOUTS.some((l) => l.id === r.layoutId) ? (r.layoutId as string) : d.layoutId,
+    copy: copyRecord(r.copy),
   }
 }
 

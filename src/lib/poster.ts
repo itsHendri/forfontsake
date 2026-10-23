@@ -1,15 +1,8 @@
-import {
-  getTreatment,
-  applyChain,
-  resolveChain,
-  effectiveSeed,
-  type Overrides,
-} from '../engine/treatments/registry'
-import { mulberry32 } from '../engine/prng'
-import { ringsToPathD } from '../engine/svg'
-import { toRings, type FontData } from './glyphData'
-import { letterGrowth } from './render'
+import { getTreatment, type Overrides } from '../engine/treatments/registry'
+import type { FontData } from './glyphData'
 import type { Step } from './urlState'
+import { MARGIN, treatRun, treatGlyphs, inkOf, pathAt, rule, type Run } from './sheetDraw'
+import { TEMPLATES, drawTemplate, getTemplate, pictureRect } from './templates'
 
 /**
  * A specimen sheet, as a standalone SVG string.
@@ -224,6 +217,8 @@ export interface PosterRequest {
   backdrop?: string | null
   /** per-character exceptions to the chain, exactly as the workbench has them */
   overrides?: Overrides
+  /** the lines a template sets; absent or blank means the copy bank's first set */
+  copy?: string[]
 }
 
 // Instagram portrait, 4:5 — still the default, and what a request with no
@@ -231,7 +226,6 @@ export interface PosterRequest {
 // the hit-test both want the default sheet without asking for it.
 export const SHEET_W = FORMATS[0].w
 export const SHEET_H = FORMATS[0].h
-const MARGIN = 76
 
 /**
  * The band the type is set in: the sheet inside its margin.
@@ -244,66 +238,7 @@ function bandOf(h: number) {
   return { bandTop: MARGIN, bandBottom: h - MARGIN }
 }
 
-/**
- * Treat the word once and return it as a path plus the box it occupies.
- *
- * Deliberately the first cut of each letter rather than the cycling ones the
- * workbench uses: a specimen is a reference, and a sheet that redrew the same
- * letter differently each time would be showing off the randomness rather than
- * the treatment.
- */
-function treatRun(req: PosterRequest, text: string) {
-  const data = req.font
-  // grown advances, as the exported font sets them — see render.ts
-  const grow = letterGrowth(data, req.chain, req.seed)
-  let d = ''
-  let penX = 0
-  for (const ch of text) {
-    const g = data.glyphs[ch]
-    if (!g) continue
-    const rchain = resolveChain(req.chain, req.overrides, ch)
-    if (g.rings.length > 0) {
-      // one context across the stack, as everywhere else — see render.ts
-      const ctx = {
-        rng: mulberry32(effectiveSeed(req.seed, req.overrides, ch) + (ch.codePointAt(0) ?? 0) * 7919),
-        unitsPerEm: data.unitsPerEm,
-        strokeWidth: data.strokeWidth || data.unitsPerEm * 0.1,
-        advanceWidth: g.adv,
-        penX,
-      }
-      d += ringsToPathD(applyChain(toRings(g.rings), rchain, ctx), penX, 0)
-    }
-    penX += g.adv + (rchain === req.chain ? grow : letterGrowth(data, rchain, req.seed))
-  }
-  return { d, width: penX, ascender: data.ascender, descender: data.descender }
-}
 
-/**
- * Every glyph on its own, for the character-set sheet.
- *
- * Separate from drawWord because a grid needs each letter's own box to centre
- * it in, which a single run of path data cannot give back.
- */
-function treatGlyphs(req: PosterRequest, chars: string) {
-  const data = req.font
-  const grow = letterGrowth(data, req.chain, req.seed)
-  const out: { ch: string; d: string; adv: number }[] = []
-  for (const ch of chars) {
-    const g = data.glyphs[ch]
-    if (!g || g.rings.length === 0) continue
-    const rchain = resolveChain(req.chain, req.overrides, ch)
-    const ctx = {
-      rng: mulberry32(effectiveSeed(req.seed, req.overrides, ch) + (ch.codePointAt(0) ?? 0) * 7919),
-      unitsPerEm: data.unitsPerEm,
-      strokeWidth: data.strokeWidth || data.unitsPerEm * 0.1,
-      advanceWidth: g.adv,
-      penX: 0,
-    }
-    const gGrow = rchain === req.chain ? grow : letterGrowth(data, rchain, req.seed)
-    out.push({ ch, d: ringsToPathD(applyChain(toRings(g.rings), rchain, ctx), 0, 0), adv: g.adv + gGrow })
-  }
-  return out
-}
 
 /**
  * The character set the grids show, in the order they show it.
@@ -316,9 +251,6 @@ export const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345
 
 /** what the Sentence sheet sets when there is no sentence of your own */
 export const PANGRAM = 'Sphinx of black quartz, judge my vow.'
-
-/** a run of treated letters: one path, its advance and the font's box */
-type Run = ReturnType<typeof treatRun>
 
 /** the outlines a sheet is made of, before anything has been said about colour */
 export interface SheetGeometry {
@@ -438,14 +370,20 @@ export interface PosterLayout {
   name: string
   /** one line for the control, saying what this sheet is for */
   note: string
+  /** one of the four sheets, or a template from `templates.ts` that sets copy of its own */
+  kind: 'sheet' | 'template'
 }
 
 export const LAYOUTS: PosterLayout[] = [
-  { id: 'word', name: 'Word', note: 'One word, set as large as the sheet allows' },
-  { id: 'chars', name: 'Character set', note: 'Every letter and numeral, each in its own cell' },
-  { id: 'sentence', name: 'Sentence', note: 'A line at three sizes, so it reads as a face you could set text in' },
-  { id: 'specimen', name: 'Specimen', note: 'Aa, the word, and every letter and numeral on one sheet' },
+  { id: 'word', name: 'Word', note: 'One word, set as large as the sheet allows', kind: 'sheet' },
+  { id: 'chars', name: 'Character set', note: 'Every letter and numeral, each in its own cell', kind: 'sheet' },
+  { id: 'sentence', name: 'Sentence', note: 'A line at three sizes, so it reads as a face you could set text in', kind: 'sheet' },
+  { id: 'specimen', name: 'Specimen', note: 'Aa, the word, and every letter and numeral on one sheet', kind: 'sheet' },
+  ...TEMPLATES.map((t) => ({ id: t.id, name: t.name, note: t.note, kind: 'template' as const })),
 ]
+
+/** the layout a request is set in; an unknown id falls back to the first */
+export const getLayout = (id?: string): PosterLayout => LAYOUTS.find((l) => l.id === id) ?? LAYOUTS[0]
 
 /**
  * Where a turn settles.
@@ -555,27 +493,8 @@ function placeWord(req: PosterRequest, bandTop: number, bandBottom: number) {
 const bandWord = (req: PosterRequest, bandTop: number, bandBottom: number) =>
   placeWord(req, bandTop, bandBottom).markup
 
-/** the box a path's points actually reach, in its own units — the ink, not the font's box */
-function inkOf(d: string) {
-  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
-  const nums = d.match(/-?\d+(?:\.\d+)?/g) ?? []
-  for (let i = 0; i + 1 < nums.length; i += 2) {
-    const x = Number(nums[i]), y = Number(nums[i + 1])
-    if (x < x0) x0 = x
-    if (x > x1) x1 = x
-    if (y < y0) y0 = y
-    if (y > y1) y1 = y
-  }
-  return Number.isFinite(x0) ? { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 } : null
-}
 
-const pathAt = (d: string, x: number, baseline: number, scale: number, fill: string) =>
-  `<g transform="translate(${x.toFixed(1)}, ${baseline.toFixed(1)}) scale(${scale.toFixed(5)}, ${(-scale).toFixed(5)})">` +
-  `<path d="${d}" fill="${fill}" fill-rule="evenodd"/></g>`
 
-/** a hairline in the ink, at a weight that survives being shown at a third of its size */
-const rule = (x: number, y: number, w: number, ink: string) =>
-  `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="2" fill="${ink}"/>`
 
 /**
  * Glyphs in cells, one each, centred on their own advance.
@@ -762,12 +681,25 @@ function bandSpecimen(req: PosterRequest, bandTop: number, bandBottom: number) {
   return out
 }
 
-/** what a layout sets in the band, for the layouts that are all one picture */
-function bandFor(id: string, req: PosterRequest, bandTop: number, bandBottom: number): string | null {
-  if (id === 'chars') return bandChars(req, bandTop, bandBottom)
-  if (id === 'sentence') return bandSentence(req, bandTop, bandBottom)
-  if (id === 'specimen') return bandSpecimen(req, bandTop, bandBottom)
-  return null
+/**
+ * What a layout sets in the band, for every layout but the word.
+ *
+ * In two parts because a template with a picture box keeps its picture on the
+ * ground and its type above it: the picture effects run on the ground layer,
+ * and the type should stay letterforms over a screened photograph rather than
+ * being screened with it. Everything else has no picture of its own.
+ */
+function bandFor(
+  id: string,
+  req: PosterRequest,
+  bandTop: number,
+  bandBottom: number,
+): { picture: string; type: string } | null {
+  if (id === 'chars') return { picture: '', type: bandChars(req, bandTop, bandBottom) }
+  if (id === 'sentence') return { picture: '', type: bandSentence(req, bandTop, bandBottom) }
+  if (id === 'specimen') return { picture: '', type: bandSpecimen(req, bandTop, bandBottom) }
+  const { w, h } = getFormat(req.format)
+  return drawTemplate(id, req, { w, h, top: bandTop, bottom: bandBottom })
 }
 
 /**
@@ -779,7 +711,8 @@ function bandFor(id: string, req: PosterRequest, bandTop: number, bandBottom: nu
  * should be the sheet's own colour rather than whatever the canvas was.
  */
 function ground(req: PosterRequest, w: number, h: number): string {
-  if (req.backdrop) {
+  // a template with a box of its own holds the picture there, not under everything
+  if (req.backdrop && !getTemplate(req.layout)?.picture) {
     return (
       `<rect width="${w}" height="${h}" fill="${req.palette.paper}"/>` +
       `<image href="${req.backdrop}" x="0" y="0" width="${w}" height="${h}" ` +
@@ -787,6 +720,18 @@ function ground(req: PosterRequest, w: number, h: number): string {
     )
   }
   return getGround(req.ground).draw(w, h, req.palette)
+}
+
+/**
+ * Where the picture sits when a template holds it in a box, in sheet pixels.
+ *
+ * The room hands this to the GPU view so the picture effects stop at the
+ * box's edge; null means the picture, if there is one, fills the sheet.
+ */
+export function pictureBoxOf(req: Pick<PosterRequest, 'layout' | 'format'>) {
+  const { w, h } = getFormat(req.format)
+  const { bandTop, bandBottom } = bandOf(h)
+  return pictureRect(req.layout ?? '', { w, h, top: bandTop, bottom: bandBottom })
 }
 
 /** the sheet's own frame, so every layer is cut to the same size */
@@ -798,10 +743,11 @@ export function buildPoster(req: PosterRequest): string {
   const { w, h } = getFormat(req.format)
   const { bandTop, bandBottom } = bandOf(h)
 
-  const layout = LAYOUTS.find((l) => l.id === req.layout) ?? LAYOUTS[0]
-  const band = bandFor(layout.id, req, bandTop, bandBottom) ?? bandWord(req, bandTop, bandBottom)
+  const layout = getLayout(req.layout)
+  const band = bandFor(layout.id, req, bandTop, bandBottom)
+  const body = band ? band.picture + band.type : bandWord(req, bandTop, bandBottom)
 
-  return wrap(ground(req, w, h) + band, w, h)
+  return wrap(ground(req, w, h) + body, w, h)
 }
 
 /**
@@ -829,13 +775,19 @@ export function buildPosterLayers(req: PosterRequest): {
   const { w, h } = getFormat(req.format)
   const { bandTop, bandBottom } = bandOf(h)
 
-  const layout = LAYOUTS.find((l) => l.id === req.layout) ?? LAYOUTS[0]
+  const layout = getLayout(req.layout)
   // the same order the composed sheet uses: ground, then the band
   const paper = ground(req, w, h)
 
-  // only the word is an object; every other sheet is one picture on the ground
+  // Only the word is an object; every other sheet is one picture on the
+  // ground — except a template's picture box, whose type rides the word layer
+  // so the picture effects screen the picture and not the letters. It is not
+  // an object: there is no box, so nothing on it can be taken hold of.
   const whole = bandFor(layout.id, req, bandTop, bandBottom)
-  if (whole !== null) return { ground: wrap(paper + whole, w, h), word: null, wordBox: null }
+  if (whole !== null && whole.picture) {
+    return { ground: wrap(paper + whole.picture, w, h), word: wrap(whole.type, w, h), wordBox: null }
+  }
+  if (whole !== null) return { ground: wrap(paper + whole.type, w, h), word: null, wordBox: null }
   const anchored: PosterRequest = {
     ...req,
     wordTransform: req.wordTransform ? { ...req.wordTransform, dx: 0, dy: 0 } : undefined,

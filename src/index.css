@@ -2867,3 +2867,129 @@ button.saved-confirm-delete:hover:not(:disabled) {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* The gallery: every sheet and template, over the stage. It takes the stage's
+   own grid cell rather than covering the page, so the rail stays beside it and
+   the sheet underneath keeps its canvas — closing is instant, nothing rebuilds. */
+.sheet-stage,
+.template-gallery {
+  grid-column: 1;
+  grid-row: 1;
+}
+.template-gallery {
+  z-index: 3;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+}
+.gallery-bar {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--rule);
+}
+.gallery-bar h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+.gallery-note {
+  flex: 1 1 200px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.gallery-close {
+  padding: 5px 11px;
+  font-size: 15px;
+  line-height: 1;
+}
+.gallery-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 2px 24px;
+}
+.gallery-group + .gallery-group {
+  margin-top: 26px;
+}
+.gallery-group h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+/* three across, the way the posts will sit on the profile they are going to */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+.gallery-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.gallery-tile img,
+.gallery-blank {
+  display: block;
+  width: 100%;
+  height: auto;
+  outline: 1px solid var(--rule);
+}
+.gallery-blank {
+  background: var(--track);
+}
+.gallery-tile:hover img {
+  outline-color: var(--muted);
+}
+.gallery-tile.is-on img,
+.gallery-tile.is-on .gallery-blank {
+  outline: 2px solid var(--ink);
+}
+.gallery-tile.is-on {
+  color: var(--ink);
+  font-weight: 500;
+}
+.gallery-open {
+  align-self: flex-start;
+}
+@media (max-width: 620px) {
+  .gallery-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+}
+
+.copy-lines textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--plate);
+  color: var(--ink);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  resize: vertical;
+}
+.copy-lines textarea:focus-visible {
+  outline: 2px solid var(--frame);
+  outline-offset: 1px;
+}
+.copy-hint {
+  font-size: 12px;
+  color: var(--muted);
+}

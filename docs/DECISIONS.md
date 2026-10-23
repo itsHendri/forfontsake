@@ -1857,6 +1857,70 @@ built from the foot up: the set on thirteen columns, the word between two rules,
 the upper one, all placed by their ink for the same reason. The kit's carousel gained the
 Specimen as a third still. Text templates remain open (below).
 
+## Templates, from the Feliciano round
+
+On 23 October Hendri pointed at Feliciano Type's Instagram as the model for templates. Nearly
+every post there is type alone on paper, and the same few moves keep coming back: words
+stacked between hairlines, a list of phrases, one big question, a glyph over a paragraph, a
+book cover, words turned on their side, and now and then a picture at the top or bottom. He
+wanted a page in Compose that scrolls like that profile, with every template already set in
+your font.
+
+His four answers set the round:
+
+- **Type only.** Feliciano labels each line ("440 pt — Biarritz Light") and puts the address
+  in the foot. We don't: the poster round's rule that no sheet carries text of its own stands.
+  Hairlines are fine.
+- **A copy bank.** A template is half layout and half copy, so each ships with a few sets of
+  lines (`copyBank.ts`). Shuffle steps through them, and lines you type replace them, per
+  template. Every string stays inside what the engine can draw — letters, numerals, the space
+  and `. , ! ? & ' -` — and a test holds the bank to it. The passages are ours and the titles
+  are public domain. When typed copy uses a character the font lacks, the copy box names it,
+  because the engine drops it without a gap.
+- **Figma first.** Fourteen candidates were drawn with the engine in two styles (Share room,
+  band 14). He took all of them except the picture with three words around it, then asked for
+  an even fourteen. Of the three offered (a trading card with the dials as stats, the picture
+  with three words back, or a waterfall), he chose **Waterfall**: one word at five sizes, flush
+  left, with hairlines between. It was not on the board.
+- **One picture slot.** Picture + word holds the uploaded picture in a box above the word.
+
+The fourteen are layouts in `templates.ts`, after the four sheets in `LAYOUTS`: Stack, List,
+Big line, Waterfall, Struck, Turned, Ramp, Cover, Title + paragraph, Picture + word, Glyphs + paragraph,
+Alphabet in two settings, Frame, and Test word in two settings. Because they are layouts,
+motion, the MP4, the PNG and the kit all work for them without extra code; the kit adds the
+template you are on as a fourth still. The drawing primitives that the sheets and templates
+share moved to `sheetDraw.ts`.
+
+Our fonts have one cut, where Feliciano steps through weights. The engine's version of a second
+weight is the headline dial pushed further (the first primary dial of the first step, by 30%
+of its range). That is what the "two settings" templates show. **Ramp** walks one glyph per
+row along that dial from the plain font onwards — the template only this tool can make.
+
+**The gallery** (`TemplateGallery.tsx`) takes the stage's grid cell, so the rail stays beside
+it and the canvas underneath is never torn down. It shows every sheet and template three
+across at the sheet's own format, like the profile the posts will sit on. Pressing a tile goes
+back to the sheet with it. The Sheet group shows the four sheets plus the template you are on;
+the rest stay in the gallery, so the picker is not drawing fourteen templates on every colour
+change. Tiles are the real engine, drawn only when near the screen, one per idle moment with a
+60 ms deadline, and cached by template, copy and look. Without the deadline the grid took half
+a minute to fill. Visibility is measured on scroll rather than with an IntersectionObserver:
+an observer reports from the rendering steps, and a background tab never heard which tiles were
+showing.
+
+**The picture in a box keeps its effects in the box.** The picture effects run on the ground
+layer. A full-bleed picture is the whole ground, but a boxed one is not — screening the paper
+round it printed a halftone of nothing. So the picture template puts its type on the word layer
+(no box, so nothing on it can be taken hold of), and the shader is given the picture's rect
+(`uPicBox`) and leaves everything outside it alone. The ground textures and the boxed picture
+can both be on at once there, so choosing a texture no longer removes the picture on that
+template.
+
+**Compose remembers the layout and the copy** as part of its look (`ComposeLook.layoutId`,
+`copy`), because a series is the same template every week as much as the same colours.
+
+Not done: Story safe zones (a guide that is never exported). The bench's own word does not feed
+the templates — it is often a test string, and mixing it with the bank read oddly.
+
 ## Focus: the letters you are editing, large
 
 The grid cell is small enough that a dial's effect on one letter is hard to see, and harder on
@@ -1919,12 +1983,11 @@ what is left is below.
     finish and the motion are all local to `Poster` — the look is now remembered in the
     browser, but a sheet you like still cannot be sent to anybody. That was an open question when the sheet was a modal; now
     that it is a room with real settings in it, it is a hole. Small to medium.
-12. **Text and format templates**, to replace the caption that came off the sheet. Drawn
-    twice (Figma bands 09 and 10); the layouts were picked and built, the text was not. The
-    trading card (L9: the dials as stats) is the idea left over. On 9:16 the platforms' own UI covers
-    roughly the top 12% and the bottom 20% — where the head and foot used to sit; check the
-    platforms' current safe-zone templates before drawing — so a Story template needs a safe
-    zone, ideally shown as a guide that is never exported.
+12. ~~**Text and format templates**~~ **Fourteen shipped 23 October** — see "Templates, from
+    the Feliciano round". Left over: the trading card (L9: the dials as stats), and Story safe
+    zones. On 9:16 the platforms' own UI covers roughly the top 12% and the bottom 20%; check
+    their current safe-zone templates before drawing, and show it as a guide that is never
+    exported.
 
 Shipped: the licence panel at font upload; the action bar, layers as cards, every dial visible
 and the size ladder's gutter with the layout pass; presets as pictures with one always

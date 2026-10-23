@@ -45,4 +45,18 @@ describe('the look Compose remembers', () => {
     const back = readLook({ finishes: { [f.id]: { on: true, params: { [spec.key]: spec.max + 100 } } } })
     expect(back.finishes[f.id].params[spec.key]).toBe(spec.default)
   })
+
+  it('keeps the layout and what each template says', () => {
+    const look = { ...defaultLook(), layoutId: 'cover', copy: { cover: { pick: 2 }, stack: { pick: 0, own: ['Rust', 'Tin'] } } }
+    expect(readLook(JSON.parse(JSON.stringify(look)))).toEqual(look)
+  })
+
+  it('drops a layout or a template that no longer exists, and lines that are not text', () => {
+    const back = readLook({
+      layoutId: 'gone',
+      copy: { gone: { pick: 1 }, ramp: { pick: 1 }, list: { pick: -3, own: [1, 2] }, line: { pick: 1.7 } },
+    })
+    expect(back.layoutId).toBe(defaultLook().layoutId)
+    expect(back.copy).toEqual({ list: { pick: 0 }, line: { pick: 1 } })
+  })
 })

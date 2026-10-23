@@ -8,7 +8,9 @@ import {
   getGround,
   GROUNDS,
   LAYOUTS,
+  getLayout,
   liveBox,
+  pictureBoxOf,
   snapAngle,
   snapLines,
   POSTER_PALETTES,
@@ -19,7 +21,10 @@ import {
 import { saveFile } from '../lib/exportFont'
 import { buildCaption, captionFile, type Caption } from '../lib/caption'
 import { copyText } from '../lib/clipboard'
-import { loadLook, saveLook } from '../lib/composeLook'
+import { loadLook, saveLook, type TemplateCopy } from '../lib/composeLook'
+import { copyFor, copySets } from '../lib/copyBank'
+import { getTemplate } from '../lib/templates'
+import { TemplateGallery } from './TemplateGallery'
 import { Menu } from './Menu'
 import { getTreatment } from '../engine/treatments/registry'
 import { DEFAULT_DEPTH, MODES, bindingsFor, getMode, modulate } from '../lib/modulate'
@@ -329,7 +334,15 @@ export function Poster(p: Props) {
   const [look] = useState(loadLook)
   const [sheetSeed, setSheetSeed] = useState(p.seed)
   const [paletteIndex, setPaletteIndex] = useState(look.paletteIndex)
-  const [layoutIndex, setLayoutIndex] = useState(0)
+  const [layoutId, setLayoutId] = useState(look.layoutId)
+  /*
+   * What each template says: where Shuffle has got to in the bank, and any
+   * lines typed over it. Per template, so writing a cover does not cost you
+   * the list you wrote last week.
+   */
+  const [copy, setCopy] = useState<Record<string, TemplateCopy>>(look.copy)
+  /** the gallery of every sheet and template, over the stage */
+  const [gallery, setGallery] = useState(false)
   /*
    * Static or video: the one choice the whole room hangs off.
    *
@@ -459,8 +472,21 @@ export function Poster(p: Props) {
 
   // and kept as it changes, so next week's sheet opens looking like this one
   useEffect(() => {
-    saveLook({ paletteIndex, colours, groundId, finishes, pictureFx, formatId, motionModeId, depth, speed, length })
-  }, [paletteIndex, colours, groundId, finishes, pictureFx, formatId, motionModeId, depth, speed, length])
+    saveLook({
+      paletteIndex,
+      colours,
+      groundId,
+      finishes,
+      pictureFx,
+      formatId,
+      motionModeId,
+      depth,
+      speed,
+      length,
+      layoutId,
+      copy,
+    })
+  }, [paletteIndex, colours, groundId, finishes, pictureFx, formatId, motionModeId, depth, speed, length, layoutId, copy])
 
   // Closing must never discard work: a take in flight is finished and saved
   // on the way out.
@@ -475,9 +501,18 @@ export function Poster(p: Props) {
    */
   const selectedRef = useRef<string | null>(null)
   const deselectRef = useRef<() => void>(() => {})
+  const galleryRef = useRef(false)
+  useEffect(() => {
+    galleryRef.current = gallery
+  }, [gallery])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
+      // the gallery is over everything else, so it is the first thing out
+      if (galleryRef.current) {
+        setGallery(false)
+        return
+      }
       if (selectedRef.current !== null) {
         deselectRef.current()
         return
@@ -570,7 +605,36 @@ export function Poster(p: Props) {
     const rolled = POSTER_PALETTES[paletteIndex % POSTER_PALETTES.length]
     return { ...rolled, ...colours }
   }, [paletteIndex, colours])
-  const layout = LAYOUTS[layoutIndex % LAYOUTS.length]
+  const layout = getLayout(layoutId)
+  const template = getTemplate(layout.id)
+
+  /** the lines a template sets: what you typed, or the bank at its shuffle position */
+  const copyOf = useCallback(
+    (id: string): string[] | undefined => {
+      if (copySets(id) === 0) return undefined
+      const held = copy[id]
+      return held?.own ?? copyFor(id, held?.pick ?? 0)
+    },
+    [copy],
+  )
+  const lines = copyOf(layout.id)
+  // memoised on the text, so the sheet is not rebuilt for a new array of the same lines
+  const linesKey = JSON.stringify(lines ?? null)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const sheetCopy = useMemo(() => lines, [linesKey])
+  /** the next set in the bank for one template, dropping what was typed over it */
+  const shuffle = (id: string) =>
+    setCopy((c) => ({ ...c, [id]: { pick: (c[id]?.pick ?? 0) + 1 } }))
+  /** every template moves on one set, except those you have written yourself */
+  const shuffleAll = () =>
+    setCopy((c) => {
+      const next = { ...c }
+      for (const l of LAYOUTS) {
+        if (copySets(l.id) === 0 || next[l.id]?.own) continue
+        next[l.id] = { pick: (next[l.id]?.pick ?? 0) + 1 }
+      }
+      return next
+    })
   const format = getFormat(formatId)
 
 
@@ -602,8 +666,24 @@ export function Poster(p: Props) {
       wordTransform: bakedT,
       ground: groundId,
       backdrop,
+      copy: sheetCopy,
     }),
-    [p.font, p.fontId, sheetChain, p.overrides, sheetSeed, p.word, p.sentence, layout.id, format.id, palette, bakedT, groundId, backdrop],
+    [
+      p.font,
+      p.fontId,
+      sheetChain,
+      p.overrides,
+      sheetSeed,
+      p.word,
+      p.sentence,
+      layout.id,
+      format.id,
+      palette,
+      bakedT,
+      groundId,
+      backdrop,
+      sheetCopy,
+    ],
   )
 
   /*
@@ -803,7 +883,15 @@ export function Poster(p: Props) {
   useEffect(() => {
     const view = viewRef.current
     const box = layers.wordBox
-    if (!view || !box) return
+    if (!view) return
+    if (!box) {
+      // a word layer with no word on it — a picture template's type — is
+      // never moved, so whatever the last word was dragged to must not carry
+      view.setWordTransform(1, 0, 0, 0)
+      view.setOffset(0, 0)
+      requestDraw()
+      return
+    }
     const built = gpuT.current
     view.setWordTransform(
       wordT.scale / (built.scale || 1),
@@ -855,9 +943,9 @@ export function Poster(p: Props) {
   }, [finishes, requestDraw])
 
   useEffect(() => {
-    viewRef.current?.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink)
+    viewRef.current?.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink, pictureBoxOf({ layout: layout.id, format: format.id }))
     requestDraw()
-  }, [pictureFx, backdrop, palette.paper, palette.ink, viewAge, requestDraw])
+  }, [pictureFx, backdrop, palette.paper, palette.ink, layout.id, format.id, viewAge, requestDraw])
 
   const finishRecording = async () => {
     const recorder = recorderRef.current
@@ -943,7 +1031,7 @@ export function Poster(p: Props) {
       },
       prepare: (view) => {
         view.setFinishes(finishes)
-        view.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink)
+        view.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink, pictureBoxOf(cut))
         if (cut.layout === 'word') view.setOffset((wordT.dx / format.w) * f.w, (wordT.dy / format.h) * f.h)
       },
       onProgress,
@@ -985,7 +1073,7 @@ export function Poster(p: Props) {
     const shot = createFinishView(scale, f.w, f.h)
     try {
       shot.setFinishes(finishes)
-      shot.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink)
+      shot.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink, pictureBoxOf(cut))
       if (cut.layout === 'word') shot.setOffset((wordT.dx / format.w) * f.w, (wordT.dy / format.h) * f.h)
       const same = cut.format === format.id && cut.layout === layout.id && exactReq === sheetReq
       const built = same ? layers : buildPosterLayers({ ...exactReq, format: cut.format, layout: cut.layout })
@@ -1017,25 +1105,29 @@ export function Poster(p: Props) {
     setKit(null)
     setCopied(false)
     const base = `forfontsake-${p.chain.map((c) => c.id).join('-')}-${sheetSeed}`
-    const steps = 5
+    // the template you are on rides along as a fourth still, since it is the post you made
+    const own = template ? [{ layout: layout.id, name: `${layout.name.toLowerCase()} 4:5`, file: `${base}-${layout.id}-4x5.png` }] : []
+    const stills = [
+      { layout: 'word', name: 'word 4:5', file: `${base}-word-4x5.png` },
+      { layout: 'chars', name: 'set 4:5', file: `${base}-set-4x5.png` },
+      { layout: 'specimen', name: 'specimen 4:5', file: `${base}-specimen-4x5.png` },
+      ...own,
+    ]
+    const steps = stills.length + 2
     const at = (n: number, label: string, done = 0, total = 1, eta: number | null = null) =>
       setProgress({ label: `Kit ${n} of ${steps} · ${label}`, done: (n - 1) * total + done, total: steps * total, eta })
     try {
       const able = canRender ?? (await canRenderClips(1080, 1920))
       setCanRender(able)
       const files: File[] = []
-      at(1, 'word 4:5')
-      files.push(new File([await stillOf({ format: 'post', layout: 'word' }, 1)], `${base}-word-4x5.png`, { type: 'image/png' }))
-      at(2, 'set 4:5')
-      files.push(new File([await stillOf({ format: 'post', layout: 'chars' }, 1)], `${base}-set-4x5.png`, { type: 'image/png' }))
-      at(3, 'specimen 4:5')
-      files.push(
-        new File([await stillOf({ format: 'post', layout: 'specimen' }, 1)], `${base}-specimen-4x5.png`, { type: 'image/png' }),
-      )
+      for (const [i, st] of stills.entries()) {
+        at(i + 1, st.name)
+        files.push(new File([await stillOf({ format: 'post', layout: st.layout }, 1)], st.file, { type: 'image/png' }))
+      }
       if (able) {
         const clips = [
-          { n: 4, format: 'post', name: 'feed 4:5', file: `${base}-${layout.id}-4x5.mp4` },
-          { n: 5, format: 'story', name: 'reel 9:16', file: `${base}-${layout.id}-9x16.mp4` },
+          { n: stills.length + 1, format: 'post', name: 'feed 4:5', file: `${base}-${layout.id}-4x5.mp4` },
+          { n: stills.length + 2, format: 'story', name: 'reel 9:16', file: `${base}-${layout.id}-9x16.mp4` },
         ]
         for (const c of clips) {
           at(c.n, c.name)
@@ -1059,7 +1151,7 @@ export function Poster(p: Props) {
       await saveFile(await zip.generateAsync({ type: 'blob' }), `${base}-kit.zip`)
       setKit({ files, caption })
       if (!able)
-        setExportNote('This browser cannot render a clip, so the kit has the two stills and the caption only.')
+        setExportNote('This browser cannot render a clip, so the kit has the stills and the caption only.')
     } catch (e) {
       if (!(e instanceof DOMException && e.name === 'AbortError'))
         setExportNote(e instanceof Error ? e.message : String(e))
@@ -1370,19 +1462,27 @@ export function Poster(p: Props) {
    * motion modulates a copy), so this is two renders per visit rather than two
    * per frame.
    */
+  // The four sheets, and the template you are on if you are on one: the rest
+  // of the templates live in the gallery, which draws them only when opened.
+  const pickable = useMemo(
+    () => [...LAYOUTS.filter((l) => l.kind === 'sheet'), ...(template ? [layout] : [])],
+    [template, layout],
+  )
   const layoutThumbs = useMemo(
     () =>
-      LAYOUTS.map((l) => {
+      pickable.map((l) => {
         try {
-          const svg = buildPoster({ ...sheetReq, chain: p.chain, layout: l.id, wordTransform: IDENTITY })
+          const svg = buildPoster({ ...sheetReq, chain: p.chain, layout: l.id, wordTransform: IDENTITY, copy: copyOf(l.id) })
           return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
         } catch {
           return null
         }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [p.font, p.fontId, p.chain, p.overrides, sheetSeed, p.word, p.sentence, format.id, palette],
+    [pickable, p.font, p.fontId, p.chain, p.overrides, sheetSeed, p.word, p.sentence, format.id, palette, copyOf],
   )
+  /** the sheet the gallery draws its tiles from: as you made it, not mid-motion */
+  const galleryReq = useMemo(() => ({ ...sheetReq, chain: p.chain, wordTransform: IDENTITY }), [sheetReq, p.chain])
 
   // out of video the sheet goes back to the font as you made it
   const setStatic = () => {
@@ -1420,7 +1520,7 @@ export function Poster(p: Props) {
   const KIT_ITEM = {
     id: 'kit',
     label: 'Post kit · .zip',
-    note: `Word, set and specimen at 4:5, the clip at 4:5 and 9:16 (${length}s), and a caption — one week's post.`,
+    note: `Word, set and specimen${template ? ` and the ${layout.name.toLowerCase()}` : ''} at 4:5, the clip at 4:5 and 9:16 (${length}s), and a caption — one week's post.`,
   }
 
   return (
@@ -1586,7 +1686,7 @@ export function Poster(p: Props) {
               Recording · 0:{String(recSeconds).padStart(2, '0')}
             </p>
           )}
-          <div className="sheet-holder">
+          <div className="sheet-holder" aria-hidden={gallery || undefined}>
             <div
               className="sheet-live"
               /* a new size needs a new canvas, so the holder is keyed on it */
@@ -1667,6 +1767,19 @@ export function Poster(p: Props) {
           {glError && <p className="notice is-bad">{glError}</p>}
         </div>
 
+        {gallery && (
+          <TemplateGallery
+            req={galleryReq}
+            copyOf={copyOf}
+            current={layout.id}
+            onPick={(id) => {
+              setLayoutId(id)
+              setGallery(false)
+            }}
+            onShuffle={shuffleAll}
+            onClose={() => setGallery(false)}
+          />
+        )}
         <aside className="sheet-rail">
           {/*
             The sheet, said as its layers.
@@ -1733,7 +1846,7 @@ export function Poster(p: Props) {
             <div className="group ruled">
               <h2>Sheet</h2>
               <div className="layout-pick">
-                {LAYOUTS.map((l, i) => {
+                {pickable.map((l, i) => {
                   const on = l.id === layout.id
                   return (
                     <button
@@ -1742,7 +1855,7 @@ export function Poster(p: Props) {
                       className={`layout-cell${on ? ' is-on' : ''}`}
                       aria-pressed={on}
                       title={l.note}
-                      onClick={() => setLayoutIndex(i)}
+                      onClick={() => setLayoutId(l.id)}
                     >
                       {layoutThumbs[i] ? (
                         <img src={layoutThumbs[i]!} alt="" />
@@ -1754,6 +1867,14 @@ export function Poster(p: Props) {
                   )
                 })}
               </div>
+              <button
+                type="button"
+                className={gallery ? 'gallery-open is-live' : 'gallery-open'}
+                aria-pressed={gallery}
+                onClick={() => setGallery((g) => !g)}
+              >
+                {gallery ? 'Back to the sheet' : 'Browse all templates'}
+              </button>
               {inVideo && steppy && (
                 <p className="note">
                   This chain redraws {layout.id === 'chars' ? 'the character set' : 'the word'} about{' '}
@@ -1793,7 +1914,10 @@ export function Poster(p: Props) {
               */}
               <div className="grounds">
                 {GROUNDS.map((g) => {
-                  const on = !backdrop && g.id === groundId
+                  // a template with a picture box prints the picture in the box
+                  // and the ground round it, so there both are on at once
+                  const boxed = !!template?.picture
+                  const on = (boxed || !backdrop) && g.id === groundId
                   return (
                     <button
                       type="button"
@@ -1802,7 +1926,7 @@ export function Poster(p: Props) {
                       aria-pressed={on}
                       onClick={() => {
                         setGroundId(g.id)
-                        setBackdrop(null)
+                        if (!boxed) setBackdrop(null)
                       }}
                     >
                       <span
@@ -1957,11 +2081,24 @@ export function Poster(p: Props) {
                     )}
                   </p>
                 </div>
+              ) : template?.lines ? (
+                <CopyLines
+                  id={layout.id}
+                  hint={template.lines}
+                  lines={lines ?? []}
+                  own={!!copy[layout.id]?.own}
+                  font={p.font}
+                  picture={!!template.picture}
+                  hasPicture={!!backdrop}
+                  onChange={(next) => setCopy((c) => ({ ...c, [layout.id]: { pick: c[layout.id]?.pick ?? 0, own: next } }))}
+                  onShuffle={() => shuffle(layout.id)}
+                />
               ) : (
                 <p className="note">
                   The {layout.name.toLowerCase()} is set to the sheet, so there is nothing to place.
                   {layout.id === 'sentence' &&
-                    ' It sets the line you typed on the bench, or a pangram when that is a single word.'}{' '}
+                    ' It sets the line you typed on the bench, or a pangram when that is a single word.'}
+                  {template && ' It sets the font itself, so there is nothing to write.'}{' '}
                   Switch to the word to move and resize it.
                 </p>
               )}
@@ -2073,4 +2210,72 @@ export function Poster(p: Props) {
   )
 }
 
-
+/**
+ * The lines a template sets, as one box with a line per line.
+ *
+ * Typed text replaces the bank for this template only, and Shuffle goes back
+ * to the bank at its next set. Anything the font has no glyph for is named
+ * rather than silently missing from the sheet — the engine drops it without a
+ * gap, which on a poster reads as a typo you did not make.
+ */
+function CopyLines(p: {
+  id: string
+  hint: string
+  lines: string[]
+  own: boolean
+  font: FontData
+  picture: boolean
+  hasPicture: boolean
+  onChange: (lines: string[]) => void
+  onShuffle: () => void
+}) {
+  const [text, setText] = useState(p.lines.join('\n'))
+  // Shuffle and a template switch arrive as new lines from outside; typing
+  // arrives as the same lines that were just sent, and leaves the box alone
+  const sent = useRef(p.lines.join('\n'))
+  useEffect(() => {
+    const incoming = p.lines.join('\n')
+    if (incoming !== sent.current) {
+      setText(incoming)
+      sent.current = incoming
+    }
+  }, [p.lines, p.id])
+  const missing = [...new Set([...text].filter((ch) => ch !== '\n' && !p.font.glyphs[ch]))]
+  return (
+    <div className="ctl copy-lines">
+      <div className="ctl-head">
+        <label htmlFor="copy-lines">Copy</label>
+        <span className="copy-hint">{p.hint}</span>
+      </div>
+      <textarea
+        id="copy-lines"
+        rows={Math.min(8, Math.max(3, p.lines.length + 1))}
+        value={text}
+        spellCheck
+        onChange={(e) => {
+          setText(e.target.value)
+          const next = e.target.value.split('\n')
+          sent.current = e.target.value
+          p.onChange(next)
+        }}
+      />
+      {missing.length > 0 && (
+        <p className="note">
+          This font has no {missing.map((c) => (c === ' ' ? 'space' : c)).join(' ')}, so{' '}
+          {missing.length === 1 ? 'it is' : 'they are'} left out of the sheet.
+        </p>
+      )}
+      <div className="row">
+        <button type="button" onClick={p.onShuffle}>
+          {p.own ? 'Back to ours' : 'Shuffle'}
+        </button>
+      </div>
+      {p.picture && !p.hasPicture && (
+        <p className="note">
+          The box holds the picture from the Background layer. Until you upload one, a halftone keeps
+          its place.
+        </p>
+      )}
+    </div>
+  )
+}

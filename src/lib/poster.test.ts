@@ -246,8 +246,12 @@ describe('formats', () => {
         const r = { ...req(layout.id), format: f.id }
         const { ground, word } = buildPosterLayers(r)
         const composed = buildPoster(r)
-        const marks = composed.match(/<(path|text|rect|line)[^>]*>/g) ?? []
-        expect(marks.length, `${f.id}/${layout.id}`).toBeGreaterThanOrEqual(2)
+        // circles too, for a picture template's stand-in. A template sets
+        // its own copy, which this three-letter face mostly cannot draw, so
+        // the paper alone is a fair sheet for one — templates.test.ts sets
+        // them in a face that has every letter
+        const marks = composed.match(/<(path|text|rect|line|circle)[^>]*>/g) ?? []
+        expect(marks.length, `${f.id}/${layout.id}`).toBeGreaterThanOrEqual(layout.kind === 'template' ? 1 : 2)
         for (const mark of marks) {
           expect(
             ground.includes(mark) || (word !== null && word.includes(mark)),
@@ -574,8 +578,9 @@ describe('where a turn settles', () => {
 describe('the four sheets from the poster round', () => {
   const groups = (svg: string) => (svg.match(/<g transform=/g) ?? []).length
 
-  it('offers word, character set, sentence and specimen, in that order', () => {
-    expect(LAYOUTS.map((l) => l.id)).toEqual(['word', 'chars', 'sentence', 'specimen'])
+  it('offers word, character set, sentence and specimen, in that order, ahead of the templates', () => {
+    expect(LAYOUTS.filter((l) => l.kind === 'sheet').map((l) => l.id)).toEqual(['word', 'chars', 'sentence', 'specimen'])
+    expect(LAYOUTS.slice(0, 4).every((l) => l.kind === 'sheet')).toBe(true)
   })
 
   it('shows letters and numerals only — no punctuation in the set', () => {
