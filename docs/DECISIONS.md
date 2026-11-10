@@ -1995,6 +1995,40 @@ Share… of its own in the bar (it still comes after a kit), and "Alternates", f
 Cover/Fit, which were drawn but are not features. `composeLayers.ts` holds the list as data and is
 tested; the panels are `ComposeLayers.tsx` and `ComposePanels.tsx`.
 
+## One dial everywhere, a name you can drag, a look you can carry
+
+On 10 November, after a look at Tweakpane, DialKit and Toolcraft. Tweakpane is a vanilla panel
+bound to a plain object, DialKit a dev-only React panel for tuning motion, and Toolcraft a kit an
+agent builds design apps from. None of them came in as a dependency: the rail and the inspector
+are the product and carry its look. Three ideas came in instead.
+
+- **The name is a handle.** Drag a dial's name sideways to change it, as Figma, Webflow and
+  Framer do. Shift goes ten times finer and Alt four times coarser, DialKit's fine and coarse.
+  The whole range fits in about 240 px, the width of the rail, but a step never takes more than
+  six pixels, or a short range like Depth feels stuck. The drag uses pointer capture, not pointer
+  lock: lock hides the cursor and Chrome puts up a banner, which is a lot for a website. A drag
+  under three pixels is still a click, so the name still focuses its track. Double-clicking the
+  name resets, as the track always did. X and Y on the word scrub the same way, one sheet pixel
+  per pixel. `lib/scrub.ts`, tested.
+- **Changed is marked on the name.** Off its starting value, the name is tinted and sits on a
+  plate with a hairline edge, Webflow's trick. The tick on the track stays, and the plate makes
+  it a change of shape as well as colour.
+- **Compose uses the rail's dial.** Depth, Speed, Size and every finish's dials were range inputs
+  written out by hand, with a readout but no stepper, no typing and no tick. They are `Dial` now,
+  drawn from a `ParamSpec`. The spec gained `unit` (`%` or `×`) so Depth reads 35% and Speed
+  1.00× while the value underneath stays the 0–1 number it was. The colour and select kinds
+  that were planned were left out: everything here is still a number, and that invariant is
+  what lets presets, the URL and the CLI see nothing new.
+- **Copy link** in the bar, because the URL was always the whole font and nothing said so. A
+  font you uploaded stays on your computer, which the button's title says.
+- **Copy look and Paste look**, under Export. The look Compose remembers is the same object,
+  as JSON with a name on it, read back through `readLook` so a look from an older or newer
+  version settles field by field. This is Tweakpane's export and import of state, or Toolcraft's
+  settings transfer, in the smallest form. Pasting is a change like any other, so undo takes it
+  back. Reading the clipboard needs permission that some browsers never give, so an ordinary
+  paste (⌘V on the sheet, not in a field) does the same thing without asking. It answers half of
+  "nothing about the sheet is in the URL": a look can now be sent, without the URL growing.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the
@@ -2018,14 +2052,13 @@ what is left is below.
    `sheetGeometry` in `poster.ts` has already split the outlines from the strings drawn
    round them. The cost is that a synchronous call becomes a request and a reply, which
    needs latest-wins ordering. Scoped in STATE under "Speed, September 2026".
-6. **Whole-window drop target** for a font, and a visible **Copy link** for the URL state.
-   Small.
+6. **Whole-window drop target** for a font. Small. The visible **Copy link** shipped 10
+   November.
 7. **Slant and Tracking** as export-safe global dials — a shear on the outlines, a uniform
     advance change — with `verify:font` taught to accept the drift. Medium. Parked until
     the layout pass says whether they belong in the rail.
-8. **Slider craft, what is left**: drag on the label to scrub, `Shift` for fine, and tint the
-    label when a value is off its default (Webflow's trick, better than our tick on the track).
-    The typeable value, the steppers and the dark caption shipped with the layout pass.
+8. ~~**Slider craft**~~ **Shipped 10 November**: drag the name to scrub, Shift for fine and Alt
+    for coarse, the name marked when off its default. See "One dial everywhere".
 9. **Tune the thirteen against each other** on the contact sheet.
 10. **A video backdrop.** The picture effects work on an image texture that arrives inside
     the ground's SVG; a `<video>` needs its own sampler and a per-frame `texImage2D`. Medium,
@@ -2034,6 +2067,8 @@ what is left is below.
     finish and the motion are all local to `Poster` — the look is now remembered in the
     browser, but a sheet you like still cannot be sent to anybody. That was an open question when the sheet was a modal; now
     that it is a room with real settings in it, it is a hole. Small to medium.
+    Since 10 November, Copy look carries the look as text. The word's place, the seed and the
+    picture still cannot travel.
 12. ~~**Text and format templates**~~ **Fourteen shipped 23 October** — see "Templates, from
     the Feliciano round". Left over: the trading card (L9: the dials as stats), and Story safe
     zones. On 9:16 the platforms' own UI covers roughly the top 12% and the bottom 20%; check

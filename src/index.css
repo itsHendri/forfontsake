@@ -273,6 +273,12 @@ body {
   gap: 8px;
   justify-self: end;
 }
+/* a word, not a button: it is a second way to the same thing the address bar holds */
+.topbar-link {
+  font-size: 13px;
+  white-space: nowrap;
+  margin-right: 4px;
+}
 /* the wrapper, next to the button that hands it over */
 .export-problem {
   margin: 8px 0 0;
@@ -1037,7 +1043,20 @@ h1 {
   font-weight: 500;
 }
 
+.look-transfer {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 12px;
+}
+.look-transfer .linkish:disabled {
+  color: var(--muted);
+  cursor: default;
+}
 .word-place {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   margin-top: 2px;
 }
 .linkish {
@@ -1691,6 +1710,10 @@ h1 {
 .ctl-value.is-default {
   color: var(--muted);
 }
+/* room for the unit after the number: 100% and 1.25× are five characters */
+.ctl-value.has-unit {
+  width: 6.6ch;
+}
 /* a number field is still a number field: the browser's own spinners would be a
    second pair of steppers inside the one this already is */
 .ctl-value::-webkit-outer-spin-button,
@@ -1775,6 +1798,32 @@ h1 {
   align-items: center;
   gap: 6px;
   min-width: 0;
+}
+/* The name is a handle: drag it sideways to change the number. */
+.ctl-scrub {
+  cursor: ew-resize;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+.is-disabled .ctl-scrub {
+  cursor: default;
+}
+html.is-scrubbing,
+html.is-scrubbing * {
+  cursor: ew-resize !important;
+}
+/* Off its starting value, the name is tinted and sits on a plate, as Webflow
+   marks a changed property. The plate makes it a change of shape as well as
+   colour. The negative margin keeps the plate from shifting the row. */
+.ctl.is-changed .ctl-label > label {
+  margin: -1px -4px;
+  padding: 1px 4px;
+  color: var(--mark);
+  background: var(--plate);
+  /* a hairline, so the plate shows on paper and in greyscale */
+  box-shadow: inset 0 0 0 1px var(--rule);
+  border-radius: 2px;
 }
 /* Help you ask for. The note used to float under the dial in your hand and
    changed wording as the value moved; now it is a small (i) that speaks only

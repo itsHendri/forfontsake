@@ -27,6 +27,8 @@ interface Props {
   /** set while a dropped font is being read, so the control can say so */
   importing: boolean
   onCompose: () => void
+  /** puts a link to exactly this font on the clipboard; true when the browser allowed it */
+  onCopyLink: () => Promise<boolean>
 }
 
 /** the font select's last entry — a verb among the nouns */
@@ -97,6 +99,13 @@ export function TopBar(p: Props) {
   const [name, setName] = useState(() => suggestName(p.font, p.chainName))
   const [touched, setTouched] = useState(false)
   const [state, setState] = useState<State>({ phase: 'idle' })
+  /** what Copy link says for a moment after it is pressed */
+  const [linkSaid, setLinkSaid] = useState<'copied' | 'refused' | null>(null)
+  useEffect(() => {
+    if (!linkSaid) return
+    const t = setTimeout(() => setLinkSaid(null), 2000)
+    return () => clearTimeout(t)
+  }, [linkSaid])
   const live = useRef(true)
   const bar = useRef<HTMLElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -291,6 +300,24 @@ export function TopBar(p: Props) {
       </div>
 
       <div className="topbar-actions">
+        {/*
+          The URL has always been the whole font, but nothing said so. This is
+          the button that says it. A font you uploaded stays on your machine,
+          so a link to one opens on the treatment with a built-in face.
+        */}
+        <button
+          type="button"
+          className="linkish topbar-link"
+          aria-live="polite"
+          title={
+            p.fontId.startsWith('upload')
+              ? 'The link carries the treatment and the word. The font you uploaded stays on your computer.'
+              : 'A link that opens exactly this font'
+          }
+          onClick={async () => setLinkSaid((await p.onCopyLink()) ? 'copied' : 'refused')}
+        >
+          {linkSaid === 'copied' ? 'Link copied' : linkSaid === 'refused' ? 'Copy it from the address bar' : 'Copy link'}
+        </button>
         {/* Compose, not Share. Share is what you do once the thing exists;
             this is the room where it gets made. */}
         <button type="button" onClick={p.onCompose}>

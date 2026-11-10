@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import type { ParamSpec } from '../engine/treatments/registry'
+import { useScrub } from '../lib/scrub'
+import { shown, typed } from '../lib/units'
 
 interface Props {
   spec: ParamSpec
@@ -16,6 +18,9 @@ interface Props {
   base?: number
   /** this dial deviates from the global settings for the glyphs in scope */
   accent?: boolean
+  /** the element id, when the same key can appear twice on a page (finishes, Compose) */
+  id?: string
+  disabled?: boolean
 }
 
 /** how many decimals the step implies — 0.1 shows one, 1 shows none */
@@ -32,6 +37,7 @@ function settle(v: number, spec: ParamSpec): number {
   return Number(clamp(snapped, spec.min, spec.max).toFixed(decimals(spec.step)))
 }
 
+
 /**
  * One dial: a label, a value you can type into, and a track.
  *
@@ -43,9 +49,9 @@ function settle(v: number, spec: ParamSpec): number {
  * The track carries a tick at the default, so "is this a lot?" is answerable
  * without dragging to find out, and double-clicking anywhere on it resets.
  */
-export function Dial({ spec, value, onChange, base, accent }: Props) {
+export function Dial({ spec, value, onChange, base, accent, id: idProp, disabled }: Props) {
   const start = base ?? spec.default
-  const id = `dial-${spec.key}`
+  const id = idProp ?? `dial-${spec.key}`
   const noteId = `${id}-note`
   const range = spec.max - spec.min
   const defaultAt = range > 0 ? ((start - spec.min) / range) * 100 : 0
@@ -59,8 +65,8 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
 
   const commit = (raw: string) => {
     setDraft(null)
-    const n = Number(raw)
-    if (raw.trim() !== '' && !Number.isNaN(n)) onChange(settle(n, spec))
+    const n = typed(raw, spec)
+    if (n !== null) onChange(settle(n, spec))
   }
 
   // a nudge supersedes whatever half-typed draft is on screen
@@ -69,15 +75,27 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
     onChange(settle(value + dir * spec.step, spec))
   }
   const reset = () => onChange(settle(start, spec))
+  const scrub = useScrub({ value, range: spec, onChange, settle: (v) => settle(v, spec), disabled })
 
   // What the tip says depends on the spec and the landing value only — never on
   // the value in hand. A caption that grew a "double-click to reset" clause the
   // moment the value moved changed under the pointer mid-drag and read as a
   // glitch; now it sits behind an (i) and says the same thing every time.
-  const resetTo = Number(settle(start, spec).toFixed(decimals(spec.step)))
-  const note = spec.note
-    ? `${spec.note[0].toUpperCase()}${spec.note.slice(1)}. Double-click the track to reset to ${resetTo}.`
-    : `Double-click the track to reset to ${resetTo}.`
+  const resetTo = shown(settle(start, spec), spec)
+  const howTo = spec.kind
+    ? `Double-click the name to reset to ${spec.kind === 'segment' && spec.options ? spec.options[Math.round((settle(start, spec) - spec.min) / spec.step)] : resetTo}.`
+    : `Drag the name sideways to change it, with Shift for fine steps and Alt for big ones. Double-click the name or the track to reset to ${resetTo}.`
+  const note = spec.note ? `${spec.note[0].toUpperCase()}${spec.note.slice(1)}. ${howTo}` : howTo
+
+  /*
+   * Off its starting value, the name is tinted and set on a plate, the way
+   * Webflow marks a property you have changed. That reads better than the tick
+   * on the track. The plate is there so the mark is a change of shape and not
+   * only of colour.
+   */
+  const cls = ['ctl', accent && 'is-override', !atDefault && 'is-changed', disabled && 'is-disabled']
+    .filter(Boolean)
+    .join(' ')
 
   // The label and its (i), which every shape of this control wants: help you
   // ask for, not help that follows the pointer.
@@ -103,14 +121,17 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
   if (spec.kind === 'switch') {
     const on = value >= spec.max
     return (
-      <div className={accent ? 'ctl is-override' : 'ctl'}>
+      <div className={cls}>
         <div className="ctl-head">
           <span className="ctl-label">
-            <label htmlFor={id}>{spec.label}</label>
+            <label htmlFor={id} onDoubleClick={reset}>
+              {spec.label}
+            </label>
             {info}
           </span>
           <input
             id={id}
+            disabled={disabled}
             className="ctl-switch"
             type="checkbox"
             role="switch"
@@ -133,10 +154,12 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
   if (spec.kind === 'segment' && spec.options) {
     const options = spec.options
     return (
-      <div className={accent ? 'ctl is-override' : 'ctl'}>
+      <div className={cls}>
         <div className="ctl-head">
           <span className="ctl-label">
-            <label htmlFor={id}>{spec.label}</label>
+            <label htmlFor={id} onDoubleClick={reset}>
+              {spec.label}
+            </label>
             {info}
           </span>
         </div>
@@ -150,6 +173,7 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
                 key={name}
                 className={on ? 'seg-btn is-on' : 'seg-btn'}
                 aria-pressed={on}
+                disabled={disabled}
                 onClick={() => onChange(v)}
               >
                 {name}
@@ -162,10 +186,12 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
   }
 
   return (
-    <div className={accent ? 'ctl is-override' : 'ctl'}>
+    <div className={cls}>
       <div className="ctl-head">
         <span className="ctl-label">
-          <label htmlFor={id}>{spec.label}</label>
+          <label htmlFor={id} className="ctl-scrub" onDoubleClick={reset} {...scrub}>
+            {spec.label}
+          </label>
           {info}
         </span>
         <div className="stepper">
@@ -173,17 +199,18 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
             type="button"
             className="step-btn"
             onClick={() => nudge(-1)}
-            disabled={value <= spec.min}
+            disabled={disabled || value <= spec.min}
             aria-label={`Less ${spec.label.toLowerCase()}`}
             tabIndex={-1}
           >
             –
           </button>
           <input
-            className={atDefault ? 'ctl-value is-default' : 'ctl-value'}
+            className={['ctl-value', atDefault && 'is-default', spec.unit && 'has-unit'].filter(Boolean).join(' ')}
             type="text"
             inputMode="decimal"
-            value={draft ?? String(value)}
+            value={draft ?? shown(value, spec)}
+            disabled={disabled}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={(e) => commit(e.target.value)}
             onKeyDown={(e) => {
@@ -209,7 +236,7 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
             type="button"
             className="step-btn"
             onClick={() => nudge(1)}
-            disabled={value >= spec.max}
+            disabled={disabled || value >= spec.max}
             aria-label={`More ${spec.label.toLowerCase()}`}
             tabIndex={-1}
           >
@@ -226,6 +253,7 @@ export function Dial({ spec, value, onChange, base, accent }: Props) {
           max={spec.max}
           step={spec.step}
           value={value}
+          disabled={disabled}
           onChange={(e) => onChange(Number(e.target.value))}
           onDoubleClick={reset}
           aria-describedby={noteId}

@@ -152,3 +152,33 @@ export function saveLook(look: ComposeLook): void {
     // full or refused: the room still works, it just will not remember
   }
 }
+
+/*
+ * A look as text, to carry between browsers.
+ *
+ * The look lives in one browser's storage, so a series set up on the laptop
+ * had to be rebuilt by hand on the desktop, and could not be handed to anybody.
+ * This is Tweakpane's export and import of state, or Toolcraft's settings
+ * transfer, in the smallest form: the same object the room keeps, as JSON with
+ * a name on it. Reading it back goes through readLook, so a look copied from an
+ * older or newer version settles field by field rather than failing whole.
+ */
+const TAG = 'forfontsake/look'
+
+export function lookToText(look: ComposeLook): string {
+  return JSON.stringify({ kind: TAG, v: 1, look })
+}
+
+/** the look in a piece of pasted text, or null when the text is not one */
+export function lookFromText(text: string): ComposeLook | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text.trim())
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== 'object') return null
+  const r = parsed as Record<string, unknown>
+  if (r.kind !== TAG || !r.look || typeof r.look !== 'object') return null
+  return readLook(r.look)
+}

@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from 'react'
+import { copyText } from './lib/clipboard'
 import {
   TREATMENTS,
   getTreatment,
@@ -879,6 +880,10 @@ export default function App() {
         onUpload={onUpload}
         importing={importing}
         onCompose={() => setView('compose')}
+        onCopyLink={() => {
+          flushHash()
+          return copyText(`${window.location.origin}${window.location.pathname}#${encodeState(state)}`)
+        }}
       />
 
       <div className="layout">

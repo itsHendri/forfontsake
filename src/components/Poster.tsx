@@ -19,7 +19,7 @@ import {
 import { saveFile } from '../lib/exportFont'
 import { buildCaption, captionFile, type Caption } from '../lib/caption'
 import { copyText } from '../lib/clipboard'
-import { loadLook, saveLook, type TemplateCopy } from '../lib/composeLook'
+import { loadLook, lookFromText, lookToText, saveLook, type ComposeLook, type TemplateCopy } from '../lib/composeLook'
 import { copyFor, copySets } from '../lib/copyBank'
 import { getTemplate } from '../lib/templates'
 import { TemplateGallery } from './TemplateGallery'
@@ -28,7 +28,9 @@ import { ComposeLayers, LayerChips } from './ComposeLayers'
 import { EffectStack, FinishPanel, FinishesPanel, Section, Seg, Swatch } from './ComposePanels'
 import { finishOf, layerRows, sheetSummary, type Selection } from '../lib/composeLayers'
 import { emptyHistory, record, redo, undo, type History } from '../lib/history'
-import { getTreatment } from '../engine/treatments/registry'
+import { getTreatment, type ParamSpec } from '../engine/treatments/registry'
+import { Dial } from './Dial'
+import { useScrub } from '../lib/scrub'
 import { DEFAULT_DEPTH, MODES, bindingsFor, getMode, modulate } from '../lib/modulate'
 import {
   DEFAULT_SPEED,
@@ -65,6 +67,63 @@ interface Props {
 }
 
 const IDENTITY: WordTransform = { dx: 0, dy: 0, scale: 1, rotate: 0 }
+
+/** X or Y in sheet pixels: type it, or drag the letter sideways the way Figma's fields scrub */
+function XyField({ name, value, onChange }: { name: string; value: number; onChange: (v: number) => void }) {
+  const scrub = useScrub({ value, range: { min: -Infinity, max: Infinity, step: 1 }, onChange, settle: Math.round })
+  return (
+    <label className="xy-field">
+      <span className="ctl-scrub" title="Drag sideways to move" {...scrub}>
+        {name}
+      </span>
+      <input
+        type="number"
+        className="ctl-value"
+        step={1}
+        value={value}
+        onChange={(e) => {
+          const v = Number(e.target.value)
+          if (Number.isFinite(v)) onChange(v)
+        }}
+      />
+    </label>
+  )
+}
+
+/*
+ * The sheet's three sliders, as specs for the same Dial the rail uses, so they
+ * scrub, step and reset the way every other dial does.
+ */
+const DEPTH_SPEC: ParamSpec = {
+  key: 'depth',
+  label: 'Depth',
+  min: 0,
+  max: 1,
+  step: 0.05,
+  default: DEFAULT_DEPTH,
+  unit: '%',
+  note: 'how far each moving dial swings, as a share of its range',
+}
+const SPEED_SPEC: ParamSpec = {
+  key: 'speed',
+  label: 'Speed',
+  min: MIN_SPEED,
+  max: MAX_SPEED,
+  step: 0.05,
+  default: DEFAULT_SPEED,
+  unit: '×',
+  note: 'how many times the motion goes round in one clip',
+}
+const SIZE_SPEC: ParamSpec = {
+  key: 'size',
+  label: 'Size',
+  min: 0.25,
+  max: 2,
+  step: 0.05,
+  default: 1,
+  unit: '×',
+  note: 'the word against the size the sheet gives it',
+}
 
 /** a ground drawn small, for the picker — the same function that draws the sheet */
 function groundArt(id: string, palette: PosterPalette): string {
@@ -1663,6 +1722,101 @@ export function Poster(p: Props) {
   }
 
   /*
+   * Copy and paste the look: the colours, ground, finishes, format, motion and
+   * template, as text. Pasting is a change like any other, so undo takes it
+   * back. The word's place, the seed and the picture stay, because they belong
+   * to this sheet and not to the series.
+   */
+  const [lookSaid, setLookSaid] = useState<string | null>(null)
+  useEffect(() => {
+    if (!lookSaid) return
+    const t = setTimeout(() => setLookSaid(null), 5000)
+    return () => clearTimeout(t)
+  }, [lookSaid])
+  const copyLook = async () => {
+    const look: ComposeLook = {
+      paletteIndex,
+      colours,
+      groundId,
+      finishes,
+      pictureFx,
+      formatId,
+      motionOn,
+      motionModeId,
+      depth,
+      speed,
+      length,
+      layoutId,
+      copy,
+    }
+    const ok = await copyText(lookToText(look))
+    setLookSaid(
+      ok
+        ? 'Look copied. Paste it into Compose in another browser, or send it to somebody.'
+        : 'The browser would not let us copy it.',
+    )
+  }
+  const applyLook = (l: ComposeLook) => {
+    // whatever is still settling becomes its own step, so undo lands before the paste
+    if (settleTimer.current !== null) commitStep()
+    setPaletteIndex(l.paletteIndex)
+    setColours(l.colours)
+    setGroundId(l.groundId)
+    setFinishes(l.finishes)
+    setPictureFx(l.pictureFx)
+    setFormatId(l.formatId)
+    setMotionModeId(l.motionModeId)
+    setDepth(l.depth)
+    setSpeed(l.speed)
+    setLength(l.length)
+    setLayoutId(l.layoutId)
+    setCopy(l.copy)
+    if (l.motionOn !== motionOn) pickMotion(l.motionOn ? l.motionModeId : null)
+    setLookSaid('Look pasted. Undo takes it back.')
+  }
+  const pasteLook = async () => {
+    if (historyLocked) return
+    let text: string
+    try {
+      text = await navigator.clipboard.readText()
+    } catch {
+      // Reading the clipboard needs permission, and some browsers never give
+      // it. An ordinary paste needs none, so that is the way round.
+      setLookSaid('The browser would not hand over the clipboard. Press ⌘V or Ctrl+V on the sheet instead.')
+      return
+    }
+    const l = lookFromText(text)
+    if (!l) {
+      setLookSaid('The clipboard has no look in it. Copy one with Copy look first.')
+      return
+    }
+    applyLook(l)
+  }
+  /*
+   * ⌘V anywhere in the room that is not a text field pastes a look, when the
+   * clipboard holds one. A paste event carries its text without asking.
+   */
+  const pasteRef = useRef<(text: string) => boolean>(() => false)
+  useEffect(() => {
+    pasteRef.current = (text) => {
+      if (historyLocked) return false
+      const l = lookFromText(text)
+      if (!l) return false
+      applyLook(l)
+      return true
+    }
+  })
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null
+      if (t?.closest('textarea, input, select, [contenteditable="true"]')) return
+      if (pasteRef.current(e.clipboardData?.getData('text/plain') ?? '')) e.preventDefault()
+    }
+    document.addEventListener('paste', onPaste)
+    return () => document.removeEventListener('paste', onPaste)
+  }, [])
+
+  /*
    * The keys a design tool answers to. ⌘Z and ⇧⌘Z (or ⌘Y) everywhere except
    * in a text field, which has its own; the arrows nudge the word a sheet
    * pixel, ten with Shift, as Figma's do; Delete takes off the selected finish.
@@ -2093,44 +2247,20 @@ export function Poster(p: Props) {
                 )}
                 {motionOn && (
                   <>
-                    <div className="ctl">
-                      <div className="ctl-head">
-                        <label htmlFor="motion-depth">Depth</label>
-                        <output htmlFor="motion-depth" className={depth === DEFAULT_DEPTH ? 'is-default' : undefined}>
-                          {Math.round(depth * 100)}%
-                        </output>
-                      </div>
-                      <input
-                        id="motion-depth"
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        value={depth}
-                        disabled={!!progress}
-                        onChange={(e) => setDepth(Number(e.target.value))}
-                        onDoubleClick={() => setDepth(DEFAULT_DEPTH)}
-                      />
-                    </div>
-                    <div className="ctl">
-                      <div className="ctl-head">
-                        <label htmlFor="motion-speed">Speed</label>
-                        <output htmlFor="motion-speed" className={speed === DEFAULT_SPEED ? 'is-default' : undefined}>
-                          {speed.toFixed(2)}×
-                        </output>
-                      </div>
-                      <input
-                        id="motion-speed"
-                        type="range"
-                        min={MIN_SPEED}
-                        max={MAX_SPEED}
-                        step={0.05}
-                        value={speed}
-                        disabled={!!progress}
-                        onChange={(e) => setSpeed(Number(e.target.value))}
-                        onDoubleClick={() => setSpeed(DEFAULT_SPEED)}
-                      />
-                    </div>
+                    <Dial
+                      id="motion-depth"
+                      spec={DEPTH_SPEC}
+                      value={depth}
+                      disabled={!!progress}
+                      onChange={setDepth}
+                    />
+                    <Dial
+                      id="motion-speed"
+                      spec={SPEED_SPEC}
+                      value={speed}
+                      disabled={!!progress}
+                      onChange={setSpeed}
+                    />
                     <div className="ctl">
                       <div className="ctl-head">
                         <span>Length</span>
@@ -2170,6 +2300,19 @@ export function Poster(p: Props) {
                 <button type="button" className="inspector-export" disabled={exportBusy} onClick={() => download(exportType)}>
                   {busy ? 'Rendering…' : exportItems.find((it) => it.id === exportType)?.label}
                 </button>
+                <div className="look-transfer">
+                  <button type="button" className="linkish" onClick={copyLook}>
+                    Copy look
+                  </button>
+                  <button type="button" className="linkish" disabled={historyLocked} onClick={pasteLook}>
+                    Paste look
+                  </button>
+                </div>
+                {lookSaid && (
+                  <p className="note" role="status">
+                    {lookSaid}
+                  </p>
+                )}
               </Section>
             </>
           )}
@@ -2190,37 +2333,20 @@ export function Poster(p: Props) {
                   {/* the numbers the drag sets, in sheet pixels from where the sheet would centre it */}
                   <div className="xy">
                     {(['dx', 'dy'] as const).map((k) => (
-                      <label key={k} className="xy-field">
-                        <span>{k === 'dx' ? 'X' : 'Y'}</span>
-                        <input
-                          type="number"
-                          className="ctl-value"
-                          step={1}
-                          value={Math.round(wordT[k])}
-                          onChange={(e) => {
-                            const v = Number(e.target.value)
-                            if (Number.isFinite(v)) setWordT((t) => ({ ...t, [k]: v }))
-                          }}
-                        />
-                      </label>
+                      <XyField
+                        key={k}
+                        name={k === 'dx' ? 'X' : 'Y'}
+                        value={Math.round(wordT[k])}
+                        onChange={(v) => setWordT((t) => ({ ...t, [k]: v }))}
+                      />
                     ))}
                   </div>
-                  <div className="ctl word-place">
-                    <div className="ctl-head">
-                      <label htmlFor="word-size">Size</label>
-                      <output htmlFor="word-size" className={wordT.scale === 1 ? 'is-default' : undefined}>
-                        {wordT.scale.toFixed(2)}×
-                      </output>
-                    </div>
-                    <input
+                  <div className="word-place">
+                    <Dial
                       id="word-size"
-                      type="range"
-                      min={0.25}
-                      max={2}
-                      step={0.05}
+                      spec={SIZE_SPEC}
                       value={wordT.scale}
-                      onChange={(e) => setWordT((t) => ({ ...t, scale: Number(e.target.value) }))}
-                      onDoubleClick={() => setWordT((t) => ({ ...t, scale: 1 }))}
+                      onChange={(scale) => setWordT((t) => ({ ...t, scale }))}
                     />
                     {/*
                       A turn is something you do to the word, not a value you set
