@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { Finish, FinishState } from '../lib/finish'
 import { addable, finishesOn } from '../lib/composeLayers'
 import { Menu } from './Menu'
+import { Dial } from './Dial'
 
 /**
  * The pieces Compose's right panel is built from.
@@ -159,7 +160,7 @@ export function Swatch({ label, value, onChange }: { label: string; value: strin
 
 type StackChange = (next: (v: FinishState) => FinishState) => void
 
-/** one effect's dials: its line, then a range per param, double-click to reset */
+/** one effect's dials: its line, then a dial per param, the same dial the rail uses */
 export function EffectDials({
   f,
   state,
@@ -177,41 +178,21 @@ export function EffectDials({
   return (
     <>
       <p className="note">{f.blurb}</p>
-      {f.params.map((spec) => {
-        const id = `${idPrefix}-${f.id}-${spec.key}`
-        const at = held?.params[spec.key] ?? spec.default
-        return (
-          <div className="ctl" key={spec.key}>
-            <div className="ctl-head">
-              <label htmlFor={id}>{spec.label}</label>
-              <output htmlFor={id} className={at === spec.default ? 'is-default' : undefined}>
-                {at}
-              </output>
-            </div>
-            <input
-              id={id}
-              type="range"
-              min={spec.min}
-              max={spec.max}
-              step={spec.step}
-              disabled={disabled}
-              value={at}
-              onChange={(e) =>
-                onChange((v) => ({
-                  ...v,
-                  [f.id]: { ...v[f.id], params: { ...v[f.id].params, [spec.key]: Number(e.target.value) } },
-                }))
-              }
-              onDoubleClick={() =>
-                onChange((v) => ({
-                  ...v,
-                  [f.id]: { ...v[f.id], params: { ...v[f.id].params, [spec.key]: spec.default } },
-                }))
-              }
-            />
-          </div>
-        )
-      })}
+      {f.params.map((spec) => (
+        <Dial
+          key={spec.key}
+          id={`${idPrefix}-${f.id}-${spec.key}`}
+          spec={spec}
+          value={held?.params[spec.key] ?? spec.default}
+          disabled={disabled}
+          onChange={(value) =>
+            onChange((v) => ({
+              ...v,
+              [f.id]: { ...v[f.id], params: { ...v[f.id].params, [spec.key]: value } },
+            }))
+          }
+        />
+      ))}
     </>
   )
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { defaultLook, readLook } from './composeLook'
+import { defaultLook, lookFromText, lookToText, readLook } from './composeLook'
 import { FINISHES } from './finish'
 
 describe('the look Compose remembers', () => {
@@ -66,5 +66,30 @@ describe('the look Compose remembers', () => {
     })
     expect(back.layoutId).toBe(defaultLook().layoutId)
     expect(back.copy).toEqual({ list: { pick: 0 }, line: { pick: 1 } })
+  })
+})
+
+describe('a look carried as text', () => {
+  it('comes back as it was copied', () => {
+    const look = { ...defaultLook(), paletteIndex: 2, formatId: 'story', motionOn: true, depth: 0.5 }
+    expect(lookFromText(lookToText(look))).toEqual(look)
+  })
+
+  it('survives the spaces and newlines a chat app adds around it', () => {
+    const look = defaultLook()
+    expect(lookFromText(`\n  ${lookToText(look)}  \n`)).toEqual(look)
+  })
+
+  it('refuses text that is not a look', () => {
+    expect(lookFromText('hello')).toBeNull()
+    expect(lookFromText('{"paletteIndex": 1}')).toBeNull()
+    expect(lookFromText('null')).toBeNull()
+  })
+
+  it('settles fields it no longer knows rather than failing whole', () => {
+    const text = JSON.stringify({ kind: 'forfontsake/look', v: 1, look: { formatId: 'gone', paletteIndex: 1 } })
+    const look = lookFromText(text)
+    expect(look?.formatId).toBe(defaultLook().formatId)
+    expect(look?.paletteIndex).toBe(1)
   })
 })

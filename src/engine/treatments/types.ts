@@ -12,6 +12,13 @@ export interface ParamSpec {
   /** short hint shown under the control */
   note?: string
   /**
+   * How the value reads in the panel. Unset, the number is shown as it is.
+   * `%` shows a 0–1 value as a percentage, so Depth reads 35% rather than 0.35.
+   * `×` shows it as a multiplier to two places, so Speed reads 1.00×. Only the
+   * display changes: the value, presets and the URL stay as they were.
+   */
+  unit?: '%' | '×'
+  /**
    * How the control draws itself. Left unset it is a slider, which is right
    * for anything with a range to move along.
    *
