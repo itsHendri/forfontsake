@@ -3,9 +3,9 @@
 Read this first in a new session, then `README.md` for how to run it and
 `docs/DECISIONS.md` for why it is built the way it is.
 
-**Repo:** `/Users/hendri/forfontsake` → `github.com/itsHendri/forfontsake` (public, `main`)
-**Live:** https://forfontsake.xyz — GitHub Pages, deployed from `main` by
-`.github/workflows/deploy.yml`. See `docs/DEPLOY.md`.
+**Repo:** `github.com/itsHendri/forfontsake` (public, `main`)
+**Live:** https://forfontsake.xyz, on Cloudflare Workers as static assets. Every push to
+`main` is checked, built and deployed by Workers Builds (`wrangler.jsonc`). See `docs/DEPLOY.md`.
 **Licence:** GPL-3.0-only (forced by `font-flux-js`; deliberate — see DECISIONS).
 
 ---
