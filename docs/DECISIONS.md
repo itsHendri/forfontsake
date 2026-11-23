@@ -2037,6 +2037,23 @@ are the product and carry its look. Three ideas came in instead.
   paste (⌘V on the sheet, not in a field) does the same thing without asking. It answers half of
   "nothing about the sheet is in the URL": a look can now be sent, without the URL growing.
 
+## A line that divides, and an edge that names a control
+
+The November audit measured the light theme's small text under AA: muted at 4.27:1 and the
+mark at 4.33:1 against the paper, both set at 10 to 12px. Both went one step darker
+(`#65635a`, 4.74:1; `#b4371f`, 4.71:1). Dark already passed and is unchanged.
+
+Control borders were `--rule`, which is 1.33:1 in light and 1.47:1 in dark: right for a line
+that only divides, too faint for the edge that tells a button, a menu, a stepper or a switch
+from the page, where the rule is 3:1. Darkening `--rule` would have turned every bar, card and
+row into a heavy grid, so there are now two: **`--rule` for dividers, `--edge` for controls**
+(`#827f76` light, 3.15:1; `#6b6a5f` dark, 3.39:1). The slider track uses `--edge` too, since
+the track is what shows the range. New controls take `--edge`; a new line between things takes
+`--rule`. The glyph cells keep `--rule`, because each cell is told apart by its letter.
+
+Focus and Clear stay faded until letters are picked, and a line beside them says so
+("Pick letters to focus or clear"), turning into the count once there is a selection.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the

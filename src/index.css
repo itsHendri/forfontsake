@@ -4,11 +4,17 @@
   --ink: #15171b;
   --paper: #e7e4db;
   --plate: #efece4;
+  /* --rule is for lines that only divide (bars, cards, rows); --edge is the
+     border that tells a control from the page, so it holds 3:1 against the
+     paper (3.15:1), as does the slider track that uses it */
   --rule: #cbc7bc;
-  --muted: #6c6a61;
-  --mark: #be3a22;
-  /* --mark as a fill under paper-coloured text: a shade deeper in the light,
-     where #be3a22 gives 4.3:1 against the paper and misses AA at 13px */
+  --edge: #827f76;
+  /* muted and mark are set as 10 to 12px text, so both hold 4.5:1 against the
+     paper, the darker of the two grounds: 4.74:1 and 4.71:1 */
+  --muted: #65635a;
+  --mark: #b4371f;
+  /* --mark as a fill under paper-coloured text: a shade deeper again, for
+     margin at 13px */
   --mark-fill: #a9331e;
   --track: #d5d1c6;
   /* the selection accent. Deliberately not --mark: the frame sits over a sheet
@@ -22,6 +28,7 @@
     --paper: #131410;
     --plate: #1a1b16;
     --rule: #33342c;
+    --edge: #6b6a5f;
     --muted: #8b8a7e;
     --mark: #e0603f;
     --mark-fill: #e0603f;
@@ -34,6 +41,7 @@
   --paper: #131410;
   --plate: #1a1b16;
   --rule: #33342c;
+  --edge: #6b6a5f;
   --muted: #8b8a7e;
   --mark: #e0603f;
   --mark-fill: #e0603f;
@@ -195,7 +203,7 @@ body {
   letter-spacing: -0.01em;
   color: var(--ink);
   background: transparent;
-  border: 1px dashed var(--rule);
+  border: 1px dashed var(--edge);
   border-radius: 2px;
   padding: 2px 6px;
   margin: 0 0 3px -7px;
@@ -234,7 +242,7 @@ body {
      flush against its own edge */
   padding: 0 10px 0 12px;
   background: var(--plate);
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 2px;
 }
 .setup-half:hover {
@@ -373,7 +381,7 @@ h1 {
   gap: 6px;
   padding: 8px 10px 7px;
   background: var(--paper);
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 4px;
   cursor: pointer;
 }
@@ -604,7 +612,7 @@ h1 {
 .mode-switch {
   margin: 0 auto;
   display: flex;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 4px;
   overflow: hidden;
 }
@@ -670,7 +678,7 @@ h1 {
   color: var(--ink);
 }
 .sheet-history-btn:hover:not(:disabled) {
-  border-color: var(--rule);
+  border-color: var(--edge);
 }
 .sheet-history-btn:disabled {
   opacity: 0.3;
@@ -801,7 +809,7 @@ h1 {
   width: 30px;
   height: 24px;
   padding: 0;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 2px;
   background: none;
   cursor: pointer;
@@ -1013,7 +1021,7 @@ h1 {
   align-items: center;
   gap: 6px;
   padding: 8px;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 4px;
   background: var(--paper);
   font-size: 12px;
@@ -1341,7 +1349,7 @@ h1 {
   width: 22px;
   height: 22px;
   padding: 0;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 3px;
   background: var(--paper);
   color: var(--muted);
@@ -1384,8 +1392,15 @@ h1 {
 }
 .glyph-picks {
   display: flex;
+  align-items: center;
   gap: 6px;
   flex-wrap: wrap;
+}
+.glyph-picks-hint {
+  margin-right: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 /* a heading that carries its own (i), so the explanation is asked for rather
    than standing under the grid forever */
@@ -1411,7 +1426,7 @@ h1 {
   gap: 6px;
   padding: 8px 14px 7px;
   background: var(--paper);
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 4px;
   cursor: pointer;
 }
@@ -1660,7 +1675,7 @@ h1 {
   align-items: stretch;
   height: 24px;
   background: var(--paper);
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 2px;
   /* the dividers are the children's own edges, so nothing may spill past the
      rounded corner */
@@ -1742,7 +1757,7 @@ h1 {
   height: 19px;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 10px;
   background: var(--paper);
   cursor: pointer;
@@ -1840,7 +1855,7 @@ html.is-scrubbing * {
   line-height: 1;
   color: var(--muted);
   background: transparent;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 50%;
   cursor: help;
 }
@@ -1934,11 +1949,11 @@ input[type='range'] {
 }
 input[type='range']::-webkit-slider-runnable-track {
   height: 2px;
-  background: var(--track);
+  background: var(--edge);
 }
 input[type='range']::-moz-range-track {
   height: 2px;
-  background: var(--track);
+  background: var(--edge);
 }
 input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
@@ -1973,7 +1988,7 @@ button {
   font-size: 13px;
   color: var(--ink);
   background: var(--plate);
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 2px;
   padding: 7px 13px;
   cursor: pointer;
@@ -2001,7 +2016,7 @@ select {
   font-size: 15px;
   color: var(--ink);
   background: var(--plate);
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 2px;
   padding: 8px 12px;
   width: 100%;
@@ -2069,7 +2084,7 @@ select:focus-visible {
   gap: 9px;
   padding: 9px 10px 10px;
   background: var(--plate);
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 4px;
   cursor: pointer;
 }
@@ -2342,7 +2357,7 @@ select:focus-visible {
   width: 30px;
   height: 30px;
   padding: 0;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 4px;
   background: var(--paper);
   color: var(--muted);
@@ -3133,7 +3148,7 @@ button.saved-confirm-delete:hover:not(:disabled) {
   width: 100%;
   box-sizing: border-box;
   padding: 8px 10px;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 4px;
   background: var(--plate);
   color: var(--ink);
@@ -3437,7 +3452,7 @@ button.saved-confirm-delete:hover:not(:disabled) {
   white-space: nowrap;
 }
 .seg-row .seg.is-on {
-  border-color: var(--rule);
+  border-color: var(--edge);
   background: var(--paper);
   color: var(--ink);
   font-weight: 500;
@@ -3561,7 +3576,7 @@ button.saved-confirm-delete:hover:not(:disabled) {
   align-items: center;
   gap: 5px;
   padding: 7px 13px;
-  border: 1px solid var(--rule);
+  border: 1px solid var(--edge);
   border-radius: 17px;
   background: var(--paper);
   color: var(--ink);

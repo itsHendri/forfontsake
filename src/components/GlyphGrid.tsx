@@ -125,6 +125,14 @@ function GlyphGridInner({ set, selected, overridden, onSelect, settling, onFocus
           </span>
         </h2>
         <div className="glyph-picks">
+          {/* Focus and Clear sit faded until there is a selection, and a faded
+              button says nothing about what wakes it. This line does, and
+              becomes the count once letters are picked. */}
+          <span className="glyph-picks-hint" id="glyph-picks-hint">
+            {selected.size === 0
+              ? 'Pick letters to focus or clear'
+              : `${selected.size} picked`}
+          </span>
           {overridden.size > 0 && (
             <button
               type="button"
@@ -143,6 +151,7 @@ function GlyphGridInner({ set, selected, overridden, onSelect, settling, onFocus
               className="chip"
               onClick={() => onFocus()}
               disabled={selected.size === 0}
+              aria-describedby="glyph-picks-hint"
               title="See the selected letters large · Space"
             >
               Focus
@@ -157,6 +166,7 @@ function GlyphGridInner({ set, selected, overridden, onSelect, settling, onFocus
             className="chip"
             onClick={() => onSelect(new Set())}
             disabled={selected.size === 0}
+            aria-describedby="glyph-picks-hint"
           >
             Clear
           </button>
