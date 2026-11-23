@@ -2054,6 +2054,34 @@ the track is what shows the range. New controls take `--edge`; a new line betwee
 Focus and Clear stay faded until letters are picked, and a line beside them says so
 ("Pick letters to focus or clear"), turning into the count once there is a selection.
 
+## Every press is 44 px, whatever it is drawn at
+
+The audit counted 89 of 171 controls under 44 px at 375 wide: the (i) at 15, minus and plus
+at 24 by 22, the switch at 34 by 19, the sliders 18 tall, Reset, Copy link, the chips. The
+drawn sizes are the look, so they stay; what grows is the area that answers a press.
+
+- **The default is an invisible `::before`** on every `button`, `a[href]` and the name's box:
+  centred, `max(100%, 44px)` each way. It is the trick Delete and the close buttons used on
+  their own, made the rule, so a new button is 44 px without anyone remembering to. A
+  button whose `::before` is drawing something (the phone sheet's grip) or which must stay
+  static (a saved card's open press, whose `::after` covers the card) opts out by name.
+- **Where two controls sit closer than 44**, the later one wins the overlap. The few places
+  that mattered are steered: minus and plus reach outwards, never over the value between
+  them; the (i) reaches right, away from the dial's name, which you drag; the slider's
+  44 px rises into the row above, so that row's controls sit over it (each control, not the
+  row, or a tip would sink under the next dial).
+- **What cannot carry a margin is drawn at 44 on a finger** (`pointer: coarse`): a select,
+  a colour well, and the stepper, whose three parts are packed edge to edge. The phone
+  sheet in Compose draws its controls at 44 too, because it scrolls in its own box and
+  clips any reach past its edges. Under a mouse these keep their drawn size.
+- **A button that clips its own text** (`overflow: hidden`, the layer names) cannot show a
+  `::before` outside itself, so it takes its 44 from padding and gives it back as negative
+  margin.
+
+Measured after, by pressing outward from each control's centre until another element
+answers: every control in the workbench, Compose, Saved fonts and Focus reaches 44 on a
+phone, and under a mouse only the selects, the colour wells and the value field are smaller.
+
 ## Where to look next
 
 Highest value first, folding in `RESEARCH-2026-09.md` (Font Gauntlet, the field, the

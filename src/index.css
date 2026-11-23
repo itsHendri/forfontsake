@@ -1147,27 +1147,27 @@ h1 {
   .inspector-head:not(.is-sheet) {
     display: none;
   }
-  /* fingers, not a pointer: nothing to tap smaller than about 44 px */
+  /* fingers, not a pointer: nothing to tap smaller than 44 px. Drawn at it,
+     because the sheet scrolls in its own box and clips any reach past its
+     edges */
   .sheet-grip {
-    height: 36px;
+    height: 44px;
   }
   .sheet-grip::before {
-    margin-top: 14px;
+    margin-top: 18px;
   }
-  .layer-chip {
-    min-height: 40px;
-  }
-  .seg-row .seg {
-    min-height: 40px;
+  .layer-chip,
+  .seg-row .seg,
+  .sheet-rail button {
+    min-height: 44px;
   }
   .inspector-icon,
-  .sheet-history-btn {
-    min-width: 40px;
-    min-height: 36px;
+  .sheet-history-btn,
+  .finish-item-row .layer-eye {
+    min-width: 44px;
+    min-height: 44px;
   }
   .finish-item-row .layer-eye {
-    min-width: 40px;
-    min-height: 40px;
     font-size: 13px;
   }
 }
@@ -1677,9 +1677,6 @@ h1 {
   background: var(--paper);
   border: 1px solid var(--edge);
   border-radius: 2px;
-  /* the dividers are the children's own edges, so nothing may spill past the
-     rounded corner */
-  overflow: hidden;
 }
 .step-btn {
   display: grid;
@@ -1695,9 +1692,22 @@ h1 {
 }
 .step-btn:first-child {
   border-right: 1px solid var(--rule);
+  border-radius: 1px 0 0 1px;
 }
 .step-btn:last-child {
   border-left: 1px solid var(--rule);
+  border-radius: 0 1px 1px 0;
+}
+/* minus and plus reach outwards for their 44 px, never over the value
+   between them */
+.step-btn:first-child::before {
+  left: auto;
+  right: 0;
+  transform: translate(0, -50%);
+}
+.step-btn:last-child::before {
+  left: 0;
+  transform: translate(0, -50%);
 }
 .step-btn:hover:not(:disabled) {
   color: var(--ink);
@@ -1881,6 +1891,16 @@ html.is-scrubbing * {
 .ctl-head {
   position: relative;
 }
+/* the slider's 44 px reach rises into this row, so the row's own controls
+   sit over it; the row itself makes no layer, or a tip would sink under the
+   next dial */
+.ctl-head .stepper,
+.ctl-head .info-btn,
+.ctl-head .ctl-scrub,
+.ctl-head .ctl-switch {
+  position: relative;
+  z-index: 1;
+}
 .ctl-head .ctl-info {
   position: static;
 }
@@ -1942,10 +1962,11 @@ input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 18px;
+  /* 44 px to press, laid out as the 18 it is drawn at */
+  height: 44px;
   background: transparent;
   cursor: pointer;
-  margin: 0;
+  margin: -13px 0;
 }
 input[type='range']::-webkit-slider-runnable-track {
   height: 2px;
@@ -1995,6 +2016,73 @@ button {
 }
 button:hover:not(:disabled) {
   border-color: var(--ink);
+}
+/* Every press answers a 44 px finger, whatever the control is drawn at: an
+   invisible ::before, centred on it, at least 44 px each way. It is the
+   pattern Delete and the close buttons used on their own, made the default.
+   Where two controls sit closer than that the later one wins the overlap,
+   which still leaves each its own drawn size and more. */
+:where(button, a[href], .name-box) {
+  position: relative;
+}
+:where(button, a[href], .name-box)::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  transform: translate(-50%, -50%);
+}
+/* Not for these: the grip's ::before is the bar you see; the card's open
+   press stretches over the whole card from the card, so it must stay static;
+   and the corner ⤢ only exists under a mouse, inside a cell it would eat. */
+.sheet-grip::before {
+  position: static;
+  transform: none;
+}
+.saved-open {
+  position: static;
+}
+.saved-open::before,
+.glyph-expand::before {
+  content: none;
+}
+/* the (i) sits just after its dial's name, which you drag: its 44 px reach
+   into the free space to its right, not back over the name */
+.info-btn::before {
+  left: -4px;
+  transform: translate(0, -50%);
+}
+/* the switch and the slider are inputs, drawn small, pressed large */
+.ctl-switch::before {
+  content: '';
+  position: absolute;
+  inset: -14px -6px;
+}
+/* (pointer: coarse) is a finger: what cannot carry an invisible margin, a
+   select and the stepper's three parts packed edge to edge, is drawn at 44 */
+@media (pointer: coarse) {
+  select,
+  .setup-half select {
+    min-height: 44px;
+  }
+  .stepper {
+    height: 44px;
+  }
+  .step-btn,
+  .ctl-value {
+    min-width: 44px;
+  }
+  /* a dial's own (i) sits just above these and takes the top of their reach */
+  .seg-btn {
+    min-height: 44px;
+  }
+  /* a colour well takes no ::before, so on a finger it is drawn at 44 */
+  .swatch {
+    width: 44px;
+    height: 44px;
+  }
 }
 button:disabled {
   opacity: 0.45;
@@ -2243,12 +2331,6 @@ select:focus-visible {
     padding: 6px 12px;
   }
 }
-/* a thumb-sized hit area around a small mark: 35×27 drawn, 45×45 pressed */
-.saved-bar .sheet-close::before {
-  content: '';
-  position: absolute;
-  inset: -9px -5px;
-}
 .saved-body {
   flex: 1;
   padding: 26px;
@@ -2379,12 +2461,6 @@ select:focus-visible {
 .saved-delete:focus-visible {
   color: var(--mark);
   border-color: var(--mark);
-}
-/* about 30×30 drawn, 44×44 pressed */
-.saved-delete::before {
-  content: '';
-  position: absolute;
-  inset: -7px;
 }
 
 /* The list: one font a row — the name, a line of its letters, what it is made
@@ -3227,6 +3303,10 @@ button.saved-confirm-delete:hover:not(:disabled) {
 .layer-name {
   flex: 1;
   min-width: 0;
+  /* it clips its own text, so it cannot carry a ::before outside itself:
+     the 44 px come from padding, given back by the margin */
+  padding-block: 11.5px;
+  margin-block: -11.5px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
