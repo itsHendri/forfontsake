@@ -22,6 +22,7 @@ import { copyText } from '../lib/clipboard'
 import { loadLook, lookFromText, lookToText, saveLook, type ComposeLook, type TemplateCopy } from '../lib/composeLook'
 import { copyFor, copySets } from '../lib/copyBank'
 import { getTemplate } from '../lib/templates'
+import { loadScan, scanReady } from '../lib/grounds'
 import { TemplateGallery } from './TemplateGallery'
 import { Menu } from './Menu'
 import { ComposeLayers, LayerChips } from './ComposeLayers'
@@ -421,6 +422,22 @@ export function Poster(p: Props) {
   const [groundId, setGroundId] = useState(look.groundId)
   const [backdrop, setBackdrop] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  /*
+   * A scanned ground is fetched the first time it is chosen, not before: it is
+   * the one ground that is a download. The sheet draws plain paper for the
+   * moment it takes, and this count redraws it once the scan is in.
+   */
+  const [scansIn, setScansIn] = useState(0)
+  useEffect(() => {
+    if (scanReady(groundId)) return
+    let live = true
+    loadScan(groundId)
+      .then(() => live && setScansIn((n) => n + 1))
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [groundId])
 
   // and kept as it changes, so next week's sheet opens looking like this one
   useEffect(() => {
@@ -683,6 +700,9 @@ export function Poster(p: Props) {
 
   const sheetReq = useMemo(
     () => ({
+      // a scanned ground draws from a cache that fills after the fetch, so the
+      // count of scans in is what tells this to draw the sheet again
+      scansIn,
       font: p.font,
       fontId: p.fontId,
       chain: sheetChain,
@@ -711,6 +731,7 @@ export function Poster(p: Props) {
       palette,
       bakedT,
       groundId,
+      scansIn,
       backdrop,
       sheetCopy,
     ],

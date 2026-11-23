@@ -334,10 +334,42 @@ describe('what the sheet is printed on', () => {
     expect(new Set(drawn).size).toBe(GROUNDS.length)
   })
 
-  it('offers flat, screen, grid and tooth — wash is gone', () => {
-    // it was a vertical gradient, which is the one thing on the list that is
-    // not something paper does
-    expect(GROUNDS.map((g) => g.id)).toEqual(['flat', 'screen', 'grid', 'tooth'])
+  it('offers flat, screen, grid and tooth first, then the measured, grained and scanned ones', () => {
+    // wash is gone: it was a vertical gradient, which is not something paper does.
+    // Ids live in saved looks, so this list only ever grows.
+    expect(GROUNDS.map((g) => g.id)).toEqual([
+      'flat', 'screen', 'grid', 'tooth',
+      'mat', 'drafting', 'press', 'truchet', 'grain', 'bands',
+      'brayer', 'linen', 'crumpled', 'kraft',
+    ])
+  })
+
+  it('keeps every grain off the round frequency where the noise goes flat', () => {
+    // At 0.5 a sheet drawn at half size samples the noise on its own lattice,
+    // where it is zero, and the grain vanishes without an error.
+    for (const g of GROUNDS) {
+      for (const m of g.draw(1080, 1350, palette).matchAll(/baseFrequency="([\d. ]+)"/g)) {
+        for (const v of m[1].split(' ').map(Number)) expect(v, g.id).not.toBe(0.5)
+      }
+    }
+  })
+
+  it('sets the rulers in drawn numerals, since the sheet cannot load a font', () => {
+    for (const id of ['mat', 'drafting']) {
+      const svg = GROUNDS.find((g) => g.id === id)!.draw(1080, 1350, palette)
+      expect(svg, id).not.toContain('<text')
+      expect(svg, id).toMatch(/translate\([\d.]+ [\d.]+\) scale\(/)
+    }
+  })
+
+  it('draws a scan from its thumbnail until the full file has been fetched', () => {
+    // the full scan is a download, so nothing fetches it until it is chosen
+    for (const id of ['brayer', 'linen', 'crumpled', 'kraft']) {
+      const svg = GROUNDS.find((g) => g.id === id)!.draw(1080, 1350, palette)
+      expect(svg, id).toContain(`/grounds/${id}-thumb.jpg`)
+      expect(svg, id).toContain('feFlood')
+      expect(svg, id).toContain(palette.ink)
+    }
   })
 
   it('draws every texture in the sheet\'s own ink, tooth included', () => {

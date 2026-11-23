@@ -12,3 +12,4 @@ test -f dist/index.html
 test -f dist/glyph-data.json
 test -f dist/share.png
 test "$(ls dist/fonts/preview/*.woff2 | wc -l)" -eq 7
+for g in brayer linen crumpled kraft; do test -f "dist/grounds/$g.jpg"; test -f "dist/grounds/$g-thumb.jpg"; done

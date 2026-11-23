@@ -3,6 +3,7 @@ import type { FontData } from './glyphData'
 import type { Step } from './urlState'
 import { MARGIN, treatRun, treatGlyphs, inkOf, pathAt, rule, type Run } from './sheetDraw'
 import { TEMPLATES, drawTemplate, getTemplate, pictureRect } from './templates'
+import { MORE_GROUNDS } from './grounds'
 
 /**
  * A specimen sheet, as a standalone SVG string.
@@ -127,6 +128,8 @@ export const GROUNDS: Ground[] = [
       `<rect width="${w}" height="${h}" fill="${p.paper}"/>` +
       `<rect width="${w}" height="${h}" fill="none" filter="url(#${TOOTH_ID})"/>`,
   },
+  // measured surfaces, grain, a maze and four material scans: see grounds.ts
+  ...MORE_GROUNDS,
 ]
 
 export const getGround = (id?: string): Ground => GROUNDS.find((g) => g.id === id) ?? GROUNDS[0]
