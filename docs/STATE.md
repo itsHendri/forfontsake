@@ -35,6 +35,7 @@ installable font**, entirely in the browser.
 | My fonts (was Saved fonts) | **A room of its own**, headed My fonts, reached from the `My fonts N` button beside Save font in the masthead, with an empty state. Its cards are drawn when the room opens rather than by the workbench. Kept across reloads in `localStorage`. **Cards or a list** (13 October, picked from Figma band 13: V3 unruled and V5), switched in the bar and remembered: a card shows the name in the font over 36 of its letters (A–M, a–m, 0–9) on an unruled grid; a row shows the name, a line of letters and the recipe. The letters are treated a font per turn of the event loop, so the room opens at once. Delete is a trash icon shown on hover and focus — always on touch — and still asks first. The header says nothing about the count until the shelf is full. |
 | Bring your own font | Done, from the font menu. Read in the worker, licence reported, held in memory. |
 | CLI export + verification | Done. `build:font` + `verify:font` (7 checks). |
+| Look | **Darkroom**: warm graphite with a safelight-orange accent, and warm paper when the reader's system is light. Tokens at the top of `src/index.css`, copied into `public/about.html` and `public/404.html`. See DECISIONS, "Darkroom". |
 | Deployment | **Live** at forfontsake.xyz. Pushes to `main` deploy; HTTPS enforced. |
 
 Seven source fonts ship, all OFL: Pirata One, Anton, Archivo Black, Bebas Neue,
@@ -464,7 +465,7 @@ band numbering.
 None of it is a source of truth.
 
 **The code is the source of truth for the design.** That is the honest position now, and it
-mostly always was: `src/index.css` carries the type scale, the paper-and-ink palette and the
+mostly always was: `src/index.css` carries the type scale, the Darkroom palette and the
 8-pt grid, and `scripts/figma-export.ts` regenerates the treated type as real vector
 whenever a file is wanted again.
 

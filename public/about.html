@@ -22,26 +22,32 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&amp;family=Roboto+Mono:wght@500&amp;display=swap" />
     <!-- A plain page, written out in full, so it reads without the app's script.
-         The workbench's own tokens, copied: see src/index.css :root. -->
+         The workbench's own tokens, copied: see src/index.css :root (Darkroom). -->
     <style>
       :root {
-        --ink: #15171b;
-        --paper: #e7e4db;
-        --plate: #efece4;
-        --rule: #cbc7bc;
-        --edge: #827f76;
-        --muted: #65635a;
-        --mark: #b4371f;
+        --ink: #1d1712;
+        --paper: #efe9df;
+        --plate: #f7f3ec;
+        --rule: #d8cebf;
+        --edge: #807362;
+        --muted: #615548;
+        --mark: #b84f1b;
+        --mark-fill: #ff7a3d;
+        --mark-fill-edge: #b84f1b;
+        --on-mark: #17130f;
+        --glow: rgb(255 122 61 / 0.4);
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --ink: #e3e0d6;
-          --paper: #131410;
-          --plate: #1a1b16;
-          --rule: #33342c;
-          --edge: #6b6a5f;
-          --muted: #8b8a7e;
-          --mark: #e0603f;
+          --ink: #efe6d8;
+          --paper: #17130f;
+          --plate: #1f1a15;
+          --rule: #2e2720;
+          --edge: #73685a;
+          --muted: #a39684;
+          --mark: #ff7a3d;
+          --mark-fill-edge: #ff7a3d;
+          --glow: rgb(255 122 61 / 0.33);
         }
       }
       * { box-sizing: border-box; }
@@ -53,7 +59,7 @@
       }
       a { color: var(--ink); text-underline-offset: 3px; text-decoration-color: var(--edge); }
       a:hover { text-decoration-color: currentColor; }
-      a:focus-visible { outline: 2px solid var(--mark); outline-offset: 3px; border-radius: 2px; }
+      a:focus-visible { outline: 2px solid var(--mark); outline-offset: 3px; border-radius: 6px; }
       .wrap { max-width: 1280px; margin: 0 auto; padding: 0 32px; }
       header.wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding-top: 24px; padding-bottom: 24px; }
       .home { display: inline-flex; align-items: center; min-height: 44px; }
@@ -61,15 +67,16 @@
       .grow { flex-grow: 1; }
       .open {
         display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px;
-        background: var(--ink); color: var(--paper); border-radius: 2px; text-decoration: none;
-        font-weight: 500; font-size: 14px;
+        background: var(--mark-fill); color: var(--on-mark); border: 1px solid var(--mark-fill-edge);
+        border-radius: 10px; box-shadow: 0 0 18px var(--glow); text-decoration: none;
+        font-weight: 600; font-size: 14px;
       }
       .open:focus-visible { outline-offset: 2px; }
       .eyebrow { margin: 0 0 18px; font: 500 12px 'Roboto Mono', ui-monospace, monospace; letter-spacing: 0.12em; color: var(--muted); }
       .page { display: flex; flex-wrap: wrap; gap: 56px; align-items: flex-start; padding-bottom: 72px; }
       nav.toc {
         flex: 1 1 220px; max-width: 260px; padding: 16px 18px;
-        background: var(--plate); border: 1px solid var(--rule); border-radius: 4px;
+        background: var(--plate); border: 1px solid var(--rule); border-radius: 14px;
         position: sticky; top: 24px;
       }
       nav.toc h2 { margin: 0 0 4px; font: 500 12px 'Roboto Mono', ui-monospace, monospace; letter-spacing: 0.12em; color: var(--muted); }

@@ -10,17 +10,21 @@
     <style>
       /* the workbench's own tokens, copied: this page loads nothing else */
       :root {
-        --ink: #15171b;
-        --paper: #e7e4db;
-        --muted: #65635a;
-        --mark: #b4371f;
+        --ink: #1d1712;
+        --paper: #efe9df;
+        --muted: #615548;
+        --mark: #b84f1b;
+        --mark-fill: #ff7a3d;
+        --mark-fill-edge: #b84f1b;
+        --on-mark: #17130f;
       }
       @media (prefers-color-scheme: dark) {
         :root {
-          --ink: #e3e0d6;
-          --paper: #131410;
-          --muted: #8b8a7e;
-          --mark: #e0603f;
+          --ink: #efe6d8;
+          --paper: #17130f;
+          --muted: #a39684;
+          --mark: #ff7a3d;
+          --mark-fill-edge: #ff7a3d;
         }
       }
       body {
@@ -49,11 +53,12 @@
         align-items: center;
         min-height: 44px;
         padding: 0 16px;
-        background: var(--ink);
-        color: var(--paper);
-        border-radius: 2px;
+        background: var(--mark-fill);
+        color: var(--on-mark);
+        border: 1px solid var(--mark-fill-edge);
+        border-radius: 10px;
+        font-weight: 600;
         text-decoration: none;
-        font-weight: 500;
       }
       a:focus-visible {
         outline: 2px solid var(--mark);

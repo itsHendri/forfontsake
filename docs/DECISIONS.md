@@ -2018,9 +2018,10 @@ are the product and carry its look. Three ideas came in instead.
   under three pixels is still a click, so the name still focuses its track. Double-clicking the
   name resets, as the track always did. X and Y on the word scrub the same way, one sheet pixel
   per pixel. `lib/scrub.ts`, tested.
-- **Changed is marked on the name.** Off its starting value, the name is tinted and sits on a
-  plate with a hairline edge, Webflow's trick. The tick on the track stays, and the plate makes
-  it a change of shape as well as colour.
+- **Changed is marked on the name.** Off its starting value, the name gains a ◉ and goes to
+  600, and the value beside it turns from muted to the accent. The tick on the track stays.
+  (It was a tinted plate, Webflow's trick, until the Darkroom look; the ◉ is the same idea as
+  a shape.)
 - **Compose uses the rail's dial.** Depth, Speed, Size and every finish's dials were range inputs
   written out by hand, with a readout but no stepper, no typing and no tick. They are `Dial` now,
   drawn from a `ParamSpec`. The spec gained `unit` (`%` or `×`) so Depth reads 35% and Speed
@@ -2039,20 +2040,54 @@ are the product and carry its look. Three ideas came in instead.
 
 ## A line that divides, and an edge that names a control
 
-The November audit measured the light theme's small text under AA: muted at 4.27:1 and the
-mark at 4.33:1 against the paper, both set at 10 to 12px. Both went one step darker
-(`#65635a`, 4.74:1; `#b4371f`, 4.71:1). Dark already passed and is unchanged.
-
-Control borders were `--rule`, which is 1.33:1 in light and 1.47:1 in dark: right for a line
+The November audit found the light theme's small text under AA and the control borders far
+too faint, because they were `--rule`, 1.33:1 in light and 1.47:1 in dark: right for a line
 that only divides, too faint for the edge that tells a button, a menu, a stepper or a switch
 from the page, where the rule is 3:1. Darkening `--rule` would have turned every bar, card and
-row into a heavy grid, so there are now two: **`--rule` for dividers, `--edge` for controls**
-(`#827f76` light, 3.15:1; `#6b6a5f` dark, 3.39:1). The slider track uses `--edge` too, since
-the track is what shows the range. New controls take `--edge`; a new line between things takes
-`--rule`. The glyph cells keep `--rule`, because each cell is told apart by its letter.
+row into a heavy grid, so there are two: **`--rule` for dividers, `--edge` for controls**. The
+slider track is `--edge` too, since the track is what shows the range. New controls take
+`--edge`; a new line between things takes `--rule`. The glyph cells keep `--rule`, because
+each cell is told apart by its letter. The values are Darkroom's now (below); the split holds.
 
 Focus and Clear stay faded until letters are picked, and a line beside them says so
 ("Pick letters to focus or clear"), turning into the count once there is a selection.
+
+## Darkroom: the look, dark and light
+
+Picked on the Design canvas over ten rounds (23 and 24 November): warm graphite with a
+safelight-orange accent, kept exactly as first drawn, and a warm-paper twin so the site keeps
+following the reader's light or dark setting. It replaced the two-colour letterpress look and
+the brand's vermilion with it. Every value is in the token block at the top of `index.css`,
+with its ratio beside it.
+
+- **Same names, new roles.** The stylesheet already spoke in `--paper`, `--plate`, `--ink`,
+  `--rule`, `--edge`, `--muted` and `--mark`, so those kept their names and took the new
+  values; three surfaces were added (`--sunken` for a well set into a panel: fields, the
+  stepper, a segment row; `--raise` for a button's face and a chosen card; the specimen's own
+  `--well-hi` and `--well-lo`). Renaming 300 uses would have bought nothing.
+- **The accent has three jobs and three tokens.** `--mark` is the orange as a mark (focus, the
+  thumb, a selected ring, a dot); `--mark-text` is the orange as words; `--mark-fill` is the
+  orange as a fill, always under `--on-mark`, which is dark in both themes. In dark all three
+  are `#ff7a3d`. On warm paper the orange is only 2.2:1, so a mark darkens to `#b84f1b` (4.2:1)
+  and words to `#8f3a13` (6.3:1), and the fill keeps the bright orange but gains a
+  `--mark-fill-edge` rim in the mark colour. Use `--mark-text` for any orange text; `--mark`
+  for anything that is not text.
+- **Download is the one lit thing**: the fill, dark text and a soft glow. Copy link went back
+  to ink with an underline, so the orange means a value, the changed mark, focus or the button.
+- **Corners are 10, panels 14, cells 8, value boxes 6** (`--radius` and friends). The specimen
+  plate and the dial panel are panels; the glyph grid became separate tiles 6 px apart.
+- **The groove slider.** A 6 px track in `--edge`, filled in ink up to a 16 px accent thumb
+  with a glow; the preset's tick crosses it as a 2 by 12 bar in `--muted`. WebKit has no fill
+  pseudo-element, so `Dial.tsx` sets `--at` (0 to 1) on the input and the track draws the fill
+  as a gradient that stops at the thumb's centre; Firefox uses `::-moz-range-progress`.
+- **Chosen things are lifted and ringed, never only recoloured**: a preset, a glyph range, a
+  layer, a segment or a chip goes to `--raise`, takes a heavier border or ring in `--mark`,
+  and its label goes to 600.
+- **The About and 404 pages copy the tokens** they use, since they are plain HTML; change them
+  with the block in `index.css`.
+- **Not changed:** the wordmark pink, which belongs to the mark; `--frame`, the blue of the
+  selection in Compose, which stays deliberately unlike the accent. It is under 3:1 on warm
+  paper (2.99), as it was on the old paper, but it is drawn over the sheet, not the page.
 
 ## Every press is 44 px, whatever it is drawn at
 

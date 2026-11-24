@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type CSSProperties } from 'react'
 import type { ParamSpec } from '../engine/treatments/registry'
 import { useScrub } from '../lib/scrub'
 import { shown, typed } from '../lib/units'
@@ -88,10 +88,9 @@ export function Dial({ spec, value, onChange, base, accent, id: idProp, disabled
   const note = spec.note ? `${spec.note[0].toUpperCase()}${spec.note.slice(1)}. ${howTo}` : howTo
 
   /*
-   * Off its starting value, the name is tinted and set on a plate, the way
-   * Webflow marks a property you have changed. That reads better than the tick
-   * on the track. The plate is there so the mark is a change of shape and not
-   * only of colour.
+   * Off its starting value, the name gains a ◉ and a heavier weight, so a
+   * changed dial is found by its shape and not by colour. That reads better
+   * than the tick on the track alone.
    */
   const cls = ['ctl', accent && 'is-override', !atDefault && 'is-changed', disabled && 'is-disabled']
     .filter(Boolean)
@@ -253,6 +252,8 @@ export function Dial({ spec, value, onChange, base, accent, id: idProp, disabled
           max={spec.max}
           step={spec.step}
           value={value}
+          // how far along the groove is filled, 0 to 1 (see index.css)
+          style={{ '--at': range > 0 ? (value - spec.min) / range : 0 } as CSSProperties}
           disabled={disabled}
           onChange={(e) => onChange(Number(e.target.value))}
           onDoubleClick={reset}
