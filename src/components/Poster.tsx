@@ -1959,7 +1959,7 @@ export function Poster(p: Props) {
         </div>
 
         {/* closing finishes a take rather than losing it — see handleClose */}
-        <button type="button" className="sheet-close" onClick={handleClose} aria-label="Leave Compose">
+        <button type="button" className="sheet-close" onClick={handleClose} aria-label="Back to the workbench">
           ✕
         </button>
 
@@ -2319,7 +2319,9 @@ export function Poster(p: Props) {
                 </select>
                 <p className="note">{exportItems.find((it) => it.id === exportType)?.note}</p>
                 <button type="button" className="inspector-export" disabled={exportBusy} onClick={() => download(exportType)}>
-                  {busy ? 'Rendering…' : exportItems.find((it) => it.id === exportType)?.label}
+                  {/* the select above names the format; the button names the act,
+                      the same word as the bar's */}
+                  {busy ? 'Rendering…' : 'Download'}
                 </button>
                 <div className="look-transfer">
                   <button type="button" className="linkish" onClick={copyLook}>

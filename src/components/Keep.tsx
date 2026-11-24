@@ -16,13 +16,18 @@
  * keeps things for later uses, it means "put this where I can find it again",
  * and it survives being drawn at fourteen pixels. Filled means kept, and the
  * label says Saved, which is also the press that forgets.
+ *
+ * Because the label changes with the state, the button carries no
+ * aria-pressed: a toggle either keeps its name and reports pressed, or says
+ * its state in its name, never both, or a screen reader hears "Saved,
+ * pressed" (WAI-ARIA APG, button pattern). The door beside it is named for
+ * the place, My fonts, so the two never share a word.
  */
 export function Keep({ kept, onToggle }: { kept: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
       className={kept ? 'keep is-kept' : 'keep'}
-      aria-pressed={kept}
       title={kept ? 'Kept — press to forget this font' : 'Keep this font'}
       onClick={onToggle}
     >

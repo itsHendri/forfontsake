@@ -169,6 +169,15 @@ function initialState(library: Library): WorkbenchState {
 const GRID_SETTLE_MS = 120
 const URL_SETTLE_MS = 250
 
+
+/** move focus past the chrome to the first thing matching `selector` */
+function skipTo(selector: string) {
+  const el = document.querySelector<HTMLElement>(selector)
+  if (!el) return
+  el.scrollIntoView({ block: 'center' })
+  el.focus({ preventScroll: true })
+}
+
 export default function App() {
   const [library, setLibrary] = useState<Library | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -565,8 +574,11 @@ export default function App() {
   }
   if (!library || !state || !treatment || !result) {
     return (
-      <main className="shell">
-        <p className="muted">Loading outlines…</p>
+      <main className="shell is-loading">
+        {/* the same words index.html carries before the script runs, so the
+            page says what it is from the first paint and does not blink */}
+        <p className="loading-name">For Font&rsquo;s Sake</p>
+        <p className="muted">A browser type foundry. Loading the outlines…</p>
       </main>
     )
   }
@@ -852,13 +864,24 @@ export default function App() {
         for. It is absent rather than disabled at zero: a door with nothing
         behind it is furniture.
       */}
+      {/* Seventeen stops (the masthead, the bar and the presets) come before the
+          letters or a dial. These skip them. Buttons rather than #links: the
+          address's hash is the font itself, and a fragment would overwrite it. */}
+      <div className="skip-links">
+        <button type="button" className="skip-link" onClick={() => skipTo('.type-input')}>
+          Skip to the specimen
+        </button>
+        <button type="button" className="skip-link" onClick={() => skipTo('.panel .settings .ctl-value, .panel .settings input')}>
+          Skip to the dials
+        </button>
+      </div>
       <Brand
         actions={
           <>
             <Keep kept={kept} onToggle={keep} />
             {saved.length > 0 && (
               <button type="button" className="saved-door" onClick={() => setView('saved')}>
-                Saved fonts · {saved.length}
+                My fonts <span className="saved-door-count">{saved.length}</span>
               </button>
             )}
           </>

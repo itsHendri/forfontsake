@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex" />
+    <meta name="color-scheme" content="light dark" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>No page here · For Font's Sake</title>
+    <style>
+      /* the workbench's own tokens, copied: this page loads nothing else */
+      :root {
+        --ink: #15171b;
+        --paper: #e7e4db;
+        --muted: #65635a;
+        --mark: #b4371f;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --ink: #e3e0d6;
+          --paper: #131410;
+          --muted: #8b8a7e;
+          --mark: #e0603f;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 16px/1.5 system-ui, sans-serif;
+      }
+      main {
+        max-width: 34rem;
+        padding: 18vh 16px 0;
+        margin: 0 auto;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      p {
+        margin: 0 0 24px;
+        color: var(--muted);
+      }
+      a {
+        display: inline-flex;
+        align-items: center;
+        min-height: 44px;
+        padding: 0 16px;
+        background: var(--ink);
+        color: var(--paper);
+        border-radius: 2px;
+        text-decoration: none;
+        font-weight: 500;
+      }
+      a:focus-visible {
+        outline: 2px solid var(--mark);
+        outline-offset: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>No page here</h1>
+      <p>This address has nothing on it. Everything at For Font's Sake happens on one page, the workbench.</p>
+      <a href="/">Open the workbench</a>
+    </main>
+  </body>
+</html>

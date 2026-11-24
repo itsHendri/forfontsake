@@ -119,6 +119,17 @@ body {
   padding-top: 4rem;
 }
 
+.shell.is-loading .loading-name {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.shell.is-loading .muted {
+  margin: 0;
+  font-size: 14px;
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -163,7 +174,7 @@ body {
   max-width: 100%;
   justify-self: center;
 }
-.topbar .name-field {
+.topbar .name-box {
   /* the outdent that lined its letters up with the page edge means nothing
      once it is not at the edge */
   margin: 0;
@@ -194,8 +205,28 @@ body {
    the pointer is over it is a field nobody finds: the name is the first thing
    on the page and the first act of making a font, so it says so at rest and
    deepens under the pointer rather than appearing under it. */
+.name-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 8px 2px 6px;
+  margin: 0 0 3px -7px;
+  border: 1px dashed var(--edge);
+  border-radius: 2px;
+  cursor: text;
+}
+.name-box:hover {
+  border-color: var(--mark);
+}
+.name-box:focus-within,
+.name-box:has(.name-field[aria-invalid='true']) {
+  border-style: solid;
+  border-color: var(--mark);
+}
 .name-field {
   display: block;
+  min-width: 0;
   font: inherit;
   font-size: 26px;
   font-weight: 600;
@@ -203,20 +234,21 @@ body {
   letter-spacing: -0.01em;
   color: var(--ink);
   background: transparent;
-  border: 1px dashed var(--edge);
-  border-radius: 2px;
-  padding: 2px 6px;
-  margin: 0 0 3px -7px;
+  border: 0;
+  padding: 0;
+  margin: 0;
   max-width: 100%;
 }
-.name-field:hover {
-  border-color: var(--mark);
-}
-.name-field:focus,
-.name-field[aria-invalid='true'] {
+.name-field:focus {
   outline: none;
-  border-style: solid;
-  border-color: var(--mark);
+}
+.name-pencil {
+  flex: none;
+  color: var(--muted);
+}
+.name-box:hover .name-pencil,
+.name-box:focus-within .name-pencil {
+  color: var(--ink);
 }
 /* The two decisions the file comes from, under the name it is made into.
    Labelled, because unlabelled they were two menus in the specimen's own bar
@@ -255,7 +287,7 @@ body {
 }
 .setup-label {
   font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -310,7 +342,7 @@ body {
   position: absolute;
   z-index: 30;
   padding: 7px 9px;
-  border-radius: 3px;
+  border-radius: 2px;
   background: var(--ink);
   color: var(--paper);
   font-size: 11px;
@@ -408,7 +440,7 @@ h1 {
   fill: var(--ink);
 }
 .preset-name {
-  font-size: 11.5px;
+  font-size: 11px;
   line-height: 16px;
   color: var(--muted);
 }
@@ -746,7 +778,7 @@ h1 {
   gap: 7px;
   margin: 0;
   padding: 5px 12px 5px 10px;
-  border-radius: 20px;
+  border-radius: 999px;
   background: var(--mark);
   color: var(--paper);
   font-family: 'Roboto Mono', ui-monospace, monospace;
@@ -819,7 +851,7 @@ h1 {
 }
 .swatch::-webkit-color-swatch {
   border: 0;
-  border-radius: 1px;
+  border-radius: 0;
 }
 .swatch:focus-visible {
   outline: 2px solid var(--mark);
@@ -836,7 +868,7 @@ h1 {
   gap: 10px;
   padding: 7px 10px;
   border: 1px solid var(--rule);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--paper);
   box-shadow: 0 3px 16px color-mix(in srgb, var(--ink) 22%, transparent);
 }
@@ -846,7 +878,7 @@ h1 {
 }
 .transport-mode {
   font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
@@ -1350,7 +1382,7 @@ h1 {
   height: 22px;
   padding: 0;
   border: 1px solid var(--edge);
-  border-radius: 3px;
+  border-radius: 2px;
   background: var(--paper);
   color: var(--muted);
   opacity: 0;
@@ -1451,7 +1483,7 @@ h1 {
   fill: var(--ink);
 }
 .glyph-set-name {
-  font-size: 11.5px;
+  font-size: 11px;
   line-height: 16px;
   color: var(--muted);
 }
@@ -1533,7 +1565,7 @@ h1 {
   line-height: 1;
   color: var(--paper);
   background: var(--frame);
-  border-radius: 3px;
+  border-radius: 2px;
   white-space: nowrap;
 }
 
@@ -1641,7 +1673,7 @@ h1 {
 .dialrun h3 {
   margin: 0;
   font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -1768,7 +1800,7 @@ h1 {
   margin: 0;
   padding: 0;
   border: 1px solid var(--edge);
-  border-radius: 10px;
+  border-radius: 999px;
   background: var(--paper);
   cursor: pointer;
 }
@@ -1860,7 +1892,7 @@ html.is-scrubbing * {
   height: 15px;
   padding: 0;
   font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 9.5px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1;
   color: var(--muted);
@@ -2193,7 +2225,7 @@ select:focus-visible {
   overflow: hidden;
   background: var(--paper);
   border: 1px solid var(--rule);
-  border-radius: 3px;
+  border-radius: 2px;
 }
 .layer-thumb svg {
   display: block;
@@ -2349,7 +2381,7 @@ select:focus-visible {
   padding: 24px;
   background: var(--plate);
   border: 1px solid var(--rule);
-  border-radius: 3px;
+  border-radius: 4px;
   transition: border-color 120ms ease;
 }
 /* The card is the button. The open press holds the word and its line, and its
@@ -2546,7 +2578,7 @@ select:focus-visible {
   color: var(--ink);
   background: var(--plate);
   border: 1px solid var(--rule);
-  border-radius: 3px;
+  border-radius: 4px;
 }
 .saved-confirm::backdrop {
   background: rgb(10 10 8 / 0.45);
@@ -2592,7 +2624,7 @@ button.saved-confirm-delete:hover:not(:disabled) {
   padding: 40px 26px;
   text-align: center;
   border: 1px dashed var(--rule);
-  border-radius: 3px;
+  border-radius: 4px;
 }
 .saved-empty-word {
   margin: 0;
@@ -2636,7 +2668,7 @@ button.saved-confirm-delete:hover:not(:disabled) {
   padding: 10px 10px 10px 16px;
   color: var(--paper);
   background: var(--ink);
-  border-radius: 3px;
+  border-radius: 4px;
   box-shadow: 0 6px 24px rgb(0 0 0 / 0.25);
 }
 .toast p {
@@ -2684,6 +2716,37 @@ button.saved-confirm-delete:hover:not(:disabled) {
  * with the font's name and the two would compete to be the page's title, which
  * the name has to win — it is the thing being made.
  */
+/* the mark is the page's h1, so the heading adds nothing of its own */
+.brand-title {
+  min-width: 0;
+  max-width: 100%;
+  margin: 0;
+  font-size: inherit;
+  line-height: 0;
+}
+/* out of sight until a keyboard reaches them, then over the masthead */
+.skip-links {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 50;
+  display: flex;
+  gap: 8px;
+}
+.skip-link:not(:focus-visible) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.skip-link:focus-visible {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
 .brand {
   display: flex;
   align-items: center;
@@ -2702,20 +2765,23 @@ button.saved-confirm-delete:hover:not(:disabled) {
   gap: 8px;
   margin-left: auto;
 }
-/* The door keeps the mono count it has always had, so it reads as the shelf
-   rather than as a second Save. Hidden rather than disabled when there is
-   nothing behind it: a dead button in the masthead is furniture. */
+/* The door is a button like Save font beside it, named for the place: My
+   fonts, then the count in mono, so a save visibly lands (picked on the
+   canvas, 24 November; the way Adobe's My Adobe Fonts and Google's bag of
+   selected families do it, with no account behind it). Hidden rather than
+   disabled when there is nothing behind it: a dead button in the masthead is
+   furniture. */
 .saved-door {
   display: inline-flex;
   align-items: center;
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
+  gap: 8px;
+  font-weight: 500;
 }
-.saved-door:hover:not(:disabled) {
-  color: var(--ink);
+.saved-door-count {
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 .brand-mark {
   display: block;
@@ -2749,6 +2815,23 @@ button.saved-confirm-delete:hover:not(:disabled) {
 }
 .sitefoot p {
   margin: 0;
+}
+.sitefoot-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 24px;
+}
+.sitefoot-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 20px;
+}
+.sitefoot-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }
 .sitefoot a {
   color: var(--ink);
@@ -3058,7 +3141,7 @@ button.saved-confirm-delete:hover:not(:disabled) {
   height: 56px;
   padding: 6px 8px;
   border: 1px solid transparent;
-  border-radius: 3px;
+  border-radius: 2px;
   background: none;
   opacity: 0.55;
 }
@@ -3263,7 +3346,7 @@ button.saved-confirm-delete:hover:not(:disabled) {
   position: relative;
   display: flex;
   align-items: center;
-  border-radius: 5px;
+  border-radius: 4px;
 }
 .layer-item:hover {
   background: var(--plate);
@@ -3320,7 +3403,7 @@ button.saved-confirm-delete:hover:not(:disabled) {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 .layer-remove {
@@ -3517,7 +3600,7 @@ button.saved-confirm-delete:hover:not(:disabled) {
   display: flex;
   gap: 2px;
   padding: 2px;
-  border-radius: 6px;
+  border-radius: 2px;
   background: var(--plate);
 }
 .seg-row .seg {
@@ -3525,7 +3608,7 @@ button.saved-confirm-delete:hover:not(:disabled) {
   min-width: 0;
   padding: 5px 4px;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: 2px;
   background: none;
   color: var(--muted);
   font-size: 12px;
@@ -3657,7 +3740,7 @@ button.saved-confirm-delete:hover:not(:disabled) {
   gap: 5px;
   padding: 7px 13px;
   border: 1px solid var(--edge);
-  border-radius: 17px;
+  border-radius: 999px;
   background: var(--paper);
   color: var(--ink);
   font-size: 13px;

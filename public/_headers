@@ -1,0 +1,6 @@
+# Read by Cloudflare's static assets (wrangler.jsonc). The health route is a
+# plain file, so it answers whenever the site is served; it must never be
+# cached, or a check would read yesterday's answer.
+/api/health
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: no-store

@@ -289,7 +289,7 @@ export function Saved({ saved, library, onRestore, onDelete, onClose }: Props) {
     <div className="saved-view">
       <header className="saved-bar">
         <div className="saved-title">
-          <h1>Saved fonts</h1>
+          <h1>My fonts</h1>
           {/* Nothing until it matters. The count said what the cards already
               show, and the room left is not news until there is none: only a
               full shelf gets a line, because the next save will push one off. */}

@@ -26,3 +26,6 @@ out/
 public/exports/
 .venv/
 public/glyph-data.json
+
+# local state from `wrangler dev`
+.wrangler/

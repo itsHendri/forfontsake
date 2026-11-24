@@ -44,7 +44,10 @@ function Wordmark({ label }: { label?: string }) {
 export function Brand({ actions }: { actions?: React.ReactNode }) {
   return (
     <div className="brand">
-      <Wordmark label="For Font's Sake" />
+      {/* the page's one h1: the bench's sections are h2s under it */}
+      <h1 className="brand-title">
+        <Wordmark label="For Font's Sake" />
+      </h1>
       {actions && <div className="brand-actions">{actions}</div>}
     </div>
   )
@@ -59,13 +62,23 @@ export function Brand({ actions }: { actions?: React.ReactNode }) {
 export function SignOff() {
   return (
     <footer className="sitefoot">
-      <p>
-        Type Specimen Side Project and Exploration by{' '}
-        <a href={PORTFOLIO} target="_blank" rel="noreferrer noopener">
-          Hendri
-        </a>
-        .
-      </p>
+      {/* the About page is a plain page of its own, so search engines can read
+          what the tool is without running it (picked on the canvas, 23 November) */}
+      <div className="sitefoot-row">
+        <p>
+          Type Specimen Side Project and Exploration by{' '}
+          <a href={PORTFOLIO} target="_blank" rel="noreferrer noopener">
+            Hendri
+          </a>
+          .
+        </p>
+        <nav className="sitefoot-links" aria-label="More">
+          <a href="/about">About and questions</a>
+          <a href={PORTFOLIO} target="_blank" rel="noreferrer noopener">
+            hendri.design
+          </a>
+        </nav>
+      </div>
       <svg className="sitefoot-mark" viewBox="0 0 670 48" role="presentation" aria-hidden={true}>
         <line x1="-0" y1="16.48" x2="670" y2="16.48" stroke="#FF006D" strokeWidth="1.17"/>
 <path d="M360.2 48C360.62 46.48 360.83 44.87 360.83 43.16C360.83 39.56 359.95 36.61 358.21 34.31C356.47 32 354.03 30.15 350.88 28.74C347.79 27.34 344.14 26.19 339.92 25.29L337.98 24.87C335.62 24.36 333.68 23.77 332.17 23.1C330.65 22.42 329.5 21.58 328.71 20.57C327.98 19.56 327.61 18.32 327.61 16.86C327.61 14.67 328.4 12.95 329.98 11.72C331.6 10.42 334.11 9.78 337.48 9.78C339.72 9.78 341.66 10.12 343.29 10.79C344.92 11.41 346.16 12.42 347 13.82C347.9 15.17 348.35 16.97 348.35 19.22V21.75H359.31V19.22C359.31 14.95 358.35 11.41 356.44 8.6C354.59 5.73 352 3.6 348.69 2.19C345.43 0.73 341.69 0 337.48 0C333.26 0 329.58 0.7 326.43 2.11C323.34 3.46 320.93 5.42 319.19 8.01C317.5 10.54 316.66 13.6 316.66 17.2C316.66 20.79 317.42 23.71 318.93 25.96C320.51 28.21 322.73 30.04 325.59 31.44C328.51 32.79 332 33.91 336.04 34.81L337.98 35.23C340.51 35.8 342.65 36.41 344.39 37.09C346.19 37.71 347.54 38.52 348.44 39.53C349.39 40.54 349.87 41.87 349.87 43.49C349.87 45.22 349.36 46.72 348.33 48H360.2Z" fill="currentColor"/>

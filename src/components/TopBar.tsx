@@ -282,21 +282,35 @@ export function TopBar(p: Props) {
         <label className="visually-hidden" htmlFor="family">
           Font name
         </label>
-        <input
-          id="family"
-          className="name-field"
-          type="text"
-          value={name}
-          onChange={(e) => {
-            setTouched(true)
-            setName(e.target.value)
-          }}
-          spellCheck={false}
-          autoComplete="off"
-          size={Math.max(4, name.length)}
-          aria-invalid={problem ? true : undefined}
-          aria-describedby={problem ? 'name-problem' : undefined}
-        />
+        {/* The dashed box is the wrapper, so the pencil sits inside it: a dashed
+            border alone did not say "type here" (picked on the canvas,
+            23 November). A label, so pressing the pencil puts the caret in. */}
+        <label className="name-box" htmlFor="family">
+          <input
+            id="family"
+            className="name-field"
+            type="text"
+            value={name}
+            onChange={(e) => {
+              setTouched(true)
+              setName(e.target.value)
+            }}
+            spellCheck={false}
+            autoComplete="off"
+            size={Math.max(4, name.length)}
+            aria-invalid={problem ? true : undefined}
+            aria-describedby={problem ? 'name-problem' : undefined}
+          />
+          <svg className="name-pencil" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false">
+            <path
+              d="M4 20h4L19 9l-4-4L4 16Z M14 6l4 4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </label>
       </div>
 
       <div className="topbar-actions">
