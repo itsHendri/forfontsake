@@ -92,4 +92,16 @@ describe('a look carried as text', () => {
     expect(look?.formatId).toBe(defaultLook().formatId)
     expect(look?.paletteIndex).toBe(1)
   })
+
+  it('keeps the timeline rows changed by hand, and the chain they were set on', () => {
+    const look = { ...defaultLook(), tracks: { chain: 'halftone', rows: { '0:spacing': 'flicker' as const, '0:fade': null } } }
+    expect(readLook(JSON.parse(JSON.stringify(look)))).toEqual(look)
+    expect(lookFromText(lookToText(look))?.tracks).toEqual(look.tracks)
+  })
+
+  it('drops rows that name no dial or no curve', () => {
+    const back = readLook({ tracks: { chain: 7, rows: { 'x:y': 'beat', '0:spacing': 'wobble', '1:amount': 'drift' } } })
+    expect(back.tracks).toEqual({ chain: '', rows: { '1:amount': 'drift' } })
+    expect(readLook({ tracks: 'nope' }).tracks).toEqual({ chain: '', rows: {} })
+  })
 })

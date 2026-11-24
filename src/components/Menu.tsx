@@ -5,14 +5,35 @@ export interface MenuItem {
   label: string
   /** the line under the label: what choosing this one gets you */
   note?: string
+  /** a word beside the label, for the choice the room would suggest */
+  badge?: string
+  disabled?: boolean
+}
+
+/**
+ * A group of choices under a heading, for a menu long enough to want one:
+ * Compose's Download sorts its choices by what they make. `rule` draws a line
+ * above the group instead of a heading, `inline` sets its items side by side,
+ * and `empty` is the line shown in place of items the room cannot offer yet.
+ */
+export interface MenuSection {
+  title?: string
+  items: MenuItem[]
+  rule?: boolean
+  inline?: boolean
+  empty?: string
 }
 
 interface Props {
   /** what the button says when nothing is happening */
-  label: string
+  label: React.ReactNode
   /** what the button says instead — a build in progress, or one just finished */
   busyLabel?: string | null
-  items: MenuItem[]
+  items?: MenuItem[]
+  /** grouped choices, in place of `items` */
+  sections?: MenuSection[]
+  /** the button's class, when it is not the room's main verb */
+  className?: string
   onPick: (id: string) => void
   disabled?: boolean
   /** one small line under the list: what is true of every choice in it */
@@ -46,7 +67,10 @@ interface Props {
  * Home/End to move, Escape to close and give the button its focus back, and a
  * click anywhere else to dismiss.
  */
-export function Menu({ label, busyLabel, items, onPick, disabled, foot, title, sheet }: Props) {
+export function Menu({ label, busyLabel, items: flatItems, sections, className = 'save', onPick, disabled, foot, title, sheet }: Props) {
+  const groups: MenuSection[] = sections ?? [{ items: flatItems ?? [] }]
+  // the keyboard moves through what can be chosen, in reading order
+  const items = groups.flatMap((g) => g.items).filter((it) => !it.disabled)
   const [open, setOpen] = useState(false)
   const [at, setAt] = useState(0)
   const id = useId()
@@ -79,7 +103,7 @@ export function Menu({ label, busyLabel, items, onPick, disabled, foot, title, s
   useEffect(() => {
     if (!open) return
     // the first row takes focus so the keyboard is already in the list
-    const el = list.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')[at]
+    const el = list.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')[at]
     el?.focus()
   }, [open, at])
 
@@ -114,7 +138,7 @@ export function Menu({ label, busyLabel, items, onPick, disabled, foot, title, s
       <button
         type="button"
         ref={button}
-        className="save"
+        className={className}
         title={title}
         disabled={disabled}
         aria-haspopup="menu"
@@ -137,20 +161,44 @@ export function Menu({ label, busyLabel, items, onPick, disabled, foot, title, s
       {open && sheet && <div className="menu-scrim" aria-hidden="true" onClick={() => close()} />}
       {open && (
         <div className="menu-panel" id={id} role="menu" ref={list} onKeyDown={onKey}>
-          {items.map((it, i) => (
-            <button
-              type="button"
-              role="menuitem"
-              key={it.id}
-              className="menu-item"
-              tabIndex={i === at ? 0 : -1}
-              onFocus={() => setAt(i)}
-              onClick={() => pick(it.id)}
-            >
-              <span className="menu-item-label">{it.label}</span>
-              {it.note && <span className="menu-item-note">{it.note}</span>}
-            </button>
-          ))}
+          {groups.map((g, gi) => {
+            const rows = g.items.map((it) => {
+              const i = items.indexOf(it)
+              return (
+                <button
+                  type="button"
+                  role="menuitem"
+                  key={it.id}
+                  className="menu-item"
+                  disabled={it.disabled}
+                  tabIndex={i === at ? 0 : -1}
+                  onFocus={() => i >= 0 && setAt(i)}
+                  onClick={() => pick(it.id)}
+                >
+                  <span className="menu-item-label">
+                    {it.label}
+                    {it.badge && <span className="menu-item-badge">{it.badge}</span>}
+                  </span>
+                  {it.note && <span className="menu-item-note">{it.note}</span>}
+                </button>
+              )
+            })
+            return (
+              <div
+                key={gi}
+                role="group"
+                aria-label={g.title}
+                className={['menu-group', g.rule ? 'is-ruled' : '', g.inline ? 'is-inline' : ''].filter(Boolean).join(' ')}
+              >
+                {g.title && (
+                  <div className="menu-heading" aria-hidden="true">
+                    {g.title}
+                  </div>
+                )}
+                {g.items.length > 0 ? rows : g.empty && <div className="menu-empty">{g.empty}</div>}
+              </div>
+            )
+          })}
           {foot && <p className="menu-foot">{foot}</p>}
           {sheet && (
             <button type="button" className="menu-cancel" tabIndex={-1} onClick={() => close()}>

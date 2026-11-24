@@ -620,15 +620,96 @@ h1 {
 .sheet-bar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   flex: none;
   flex-wrap: wrap;
   position: sticky;
   top: 0;
   z-index: 10;
-  padding: 12px 26px;
+  min-height: 56px;
+  box-sizing: border-box;
+  padding: 5px 12px 5px 16px;
   border-bottom: 1px solid var(--rule);
   background: var(--paper);
+}
+/* Three zones: what it is on the left, the sheet's shape in the middle, and
+   history, Download and the way out on the right. The two sides share the
+   width left over equally, so the format sits on the room's centre line. */
+.sheet-bar .sheet-bar-side {
+  flex: 1 1 0;
+  min-width: max-content;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sheet-bar-side.is-start {
+  align-items: baseline;
+}
+.sheet-bar-side.is-end {
+  justify-content: flex-end;
+}
+.sheet-bar-mid {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+/* the format as a segmented control: the one in force is filled, and set
+   heavier, so it is told by shape and weight as well as by colour */
+.format-seg {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-cell);
+  background: var(--sunken);
+}
+.format-seg button {
+  height: 38px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: var(--radius-small);
+  background: none;
+  color: var(--muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.format-seg button:hover:not(:disabled):not(.is-on) {
+  color: var(--ink);
+}
+.format-seg button.is-on {
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+}
+.format-seg button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.format-seg button:focus-visible {
+  outline-offset: -2px;
+}
+.format-size {
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  white-space: nowrap;
+}
+/* Download is one button that opens its choices; the caret sits in a cell of
+   its own, as a split button draws it, so it reads as "and there is more" */
+.sheet-export .dl-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 44px;
+  padding: 0 0 0 18px;
+  font-weight: 600;
+}
+.dl-caret {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 100%;
+  margin-left: 14px;
+  border-left: 1px solid color-mix(in srgb, currentColor 35%, transparent);
 }
 .sheet-export {
   display: flex;
@@ -728,6 +809,8 @@ h1 {
 }
 .sheet-close {
   flex: none;
+  min-width: 44px;
+  min-height: 44px;
   padding: 5px 11px;
   font-size: 15px;
   line-height: 1;
@@ -748,12 +831,12 @@ h1 {
 .sheet-bar .sheet-history {
   display: flex;
   gap: 2px;
-  margin-left: auto;
 }
 .sheet-history-btn {
   display: grid;
   place-items: center;
-  min-width: 34px;
+  min-width: 44px;
+  min-height: 44px;
   padding: 6px 8px;
   border-color: transparent;
   background: none;
@@ -770,24 +853,70 @@ h1 {
 /* Figma's room: the layers on the left, the sheet in the middle, whatever is
    selected on the right — each side scrolling on its own, so a long panel
    never moves the sheet. */
+/* With motion on, the timeline is a dock under the stage and the panel, as a
+   video editor keeps one; still, it folds to its head. The left column runs
+   the full height beside both. */
+.sheet-view {
+  --dock-h: 60px;
+}
+.sheet-view:has(.sheet-body.is-moving) {
+  --dock-h: 312px;
+}
 .sheet-body {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 232px minmax(0, 1fr) 288px;
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: 264px minmax(0, 1fr) 288px;
+  grid-template-rows: minmax(0, 1fr) var(--dock-h);
 }
 .sheet-layers {
   grid-column: 1;
-  grid-row: 1;
+  grid-row: 1 / span 2;
   min-height: 0;
-  overflow-y: auto;
-  padding: 16px 8px 24px;
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid var(--rule);
 }
+.sheet-layers-top {
+  flex: none;
+  padding: 14px 12px 8px;
+}
+.layouts-head {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 12px 18px 0;
+  border-top: 1px solid var(--rule);
+}
+.layouts-head .layers-title {
+  margin: 0;
+}
+.layouts-count {
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--muted);
+}
+.layouts-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 12px 16px;
+}
+.sheet-dock {
+  grid-column: 2 / span 2;
+  grid-row: 2;
+  min-height: 0;
+  display: flex;
+  border-top: 1px solid var(--rule);
+  background: var(--plate);
+}
 .sheet-stage {
+  grid-column: 2;
+  grid-row: 1;
   position: relative;
   min-width: 0;
+  min-height: 0;
   /* the canvas is a window, as in Figma: a word pushed past the sheet takes
      its frame off the edge rather than over the panels */
   overflow: hidden;
@@ -809,14 +938,12 @@ h1 {
   width: auto;
   height: auto;
   max-width: 100%;
-  max-height: calc(100vh - 148px);
+  /* the bar, the dock and the stage's own padding */
+  max-height: calc(100vh - 56px - var(--dock-h) - 44px);
   box-shadow: 0 4px 28px color-mix(in srgb, var(--ink) 26%, transparent);
   touch-action: none;
 }
-/* the strip needs its own room, so the sheet gives some back */
-.sheet-stage.has-transport canvas {
-  max-height: calc(100vh - 208px);
-}
+
 .rec-pill {
   position: absolute;
   top: 0;
@@ -910,28 +1037,26 @@ h1 {
 
 /* ---------- the motion's transport ---------- */
 
-/* Under the sheet, not on it. It is a control strip for the thing above it,
-   and the artefact is the one surface in this room nothing should cover. */
+/* A phone's transport, under the sheet rather than on it: the dock lives in
+   the panel below, so play and the time stay where somebody is looking. Only
+   drawn on a phone. */
 .transport {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 10px;
+  gap: 12px;
+  padding: 4px 6px 4px 4px;
   border: 1px solid var(--rule);
-  border-radius: var(--radius);
-  background: var(--paper);
-  box-shadow: 0 3px 16px color-mix(in srgb, var(--ink) 22%, transparent);
+  border-radius: 999px;
+  background: var(--plate);
 }
-.transport button {
-  font-size: 12px;
-  padding: 5px 10px;
-}
-.transport-mode {
-  font-family: 'Roboto Mono', ui-monospace, monospace;
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
+.transport .transport-mode {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
 }
 /* ---------- the word, as a thing you can take hold of ---------- */
 
@@ -1090,59 +1215,6 @@ h1 {
   color: var(--mark-text);
   box-shadow: inset 0 0 0 1px var(--mark);
 }
-/* A layout is the one choice here whose difference is entirely visual, so it
-   is shown rather than named — the argument the workbench presets won on. */
-.layout-pick {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-.layout-cell {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 8px;
-  border: 1px solid var(--edge);
-  border-radius: var(--radius);
-  background: var(--paper);
-  font-size: 12px;
-  color: var(--muted);
-  cursor: pointer;
-}
-.layout-cell img,
-.layout-blank {
-  display: block;
-  width: 100%;
-  height: auto;
-  border: 1px solid var(--rule);
-}
-.layout-blank {
-  aspect-ratio: 4 / 5;
-  background: var(--track);
-}
-.layout-cell:hover:not(.is-on):not(:disabled) {
-  border-color: var(--muted);
-}
-/* thickens rather than inverts, and loses a pixel so the row does not jump */
-.layout-cell.is-on {
-  border-color: var(--ink);
-  border-width: 2px;
-  padding: 7px;
-  color: var(--ink);
-  font-weight: 500;
-}
-
-.look-transfer {
-  display: flex;
-  gap: 16px;
-  margin-top: 10px;
-  font-size: 12px;
-}
-.look-transfer .linkish:disabled {
-  color: var(--muted);
-  cursor: default;
-}
 .word-place {
   display: flex;
   flex-direction: column;
@@ -1194,13 +1266,9 @@ h1 {
   .sheet-stage canvas {
     max-height: calc(100dvh - var(--sheet-h) - 96px);
   }
+  /* the strip under the sheet needs its own room, so the sheet gives some back */
   .sheet-stage.has-transport canvas {
-    max-height: calc(100dvh - var(--sheet-h) - 150px);
-  }
-  .template-gallery {
-    position: absolute;
-    inset: 0 0 var(--sheet-h) 0;
-    padding: 12px 16px 0;
+    max-height: calc(100dvh - var(--sheet-h) - 156px);
   }
   .sheet-rail {
     position: fixed;
@@ -1291,12 +1359,47 @@ h1 {
 @media (max-width: 620px) {
   .sheet-bar {
     flex-wrap: wrap;
-    gap: 8px 10px;
-    padding: 10px 16px;
+    gap: 6px 8px;
+    padding: 6px 8px 8px 16px;
   }
   .mode-switch {
     order: 3;
     margin: 0;
+  }
+  /* the name and the way out on the first line, the format across the second */
+  .sheet-bar .sheet-bar-side.is-start {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .sheet-bar .sheet-bar-side.is-end {
+    flex: none;
+    min-width: 0;
+    gap: 0;
+  }
+  .sheet-bar .sheet-bar-mid {
+    order: 3;
+    flex: 1 0 100%;
+    margin-right: 8px;
+  }
+  .format-seg {
+    flex: 1;
+  }
+  .format-seg button {
+    flex: 1;
+    min-width: 0;
+    height: 40px;
+    padding: 0 6px;
+    font-size: 13px;
+  }
+  .format-size {
+    display: none;
+  }
+  .sheet-export .dl-btn {
+    padding-left: 12px;
+  }
+  .dl-caret {
+    width: 32px;
+    margin-left: 10px;
   }
   /* one line: the name gives way, Download and the close keep their size */
   .sheet-bar .sheet-name {
@@ -3304,111 +3407,6 @@ button.saved-confirm-delete:hover:not(:disabled) {
   }
 }
 
-/* The gallery: every sheet and template, over the stage. It takes the stage's
-   own grid cell rather than covering the page, so the rail stays beside it and
-   the sheet underneath keeps its canvas — closing is instant, nothing rebuilds. */
-.sheet-stage,
-.template-gallery {
-  grid-column: 2;
-  grid-row: 1;
-}
-.template-gallery {
-  z-index: 3;
-  padding: 20px 26px 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  background: var(--paper);
-}
-.gallery-bar {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--rule);
-}
-.gallery-bar h2 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 500;
-}
-.gallery-note {
-  flex: 1 1 200px;
-  font-size: 13px;
-  color: var(--muted);
-}
-.gallery-close {
-  padding: 5px 11px;
-  font-size: 15px;
-  line-height: 1;
-}
-.gallery-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 18px 2px 24px;
-}
-.gallery-group + .gallery-group {
-  margin-top: 26px;
-}
-.gallery-group h3 {
-  margin: 0 0 10px;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-}
-/* three across, the way the posts will sit on the profile they are going to */
-.gallery-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-}
-.gallery-tile {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-}
-.gallery-tile img,
-.gallery-blank {
-  display: block;
-  width: 100%;
-  height: auto;
-  outline: 1px solid var(--rule);
-}
-.gallery-blank {
-  background: var(--track);
-}
-.gallery-tile:hover img {
-  outline-color: var(--muted);
-}
-.gallery-tile.is-on img,
-.gallery-tile.is-on .gallery-blank {
-  outline: 2px solid var(--ink);
-}
-.gallery-tile.is-on {
-  color: var(--ink);
-  font-weight: 500;
-}
-.gallery-open {
-  align-self: flex-start;
-}
-@media (max-width: 620px) {
-  .gallery-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-}
-
 .copy-lines textarea {
   width: 100%;
   box-sizing: border-box;
@@ -3623,9 +3621,6 @@ button.saved-confirm-delete:hover:not(:disabled) {
   font-size: 11px;
   font-weight: 600;
 }
-.motion.is-moving .inspector-title {
-  color: var(--mark-text);
-}
 .inspector-aside {
   font-family: 'Roboto Mono', ui-monospace, monospace;
   font-size: 11px;
@@ -3657,12 +3652,6 @@ button.saved-confirm-delete:hover:not(:disabled) {
   font-size: 11px;
   color: var(--muted);
 }
-.sheet-rail .inspector-select {
-  width: 100%;
-}
-.sheet-rail .inspector-export {
-  width: 100%;
-}
 /* a quiet verb that is not the room's main one: Remove, mostly */
 .text-btn {
   align-self: flex-start;
@@ -3690,10 +3679,6 @@ button.saved-confirm-delete:hover:not(:disabled) {
   margin: 0;
   font-size: 14px;
   font-weight: 500;
-}
-.inspector-seed {
-  align-items: center;
-  justify-content: space-between;
 }
 /* help text is quieter than the controls it explains, never louder */
 .sheet-rail .note {
@@ -3865,3 +3850,573 @@ button.saved-confirm-delete:hover:not(:disabled) {
   font-size: 11px;
   opacity: 0.75;
 }
+
+/* ---------- Download's choices, grouped by what they make ---------- */
+
+.menu-group.is-ruled {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--rule);
+}
+.menu-group.is-inline {
+  display: flex;
+  gap: 4px;
+}
+.menu-group.is-inline .menu-item {
+  flex: 1;
+  min-height: 44px;
+  text-align: center;
+}
+.menu-group.is-inline .menu-item-label {
+  font-family: inherit;
+  font-size: 14px;
+}
+.menu-heading {
+  padding: 10px 10px 4px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.menu-group:first-child .menu-heading {
+  padding-top: 6px;
+}
+.menu-item:disabled {
+  cursor: not-allowed;
+}
+.menu-item:disabled .menu-item-label {
+  color: var(--muted);
+}
+.menu-empty {
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.menu-item-badge {
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  vertical-align: 1px;
+}
+.sheet-export .menu-panel {
+  min-width: 320px;
+  max-width: 340px;
+}
+
+/* ---------- the layer list's head, and the layouts under it ---------- */
+
+.layers-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 6px;
+  padding-left: 6px;
+}
+.layers-head .layers-title {
+  margin: 0;
+}
+.layers-head .add-finish {
+  margin: 0;
+}
+.sheet-layers .layers-head .add-finish {
+  margin-left: 0;
+}
+.layouts-group + .layouts-group {
+  margin-top: 6px;
+}
+.layouts-heading {
+  margin: 0;
+  padding: 10px 6px 8px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.layouts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 8px;
+}
+.layout-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+/* A ring rather than a border, so the one in use does not shift the grid;
+   it thickens and goes to the ink, and its name gains a tick and weight */
+.layout-tile-art {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--sunken);
+  box-shadow: 0 0 0 1px var(--rule);
+}
+.layout-tile-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.layout-tile:hover:not(.is-on) .layout-tile-art {
+  box-shadow: 0 0 0 1px var(--edge);
+}
+.layout-tile.is-on .layout-tile-art {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.layout-tile.is-on {
+  color: var(--ink);
+  font-weight: 600;
+}
+.layout-tile-name {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.layout-tile:focus-visible {
+  outline: none;
+}
+.layout-tile:focus-visible .layout-tile-art {
+  box-shadow: 0 0 0 2px var(--mark);
+}
+.sheet-rail .inspector-hint {
+  padding: 12px 16px;
+  border-top: 1px solid var(--rule);
+}
+
+/* ---------- the timeline ---------- */
+
+/* The dock under the stage: the transport and the presets in its head, then a
+   ruler and a row per dial the motion drives. Still, it is the head alone. */
+.tl {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  font-size: 14px;
+  container-type: inline-size;
+}
+/* one line where the dock is wide enough, two where it is not: the settings
+   go to the right of a second line rather than over the chips */
+.tl-head {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 60px;
+  box-sizing: border-box;
+  padding: 8px 16px;
+}
+@container (max-width: 1000px) {
+  .tl.is-dock .tl-label,
+  .tl.is-dock .tl-divider {
+    display: none;
+  }
+}
+.tl.is-moving.is-dock .tl-head {
+  border-bottom: 1px solid var(--rule);
+}
+.tl-play {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--paper);
+}
+.tl-play svg {
+  fill: currentColor;
+}
+.tl-play:hover:not(:disabled) {
+  background: var(--ink);
+  opacity: 0.88;
+}
+.tl-play:disabled {
+  opacity: 0.35;
+}
+.tl-time {
+  flex: none;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.tl-total {
+  color: var(--muted);
+}
+.tl.is-still .tl-time {
+  color: var(--muted);
+}
+.tl-divider {
+  flex: none;
+  width: 1px;
+  height: 28px;
+  background: var(--rule);
+}
+.tl-presets {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.tl-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+.tl-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: 1px solid var(--edge);
+  border-radius: 18px;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.tl-chip:hover:not(:disabled):not(.is-on) {
+  color: var(--ink);
+  background: none;
+}
+.tl-chip.is-on {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+}
+.tl-chip.is-on:hover:not(:disabled) {
+  background: var(--ink);
+}
+.tl-settings {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.tl-number {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tl-number .ctl-scrub {
+  font-size: 14px;
+}
+.tl-number-value {
+  width: 56px;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-small);
+  background: none;
+  color: var(--muted);
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.tl-number-value:hover:not(:disabled),
+.tl-number-value:focus {
+  border-color: var(--edge);
+  color: var(--ink);
+}
+.tl-number-value:focus-visible {
+  outline: 2px solid var(--mark);
+  outline-offset: 1px;
+}
+.tl-length {
+  display: flex;
+  padding: 2px;
+  border-radius: var(--radius-small);
+  background: var(--sunken);
+}
+.tl-length button {
+  padding: 8px 10px;
+  white-space: nowrap;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 12px;
+}
+.tl-length button.is-on {
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 500;
+}
+.tl-length button:focus-visible {
+  outline-offset: -2px;
+}
+.tl :disabled {
+  cursor: not-allowed;
+}
+.tl.is-still .tl-settings,
+.tl.is-locked .tl-settings,
+.tl.is-locked .tl-presets {
+  opacity: 0.45;
+}
+.tl-lock {
+  flex: 0 0 100%;
+  margin: -8px 0 8px;
+  font-size: 12px;
+  color: var(--mark-text);
+}
+.tl.is-locked .tl-head {
+  flex-wrap: wrap;
+}
+
+.tl-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* the label column, which the ruler and the playhead start after */
+.tl.is-dock {
+  --tl-label: 168px;
+}
+.tl-ruler-row {
+  flex: none;
+  padding: 0 16px;
+}
+.tl.is-dock .tl-ruler-row {
+  padding-left: calc(16px + var(--tl-label) + 12px);
+}
+.tl-ruler {
+  position: relative;
+  height: 26px;
+  border-bottom: 1px solid var(--rule);
+  cursor: ew-resize;
+  touch-action: none;
+}
+.tl-ruler:focus-visible {
+  outline: 2px solid var(--mark);
+  outline-offset: 2px;
+}
+.tl-tick {
+  position: absolute;
+  top: 6px;
+  transform: translateX(-50%);
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: var(--muted);
+  pointer-events: none;
+}
+.tl-tick:first-child {
+  transform: none;
+}
+.tl-rows {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 16px 8px;
+}
+.tl-step {
+  margin: 0;
+  padding: 10px 0 2px;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.tl-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  border-bottom: 1px solid var(--rule);
+}
+.tl-row-label {
+  flex: none;
+  width: var(--tl-label);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tl-dial {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tl-row:focus-within .tl-dial,
+.tl-row.is-custom .tl-dial {
+  font-weight: 600;
+}
+.tl-edited {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--muted);
+}
+.tl.is-dock .tl-edited {
+  display: none;
+}
+/* The curve a row follows, as a chip that opens the five. A real select under
+   it, so a phone gets its own picker and nothing is clipped by the dock. */
+.tl-curve {
+  position: relative;
+  flex: none;
+  display: inline-flex;
+}
+.tl-curve select {
+  appearance: none;
+  height: 32px;
+  padding: 0 26px 0 10px;
+  border: 1px solid var(--edge);
+  border-radius: 16px;
+  background: var(--sunken);
+  color: var(--ink);
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 12px;
+  cursor: pointer;
+}
+.tl-row.is-hold .tl-curve select {
+  background: none;
+  color: var(--muted);
+}
+.tl-curve select:focus-visible {
+  outline: 2px solid var(--mark);
+  outline-offset: 1px;
+}
+.tl-curve-caret {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--muted);
+  pointer-events: none;
+}
+/* the lane: the curve across the whole loop, solid where the dial moves and
+   dashed and fainter where it holds: a line's shape, not only its colour */
+.tl-lane {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--sunken);
+}
+.tl-row.is-hold .tl-lane {
+  background: color-mix(in srgb, var(--sunken) 45%, transparent);
+}
+.tl-lane svg {
+  display: block;
+}
+.tl-lane path {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+.tl-row.is-hold .tl-lane path {
+  stroke: var(--muted);
+  stroke-dasharray: 6 6;
+}
+.tl-row:focus-within .tl-lane {
+  box-shadow: inset 0 0 0 2px var(--frame);
+}
+/* the playhead: --t is painted on the room every frame, as a share of the loop */
+.tl-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--t, 0) * 100%);
+  width: 2px;
+  margin-left: -1px;
+  background: var(--frame);
+  pointer-events: none;
+}
+.tl-playhead.is-ruler::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -6px;
+  width: 14px;
+  height: 14px;
+  background: var(--frame);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.tl-note {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* On a phone the timeline is the Motion chip's panel: the head wraps, and each
+   row stacks its lane under its name, the full width of the sheet */
+/* in the sheet, the timeline is as tall as its rows and the sheet scrolls */
+.tl.is-stacked,
+.tl.is-stacked .tl-body {
+  flex: none;
+}
+.tl.is-stacked .tl-head {
+  flex-wrap: wrap;
+  gap: 10px 12px;
+  padding: 12px 16px;
+}
+.tl.is-stacked .tl-play,
+.tl.is-stacked .tl-time,
+.tl.is-stacked .tl-divider {
+  display: none;
+}
+.tl.is-stacked .tl-presets {
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+}
+.tl.is-stacked .tl-label {
+  flex: 0 0 100%;
+}
+.tl.is-stacked .tl-settings {
+  margin-left: 0;
+  flex-wrap: wrap;
+}
+.tl.is-stacked .tl-rows {
+  overflow: visible;
+}
+.tl.is-stacked .tl-row {
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 0 12px;
+}
+.tl.is-stacked .tl-row-label {
+  width: 100%;
+}
+.tl.is-stacked .tl-lane {
+  flex: 0 0 100%;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tl-play:hover:not(:disabled) {
+    opacity: 1;
+  }
+}
+

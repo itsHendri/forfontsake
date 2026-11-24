@@ -19,28 +19,33 @@ import {
 import { saveFile } from '../lib/exportFont'
 import { buildCaption, captionFile, type Caption } from '../lib/caption'
 import { copyText } from '../lib/clipboard'
-import { loadLook, lookFromText, lookToText, saveLook, type ComposeLook, type TemplateCopy } from '../lib/composeLook'
+import { loadLook, lookFromText, lookToText, saveLook, type ComposeLook, type TemplateCopy, type Tracks } from '../lib/composeLook'
 import { copyFor, copySets } from '../lib/copyBank'
 import { getTemplate } from '../lib/templates'
 import { loadScan, scanReady } from '../lib/grounds'
-import { TemplateGallery } from './TemplateGallery'
-import { Menu } from './Menu'
+import { ComposeLayouts } from './ComposeLayouts'
+import { ComposeTimeline, PlayGlyph } from './ComposeTimeline'
+import { Menu, type MenuSection } from './Menu'
 import { ComposeLayers, LayerChips } from './ComposeLayers'
-import { EffectStack, FinishPanel, FinishesPanel, Section, Seg, Swatch } from './ComposePanels'
+import { EffectStack, FinishPanel, FinishesPanel, Section, Swatch } from './ComposePanels'
 import { finishOf, layerRows, sheetSummary, type Selection } from '../lib/composeLayers'
 import { emptyHistory, record, redo, undo, type History } from '../lib/history'
 import { getTreatment, type ParamSpec } from '../engine/treatments/registry'
 import { Dial } from './Dial'
 import { useScrub } from '../lib/scrub'
-import { DEFAULT_DEPTH, MODES, bindingsFor, getMode, modulate } from '../lib/modulate'
 import {
-  DEFAULT_SPEED,
-  LENGTHS,
-  MAX_SPEED,
-  MIN_SPEED,
-  FPS,
-  motionAt,
-} from '../lib/motion'
+  DEFAULT_DEPTH,
+  chainKey,
+  getMode,
+  liveRows,
+  modulate,
+  resolveBindings,
+  setRow,
+  tracksFor,
+  type Band,
+  type Bindings,
+} from '../lib/modulate'
+import { DEFAULT_SPEED, MAX_SPEED, MIN_SPEED, FPS, clockText, motionAt } from '../lib/motion'
 import { startSheetRecorder, type SheetRecorder } from '../lib/videoRecorder'
 import { canRenderClips, renderClip } from '../lib/clipRender'
 import {
@@ -212,7 +217,13 @@ const CORNERS: [number, number, string][] = [
 export function Poster(p: Props) {
   // the look you left the room with last time, read once on the way in
   const [look] = useState(loadLook)
-  const [sheetSeed, setSheetSeed] = useState(p.seed)
+  /*
+   * The sheet draws with the workbench's seed. It had a Randomise of its own,
+   * but a re-rolled sheet could differ from the font you then downloaded, so
+   * re-rolling stays on the bench, where it changes the real font (Hendri,
+   * 24 November).
+   */
+  const sheetSeed = p.seed
   const [paletteIndex, setPaletteIndex] = useState(look.paletteIndex)
   const [layoutId, setLayoutId] = useState(look.layoutId)
   /*
@@ -221,8 +232,6 @@ export function Poster(p: Props) {
    * the list you wrote last week.
    */
   const [copy, setCopy] = useState<Record<string, TemplateCopy>>(look.copy)
-  /** the gallery of every sheet and template, over the stage */
-  const [gallery, setGallery] = useState(false)
   /*
    * Whether the sheet moves.
    *
@@ -238,9 +247,15 @@ export function Poster(p: Props) {
   // in this category splits them that way; the download stays type and scale.
   const [formatId, setFormatId] = useState(look.formatId)
   const [motionModeId, setMotionModeId] = useState(look.motionModeId)
+  /*
+   * The timeline's rows changed by hand, over the preset. Kept with the chain
+   * they were set on, since a row names a dial by its place in the stack: a
+   * look from another chain opens on the preset alone.
+   */
+  const [custom, setCustom] = useState<Bindings>(() =>
+    look.tracks.chain === chainKey(p.chain) ? liveRows(p.chain, look.tracks.rows) : {},
+  )
   const [busy, setBusy] = useState(false)
-  /** the type the Export section is set to; the bar's Download asks each time */
-  const [exportPick, setExportPick] = useState('png')
   // a message about the export belongs beside the export, in the bar
   const [exportNote, setExportNote] = useState<string | null>(null)
   /*
@@ -303,7 +318,6 @@ export function Poster(p: Props) {
   // word wants less travel than a light one on a long word.
   const [depth, setDepth] = useState(look.depth)
   const depthRef = useRef(depth)
-  const motionModeRef = useRef(motionModeId)
   useEffect(() => {
     speedRef.current = speed
   }, [speed])
@@ -313,9 +327,17 @@ export function Poster(p: Props) {
   useEffect(() => {
     depthRef.current = depth
   }, [depth])
+  /** what each dial follows: the preset, with the rows changed by hand over it */
+  const bindings = useMemo(
+    () => resolveBindings(getMode(motionModeId), p.chain, custom),
+    [motionModeId, p.chain, custom],
+  )
+  const bindingsRef = useRef(bindings)
   useEffect(() => {
-    motionModeRef.current = motionModeId
-  }, [motionModeId])
+    bindingsRef.current = bindings
+  }, [bindings])
+  /** the rows as the look keeps them, with the chain they mean something on */
+  const tracks = useMemo<Tracks>(() => ({ chain: chainKey(p.chain), rows: custom }), [p.chain, custom])
   const rafRef = useRef<number | null>(null)
   // how long the last sheet took to build, so the tick can back off adaptively
   const buildCost = useRef(0)
@@ -378,6 +400,34 @@ export function Poster(p: Props) {
    */
   const [snap, setSnap] = useState<Snap>('peek')
   const viewEl = useRef<HTMLDivElement>(null)
+  /*
+   * Whether the room is a phone's: one sheet over the poster rather than two
+   * side columns and a dock. Asked of the media query rather than left to CSS
+   * alone because the layouts column and the timeline each live in one place
+   * at a time (beside the stage on a desktop, inside the sheet on a phone),
+   * and each draws its own thumbnails and lanes.
+   */
+  const [phone, setPhone] = useState(() => typeof window !== 'undefined' && window.matchMedia(PHONE).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(PHONE)
+    const on = () => setPhone(mq.matches)
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  /**
+   * The playhead and the clock, painted straight into the room: `--t` is
+   * where in the loop it is, as a share, and every `.tl-now` says the time.
+   * They move every frame, and a render a frame would be the whole room's.
+   */
+  const paint = useCallback((share: number) => {
+    const el = viewEl.current
+    if (!el) return
+    el.style.setProperty('--t', share.toFixed(4))
+    const text = clockText(share * lengthRef.current)
+    el.querySelectorAll('.tl-now').forEach((n) => {
+      n.textContent = text
+    })
+  }, [])
   const gripRef = useRef<{ y: number; h: number; moved: boolean } | null>(null)
   useEffect(() => {
     viewEl.current?.style.setProperty('--sheet-h', SNAPS[snap])
@@ -455,12 +505,13 @@ export function Poster(p: Props) {
       length,
       layoutId,
       copy,
+      tracks,
     })
-  }, [paletteIndex, colours, groundId, finishes, pictureFx, formatId, motionOn, motionModeId, depth, speed, length, layoutId, copy])
+  }, [paletteIndex, colours, groundId, finishes, pictureFx, formatId, motionOn, motionModeId, depth, speed, length, layoutId, copy, tracks])
 
   /*
    * Undo. A snapshot of everything that makes the sheet what it is — the look,
-   * the word's place, the seed and the picture — taken once a change has
+   * the timeline's rows, the word's place and the picture, taken once a change has
    * settled. Not the selection or whether it is playing: those are where you
    * are looking, not what you made.
    */
@@ -479,11 +530,11 @@ export function Poster(p: Props) {
       length,
       layoutId,
       copy,
+      custom,
       wordT,
-      sheetSeed,
       backdrop,
     }),
-    [paletteIndex, colours, groundId, finishes, pictureFx, formatId, motionOn, motionModeId, depth, speed, length, layoutId, copy, wordT, sheetSeed, backdrop],
+    [paletteIndex, colours, groundId, finishes, pictureFx, formatId, motionOn, motionModeId, depth, speed, length, layoutId, copy, custom, wordT, backdrop],
   )
   type Doc = typeof doc
   const historyRef = useRef<History<Doc>>(emptyHistory())
@@ -545,19 +596,10 @@ export function Poster(p: Props) {
   const deselectRef = useRef<() => void>(() => {})
   /** every other key the room answers to — undo, nudge, delete — kept fresh below */
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {})
-  const galleryRef = useRef(false)
-  useEffect(() => {
-    galleryRef.current = gallery
-  }, [gallery])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') {
         keyRef.current(e)
-        return
-      }
-      // the gallery is over everything else, so it is the first thing out
-      if (galleryRef.current) {
-        setGallery(false)
         return
       }
       if (selectedRef.current !== 'sheet') {
@@ -616,8 +658,13 @@ export function Poster(p: Props) {
    * renderer does not need either trick: it draws every frame of the clip at
    * its own exact time, however long that takes.
    */
+  /*
+   * A clip rendering reads the sheet, so the live motion stands still under
+   * it and the playhead shows the frame being drawn instead.
+   */
+  const rendering = !!progress
   useEffect(() => {
-    if (!motionOn || !playing) return
+    if (!motionOn || !playing || rendering) return
     const tier = p.chain.some((s) => HEAVY.has(s.id)) ? TICK_MS_HEAVY : TICK_MS
     let last = performance.now()
     let lastBuild = 0
@@ -625,12 +672,11 @@ export function Poster(p: Props) {
       const dt = Math.min(0.1, (now - last) / 1000)
       last = now
       clock.current = (clock.current + dt) % lengthRef.current
+      paint(clock.current / lengthRef.current)
       if (now - lastBuild >= Math.max(tier, buildCost.current * 1.5)) {
         lastBuild = now
         const drive = motionAt(clock.current, lengthRef.current, speedRef.current)
-        setModChain(
-          modulate(p.chain, drive, bindingsFor(getMode(motionModeRef.current), p.chain), depthRef.current),
-        )
+        setModChain(modulate(p.chain, drive, bindingsRef.current, depthRef.current))
       }
       rafRef.current = requestAnimationFrame(loop)
     }
@@ -639,7 +685,26 @@ export function Poster(p: Props) {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
-  }, [motionOn, playing, p.chain])
+  }, [motionOn, playing, rendering, p.chain, paint])
+
+  /*
+   * Paused, the sheet shows the frame at the playhead, and shows it again
+   * when a row, the depth or the speed changes under it, so an edit is seen
+   * without pressing play.
+   */
+  useEffect(() => {
+    if (!motionOn || playing) return
+    clock.current %= length
+    setModChain(modulate(p.chain, motionAt(clock.current, length, speed), bindings, depth))
+    paint(clock.current / length)
+  }, [motionOn, playing, bindings, depth, speed, length, p.chain, paint])
+
+  /** the playhead put somewhere in the loop, from the ruler */
+  const seek = (share: number) => {
+    clock.current = share * length
+    paint(share)
+    if (!playing) setModChain(modulate(p.chain, motionAt(clock.current, length, speed), bindings, depth))
+  }
 
   // The roll underneath, and whatever has been set by hand over it. Recolour
   // still moves all four at once, which is the fast way to a different sheet;
@@ -672,16 +737,6 @@ export function Poster(p: Props) {
   /** the next set in the bank for one template, dropping what was typed over it */
   const shuffle = (id: string) =>
     setCopy((c) => ({ ...c, [id]: { pick: (c[id]?.pick ?? 0) + 1 } }))
-  /** every template moves on one set, except those you have written yourself */
-  const shuffleAll = () =>
-    setCopy((c) => {
-      const next = { ...c }
-      for (const l of LAYOUTS) {
-        if (copySets(l.id) === 0 || next[l.id]?.own) continue
-        next[l.id] = { pick: (next[l.id]?.pick ?? 0) + 1 }
-      }
-      return next
-    })
   const format = getFormat(formatId)
 
 
@@ -785,6 +840,8 @@ export function Poster(p: Props) {
   const composed = () => buildPoster(exactReq)
 
   const stem = `forfontsake-${p.chain.map((c) => c.id).join('-')}-${layout.id}-${sheetSeed}`
+  /** what moves in a clip, in its file name: the preset, or custom once a row is changed by hand */
+  const motionTag = Object.keys(custom).length > 0 ? 'custom' : motionModeId
 
   /*
    * The sheet on the GPU.
@@ -1070,7 +1127,6 @@ export function Poster(p: Props) {
   ) => {
     const f = getFormat(cut.format)
     const base = { ...exactReq, chain: p.chain, format: cut.format, layout: cut.layout }
-    const bindings = bindingsFor(getMode(motionModeId), p.chain)
     return renderClip({
       w: f.w,
       h: f.h,
@@ -1085,7 +1141,11 @@ export function Poster(p: Props) {
         view.setPicture(pictureFx, !!backdrop, palette.paper, palette.ink, pictureBoxOf(cut))
         if (cut.layout === 'word') view.setOffset((wordT.dx / format.w) * f.w, (wordT.dy / format.h) * f.h)
       },
-      onProgress,
+      onProgress: (done, total, eta) => {
+        // the dock's playhead follows the frame being drawn
+        paint(total > 0 ? Math.min(0.999, done / total) : 0)
+        onProgress(done, total, eta)
+      },
       signal,
     })
   }
@@ -1104,7 +1164,7 @@ export function Poster(p: Props) {
       const blob = await renderCut({ format: format.id, layout: layout.id }, ac.signal, (done, total, eta) =>
         setProgress({ label: 'MP4', done, total, eta }),
       )
-      await saveFile(blob, `${stem}-${length}s.mp4`)
+      await saveFile(blob, `${stem}-${motionTag}-${length}s.mp4`)
     } catch (e) {
       if (!(e instanceof DOMException && e.name === 'AbortError'))
         setExportNote(e instanceof Error ? e.message : String(e))
@@ -1177,8 +1237,8 @@ export function Poster(p: Props) {
       }
       if (able) {
         const clips = [
-          { n: stills.length + 1, format: 'post', name: 'feed 4:5', file: `${base}-${layout.id}-4x5.mp4` },
-          { n: stills.length + 2, format: 'story', name: 'reel 9:16', file: `${base}-${layout.id}-9x16.mp4` },
+          { n: stills.length + 1, format: 'post', name: 'feed 4:5', file: `${base}-${layout.id}-${motionTag}-4x5.mp4` },
+          { n: stills.length + 2, format: 'story', name: 'reel 9:16', file: `${base}-${layout.id}-${motionTag}-9x16.mp4` },
         ]
         for (const c of clips) {
           at(c.n, c.name)
@@ -1565,43 +1625,15 @@ export function Poster(p: Props) {
   const moved = wordT.dx !== 0 || wordT.dy !== 0 || wordT.scale !== 1 || (wordT.rotate ?? 0) !== 0
   const chainName = p.chain.map((c) => getTreatment(c.id).name).join(' + ')
 
-  /*
-   * A picture of each layout, drawn from the real engine.
-   *
-   * The layouts are the one choice on this screen where the difference is
-   * entirely visual, so it is shown rather than named — the same argument the
-   * workbench presets won on. Memoised on everything except the dials, because
-   * the chain the sheet is handed does not change while you are in here (the
-   * motion modulates a copy), so this is two renders per visit rather than two
-   * per frame.
-   */
-  // The four sheets, and the template you are on if you are on one: the rest
-  // of the templates live in the gallery, which draws them only when opened.
-  const pickable = useMemo(
-    () => [...LAYOUTS.filter((l) => l.kind === 'sheet'), ...(template ? [layout] : [])],
-    [template, layout],
-  )
-  const layoutThumbs = useMemo(
-    () =>
-      pickable.map((l) => {
-        try {
-          const svg = buildPoster({ ...sheetReq, chain: p.chain, layout: l.id, wordTransform: IDENTITY, copy: copyOf(l.id) })
-          return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
-        } catch {
-          return null
-        }
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pickable, p.font, p.fontId, p.chain, p.overrides, sheetSeed, p.word, p.sentence, format.id, palette, copyOf],
-  )
-  /** the sheet the gallery draws its tiles from: as you made it, not mid-motion */
-  const galleryReq = useMemo(() => ({ ...sheetReq, chain: p.chain, wordTransform: IDENTITY }), [sheetReq, p.chain])
-
+  /** the sheet the layout tiles are drawn from: as you made it, not mid-motion */
+  const layoutsReq = useMemo(() => ({ ...sheetReq, chain: p.chain, wordTransform: IDENTITY }), [sheetReq, p.chain])
   /**
    * Still, or one of the motions. Still puts the sheet back to the font as you
-   * made it; a motion plays at once.
+   * made it; a motion plays at once. Either clears the rows changed by hand.
    */
   const pickMotion = (id: string | null) => {
+    // a preset fills every row afresh, so rows changed by hand go with the old one
+    setCustom({})
     if (id === null) {
       setMotionOn(false)
       setPlaying(false)
@@ -1636,46 +1668,16 @@ export function Poster(p: Props) {
     if (type === 'kit') void renderKit()
     else if (type === 'mp4') void renderVideo()
     else if (type === 'svg') void downloadSvg()
+    else if (type === 'copy-look') void copyLook()
+    else if (type === 'paste-look') void pasteLook()
     else void downloadPng()
   }
-  const KIT_ITEM = {
-    id: 'kit',
-    label: 'Post kit · .zip',
-    note: `Word, set and specimen${template ? ` and the ${layout.name.toLowerCase()}` : ''} at 4:5, the clip at 4:5 and 9:16 (${length}s), and a caption — one week's post.`,
-  }
   /*
-   * What can be downloaded, which follows the motion: a still sheet is a
-   * picture or a vector, a moving one is a clip. The same list behind the
-   * Download button in the bar and the Export section at the foot of the
-   * sheet — both kept, the way Figma keeps both.
+   * One Download, in the bar, its choices grouped by what they make (the
+   * picture, the clip, the week's kit) with the look's copy and paste at the
+   * foot. It used to be two: this and an Export section at the foot of the
+   * sheet's panel, the way Figma keeps both. D (November) keeps the one.
    */
-  const exportItems = motionOn
-    ? [
-        {
-          id: 'mp4',
-          label: `${canRender === false ? 'Record' : 'Render'} MP4 · ${length}s`,
-          note:
-            canRender === false
-              ? 'This browser cannot render a clip frame by frame, so it records the sheet as it plays — a heavy chain will step.'
-              : `${format.w} × ${format.h}, ${FPS} fps, silent — every frame drawn exactly, and the last runs into the first.`,
-        },
-        KIT_ITEM,
-      ]
-    : [
-        {
-          id: 'png',
-          label: 'PNG · 2×',
-          note: `${format.w} × ${format.h}, drawn again at 2× so it holds up posted large.`,
-        },
-        {
-          id: 'svg',
-          label: 'SVG',
-          note: 'Letterforms only — a finish is pixels, so it cannot travel in a vector file.',
-        },
-        KIT_ITEM,
-      ]
-  const exportType = exportItems.some((it) => it.id === exportPick) ? exportPick : exportItems[0].id
-  const exportBusy = busy || recording || !!progress
 
   const rows = layerRows({
     layout,
@@ -1718,7 +1720,9 @@ export function Poster(p: Props) {
     setFinishes(d.finishes)
     setPictureFx(d.pictureFx)
     setFormatId(d.formatId)
+    if (d.motionOn !== motionOn) pickMotion(d.motionOn ? d.motionModeId : null)
     setMotionModeId(d.motionModeId)
+    setCustom(d.custom)
     setDepth(d.depth)
     setSpeed(d.speed)
     setLength(d.length)
@@ -1726,9 +1730,7 @@ export function Poster(p: Props) {
     setCopy(d.copy)
     setWordT(d.wordT)
     setBakedT(d.wordT)
-    setSheetSeed(d.sheetSeed)
     setBackdrop(d.backdrop)
-    if (d.motionOn !== motionOn) pickMotion(d.motionOn ? d.motionModeId : null)
   }
   /** nothing is undone while a clip renders or records: the export is reading the sheet */
   const historyLocked = recording || !!progress
@@ -1769,6 +1771,7 @@ export function Poster(p: Props) {
       length,
       layoutId,
       copy,
+      tracks,
     }
     const ok = await copyText(lookToText(look))
     setLookSaid(
@@ -1786,13 +1789,15 @@ export function Poster(p: Props) {
     setFinishes(l.finishes)
     setPictureFx(l.pictureFx)
     setFormatId(l.formatId)
+    if (l.motionOn !== motionOn) pickMotion(l.motionOn ? l.motionModeId : null)
     setMotionModeId(l.motionModeId)
+    // rows name dials by their place in the stack: only a look from this chain brings them
+    setCustom(l.tracks.chain === chainKey(p.chain) ? liveRows(p.chain, l.tracks.rows) : {})
     setDepth(l.depth)
     setSpeed(l.speed)
     setLength(l.length)
     setLayoutId(l.layoutId)
     setCopy(l.copy)
-    if (l.motionOn !== motionOn) pickMotion(l.motionOn ? l.motionModeId : null)
     setLookSaid('Look pasted. Undo takes it back.')
   }
   const pasteLook = async () => {
@@ -1871,10 +1876,103 @@ export function Poster(p: Props) {
       }
     }
   })
+  const stillCount = 3 + (template ? 1 : 0)
+  const downloadSections: MenuSection[] = [
+    {
+      title: 'Image',
+      items: [
+        { id: 'png', label: 'PNG · 2×', note: 'The sheet as it looks, sharp enough to post' },
+        { id: 'svg', label: 'SVG', note: 'Letterforms only, for print and editing. Finishes stay out' },
+      ],
+    },
+    {
+      title: 'Video',
+      items: motionOn
+        ? [
+            {
+              id: 'mp4',
+              label: `MP4 · ${length} s loop`,
+              badge: 'Suggested',
+              note:
+                canRender === false
+                  ? 'This browser cannot render a clip frame by frame, so it records the sheet as it plays. A heavy chain will step'
+                  : `Rendered frame by frame, ${FPS} fps, silent`,
+            },
+          ]
+        : [],
+      empty: 'MP4 · pick a motion to make a clip',
+    },
+    {
+      rule: true,
+      items: [
+        {
+          id: 'kit',
+          label: 'Post kit · zip',
+          note: `${stillCount === 4 ? 'Four' : 'Three'} 4:5 PNGs, the clip at 4:5 and 9:16, a caption`,
+        },
+      ],
+    },
+    {
+      rule: true,
+      inline: true,
+      items: [
+        { id: 'copy-look', label: 'Copy look' },
+        { id: 'paste-look', label: 'Paste look', disabled: historyLocked },
+      ],
+    },
+  ]
+  /*
+   * The timeline: a row per drivable dial, filled by the preset, any of them
+   * changed by hand. One component in one place at a time: the dock under
+   * the stage, or the phone's sheet when Motion is the chip selected.
+   */
+  const trackList = tracksFor(getMode(motionModeId), p.chain, custom)
+  const isCustom = Object.keys(custom).length > 0
+  const motionName = motionOn ? (isCustom ? 'Custom' : getMode(motionModeId).name) : 'Still'
+  const lockNote = rendering
+    ? 'Rendering. The timeline waits until the clip is done.'
+    : recording
+      ? 'Recording. The timeline waits until the take is saved.'
+      : null
+  const steppyNote =
+    motionOn && steppy
+      ? `This chain redraws ${layout.id === 'chars' ? 'the character set' : 'the word'} about ${framesPerSecond!.toFixed(1)} times a second, so the letters step between shapes here rather than morph. The MP4 draws every frame exactly.`
+      : null
+  const timeline = (variant: 'dock' | 'stacked') => (
+    <ComposeTimeline
+      variant={variant}
+      motionOn={motionOn}
+      modeId={motionModeId}
+      custom={isCustom}
+      tracks={trackList}
+      stacked={p.chain.length > 1}
+      playing={playing}
+      locked={lockNote}
+      now={clock.current}
+      length={length}
+      speed={speed}
+      depth={depth}
+      depthSpec={DEPTH_SPEC}
+      speedSpec={SPEED_SPEC}
+      steppy={steppyNote}
+      onPlay={() => setPlaying((v) => !v)}
+      onPreset={pickMotion}
+      onRow={(key: string, band: Band | null) =>
+        setCustom((c) => setRow(getMode(motionModeId), p.chain, c, key, band))
+      }
+      onDepth={setDepth}
+      onSpeed={setSpeed}
+      onLength={setLength}
+      onSeek={seek}
+    />
+  )
+  // the Motion chip is a phone's; a desktop has the dock, so it backs out to the sheet
+  useEffect(() => {
+    if (!phone && selected === 'motion') setSelected('sheet')
+  }, [phone, selected])
+
   const selectedFinish = finishOf(selected)
   const wordRow = rows.find((r) => r.sel === 'word')!
-  // with motion on, the sheet's first sections fold to a line so Motion fits
-  const fold = (line: React.ReactNode) => (motionOn ? line : undefined)
 
   /** what the panel's head says: the kind of thing, its name, and a line about it */
   const head: [string, string, string] =
@@ -1882,12 +1980,14 @@ export function Poster(p: Props) {
       ? [
           '#',
           'Sheet',
-          `${sheetSummary({ layout, format, motion: motionOn ? getMode(motionModeId).name : null })} · seed ${sheetSeed}`,
+          sheetSummary({ layout, format, motion: motionOn ? (Object.keys(custom).length > 0 ? 'Custom' : getMode(motionModeId).name) : null }),
         ]
       : selected === 'word'
         ? ['T', wordRow.name, layout.id === 'word' ? 'the word from the workbench' : layout.note]
         : selected === 'background'
           ? ['▢', 'Background', backdrop ? 'your picture, under the type' : 'the paper under the type']
+          : selected === 'motion'
+            ? ['~', 'Motion', motionOn ? `${motionName} · a ${length} s loop` : 'still · pick a preset to make it move']
           : selectedFinish
             ? ['✦', selectedFinish.name, 'a pass over the whole printed sheet']
             : ['✦', 'Finishes', 'passes over the whole printed sheet, top to bottom']
@@ -1895,79 +1995,133 @@ export function Poster(p: Props) {
   return (
     <div className="sheet-view" ref={viewEl}>
       <header className="sheet-bar">
-        <b className="sheet-name">{chainName}</b>
-        <span className="sheet-font">on {p.font.label}</span>
-
-        {/*
-          The way out with the artefact, in the bar rather than at the foot of
-          a rail you have to reach the bottom of. One type and one button: a
-          second row of verbs beside a download is furniture, and the type
-          already says what they said.
-        */}
-        {/* undo where a phone can reach it too: it has no ⌘Z */}
-        <div className="sheet-history" role="group" aria-label="History">
-          <button
-            type="button"
-            className="sheet-history-btn"
-            aria-label="Undo"
-            title="Undo · ⌘Z"
-            disabled={steps.back === 0 || historyLocked}
-            onClick={() => step('undo')}
-          >
-            <HistoryIcon />
-          </button>
-          <button
-            type="button"
-            className="sheet-history-btn"
-            aria-label="Redo"
-            title="Redo · ⇧⌘Z"
-            disabled={steps.forward === 0 || historyLocked}
-            onClick={() => step('redo')}
-          >
-            <HistoryIcon redo />
-          </button>
+        <div className="sheet-bar-side is-start">
+          <b className="sheet-name">{chainName}</b>
+          <span className="sheet-font">on {p.font.label}</span>
         </div>
-        <div className="sheet-export">
-          {progress ? (
-            <>
-              {/* how far, and roughly how long — a clip is minutes of work on a heavy chain */}
-              <span className="render-progress" role="status">
-                <span className="render-bar" aria-hidden="true">
-                  <span style={{ width: `${(progress.done / progress.total) * 100}%` }} />
-                </span>
-                {progress.label} · {Math.round((progress.done / progress.total) * 100)}%
-                {progress.eta !== null && progress.eta >= 1 && ` · ~${Math.ceil(progress.eta)}s left`}
-              </span>
-              <button type="button" onClick={() => abortRef.current?.abort()}>
-                Cancel
-              </button>
-            </>
-          ) : motionOn && recording ? (
-            <button type="button" className="is-live" onClick={() => void finishRecording()}>
-              Stop · {recSeconds}s
+
+        {/* The sheet's size is a property of the sheet, not of the export, so it
+            sits in the bar over the sheet it shapes, as Vimeo's and VEED's do. */}
+        <div className="sheet-bar-mid">
+          <div
+            className="format-seg"
+            role="radiogroup"
+            aria-label="Format"
+            onKeyDown={(e) => {
+              const by = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 0
+              if (!by || historyLocked) return
+              e.preventDefault()
+              const i = FORMATS.findIndex((f) => f.id === format.id)
+              const next = FORMATS[(i + by + FORMATS.length) % FORMATS.length]
+              setFormatId(next.id)
+              e.currentTarget.querySelector<HTMLButtonElement>(`[data-id="${next.id}"]`)?.focus()
+            }}
+          >
+            {FORMATS.map((f) => {
+              const on = f.id === format.id
+              return (
+                <button
+                  type="button"
+                  key={f.id}
+                  data-id={f.id}
+                  role="radio"
+                  aria-checked={on}
+                  tabIndex={on ? 0 : -1}
+                  className={on ? 'is-on' : undefined}
+                  title={`${f.w} × ${f.h}`}
+                  disabled={historyLocked}
+                  onClick={() => setFormatId(f.id)}
+                >
+                  {f.name} {f.ratio}
+                </button>
+              )
+            })}
+          </div>
+          <span className="format-size">
+            {format.w} × {format.h}
+          </span>
+        </div>
+
+        <div className="sheet-bar-side is-end">
+          {/* undo where a phone can reach it too: it has no ⌘Z */}
+          <div className="sheet-history" role="group" aria-label="History">
+            <button
+              type="button"
+              className="sheet-history-btn"
+              aria-label="Undo"
+              title="Undo · ⌘Z"
+              disabled={steps.back === 0 || historyLocked}
+              onClick={() => step('undo')}
+            >
+              <HistoryIcon />
             </button>
-          ) : (
-            <Menu
-              label={motionOn ? 'Download MP4' : 'Download'}
-              busyLabel={busy ? 'Rendering…' : null}
-              disabled={busy}
-              items={exportItems}
-              onPick={download}
-              sheet
-            />
-          )}
-        </div>
+            <button
+              type="button"
+              className="sheet-history-btn"
+              aria-label="Redo"
+              title="Redo · ⇧⌘Z"
+              disabled={steps.forward === 0 || historyLocked}
+              onClick={() => step('redo')}
+            >
+              <HistoryIcon redo />
+            </button>
+          </div>
+          <div className="sheet-export">
+            {progress ? (
+              <>
+                {/* how far, and roughly how long — a clip is minutes of work on a heavy chain */}
+                <span className="render-progress" role="status">
+                  <span className="render-bar" aria-hidden="true">
+                    <span style={{ width: `${(progress.done / progress.total) * 100}%` }} />
+                  </span>
+                  {progress.label} · {Math.round((progress.done / progress.total) * 100)}%
+                  {progress.eta !== null && progress.eta >= 1 && ` · ~${Math.ceil(progress.eta)}s left`}
+                </span>
+                <button type="button" onClick={() => abortRef.current?.abort()}>
+                  Cancel
+                </button>
+              </>
+            ) : motionOn && recording ? (
+              <button type="button" className="is-live" onClick={() => void finishRecording()}>
+                Stop · {recSeconds}s
+              </button>
+            ) : (
+              <Menu
+                className="save dl-btn"
+                title={motionOn ? 'Download MP4' : 'Download'}
+                label={
+                  <>
+                    {motionOn ? 'Download MP4' : 'Download'}
+                    <span className="dl-caret" aria-hidden="true">
+                      ▾
+                    </span>
+                  </>
+                }
+                busyLabel={busy ? 'Rendering…' : null}
+                disabled={busy}
+                sections={downloadSections}
+                onPick={download}
+                sheet
+              />
+            )}
+          </div>
 
-        {/* closing finishes a take rather than losing it — see handleClose */}
-        <button type="button" className="sheet-close" onClick={handleClose} aria-label="Back to the workbench">
-          ✕
-        </button>
+          {/* closing finishes a take rather than losing it — see handleClose */}
+          <button type="button" className="sheet-close" onClick={handleClose} aria-label="Leave Compose">
+            ✕
+          </button>
+        </div>
 
         {/* whatever went wrong on the way out, under the control it went wrong
             for — the bar wraps it onto its own line rather than growing */}
         {exportNote && (
           <p className="sheet-problem" role="alert">
             {exportNote}
+          </p>
+        )}
+        {lookSaid && (
+          <p className="sheet-kit" role="status">
+            {lookSaid}
           </p>
         )}
         {/* after a kit: the two things you need once you are in the app you post from */}
@@ -1989,24 +2143,35 @@ export function Poster(p: Props) {
         )}
       </header>
 
-      <div className="sheet-body">
-        <aside className="sheet-layers" aria-label="Layers">
-          <ComposeLayers
-            rows={rows}
-            selected={selected}
-            onSelect={select}
-            finishes={finishes}
-            onAdd={addFinish}
-            onRemove={removeFinish}
-            hidden={hidden}
-            onToggleHidden={toggleHidden}
-          />
-        </aside>
+      <div className={motionOn ? 'sheet-body is-moving' : 'sheet-body'}>
+        {!phone && (
+          <aside className="sheet-layers" aria-label="Layers and layouts">
+            <div className="sheet-layers-top">
+              <ComposeLayers
+                rows={rows}
+                selected={selected}
+                onSelect={select}
+                finishes={finishes}
+                onAdd={addFinish}
+                onRemove={removeFinish}
+                hidden={hidden}
+                onToggleHidden={toggleHidden}
+              />
+            </div>
+            <div className="layouts-head">
+              <h2 className="layers-title">Layouts</h2>
+              <span className="layouts-count">{LAYOUTS.length}</span>
+            </div>
+            <div className="layouts-scroll">
+              <ComposeLayouts req={layoutsReq} copyOf={copyOf} current={layout.id} onPick={setLayoutId} />
+            </div>
+          </aside>
+        )}
 
         <div
           className={[
             'sheet-stage',
-            motionOn ? 'has-transport' : '',
+            phone && motionOn ? 'has-transport' : '',
             hover ? 'is-over-word' : '',
           ]
             .filter(Boolean)
@@ -2023,7 +2188,7 @@ export function Poster(p: Props) {
               Recording · 0:{String(recSeconds).padStart(2, '0')}
             </p>
           )}
-          <div className="sheet-holder" aria-hidden={gallery || undefined}>
+          <div className="sheet-holder">
             <div
               className="sheet-live"
               /* a new size needs a new canvas, so the holder is keyed on it */
@@ -2084,39 +2249,31 @@ export function Poster(p: Props) {
               </div>
             )}
           </div>
-          {/* the motion's transport, on the sheet where somebody watching it is looking */}
-          {motionOn && (
+          {/* a phone's transport: the dock is in the sheet below, so play and the
+              time stay where somebody watching the motion is looking */}
+          {phone && motionOn && (
             <div className="transport">
               <button
                 type="button"
-                className={playing ? 'is-live' : undefined}
-                disabled={recording || !!progress}
+                className="tl-play"
+                aria-label={playing ? 'Pause' : 'Play'}
+                disabled={recording || rendering}
                 onClick={() => setPlaying((v) => !v)}
               >
-                {playing ? 'Pause' : 'Play'}
+                <PlayGlyph playing={playing && !rendering} />
               </button>
-              <span className="transport-mode">
-                {getMode(motionModeId).name} · {length}s loop
+              <span className="tl-time">
+                <span className="tl-now">{clockText(clock.current)}</span>
+                <span className="tl-total"> / {clockText(length, false)}</span>
               </span>
+              <button type="button" className="transport-mode" onClick={() => select('motion')}>
+                {motionName} ›
+              </button>
             </div>
           )}
 
           {glError && <p className="notice is-bad">{glError}</p>}
         </div>
-
-        {gallery && (
-          <TemplateGallery
-            req={galleryReq}
-            copyOf={copyOf}
-            current={layout.id}
-            onPick={(id) => {
-              setLayoutId(id)
-              setGallery(false)
-            }}
-            onShuffle={shuffleAll}
-            onClose={() => setGallery(false)}
-          />
-        )}
 
         {/*
           The selection's properties — Figma's right panel. Whatever is
@@ -2135,7 +2292,7 @@ export function Poster(p: Props) {
               onPointerUp={onGripUp}
               onPointerCancel={onGripUp}
             />
-            <LayerChips rows={rows} selected={selected} onSelect={select} finishes={finishes} />
+            <LayerChips rows={rows} selected={selected} onSelect={select} finishes={finishes} motion={motionName} />
           </div>
           <header className={selected === 'sheet' ? 'inspector-head is-sheet' : 'inspector-head'}>
             <h2>
@@ -2149,68 +2306,17 @@ export function Poster(p: Props) {
 
           {selected === 'sheet' && (
             <>
-              <Section key={`layout-${motionOn}`} title="Layout" fold={fold(layout.name)}>
-                <div className="layout-pick">
-                  {pickable.map((l, i) => {
-                    const on = l.id === layout.id
-                    return (
-                      <button
-                        type="button"
-                        key={l.id}
-                        className={`layout-cell${on ? ' is-on' : ''}`}
-                        aria-pressed={on}
-                        title={l.note}
-                        onClick={() => setLayoutId(l.id)}
-                      >
-                        {layoutThumbs[i] ? <img src={layoutThumbs[i]!} alt="" /> : <span className="layout-blank" />}
-                        <span>{l.name}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-                <button
-                  type="button"
-                  className={gallery ? 'gallery-open is-live' : 'gallery-open'}
-                  aria-pressed={gallery}
-                  onClick={() => setGallery((g) => !g)}
+              {/* a phone has no left column, so the layouts come up with the sheet */}
+              {phone && (
+                <Section
+                  title="Layouts"
+                  aside={<span className="inspector-aside">{LAYOUTS.length}</span>}
                 >
-                  {gallery ? 'Back to the sheet' : 'Browse all templates'}
-                </button>
-              </Section>
-
-              {/* The sheet's size is a property of the sheet, not of the export. */}
+                  <ComposeLayouts req={layoutsReq} copyOf={copyOf} current={layout.id} onPick={setLayoutId} />
+                </Section>
+              )}
               <Section
-                key={`format-${motionOn}`}
-                title="Format"
-                fold={fold(`${format.name} ${format.ratio}`)}
-                aside={
-                  <span className="inspector-aside">
-                    {format.w} × {format.h}
-                  </span>
-                }
-              >
-                <Seg
-                  label="Sheet size"
-                  items={FORMATS.map((f) => ({ id: f.id, name: `${f.name} ${f.ratio}`, title: `${f.w} × ${f.h}` }))}
-                  value={format.id}
-                  disabled={recording || !!progress}
-                  onChange={setFormatId}
-                />
-              </Section>
-
-              <Section
-                key={`colours-${motionOn}`}
                 title="Colours"
-                fold={fold(
-                  <>
-                    {(['paper', 'ink'] as const).map((k) => (
-                      <span key={k}>
-                        <span className="fold-swatch" style={{ background: palette[k] }} aria-hidden="true" />
-                        {palette[k].toUpperCase()}
-                      </span>
-                    ))}
-                  </>,
-                )}
                 aside={
                   <button
                     type="button"
@@ -2230,113 +2336,11 @@ export function Poster(p: Props) {
                 <Swatch label="Paper" value={palette.paper} onChange={(v) => setColours((c) => ({ ...c, paper: v }))} />
                 <Swatch label="Ink" value={palette.ink} onChange={(v) => setColours((c) => ({ ...c, ink: v }))} />
               </Section>
-
-              <Section key={`seed-${motionOn}`} title="Seed" fold={fold(String(sheetSeed))}>
-                <div className="row inspector-seed">
-                  <span className="inspector-aside">{sheetSeed}</span>
-                  <button type="button" onClick={() => setSheetSeed(Math.floor(Math.random() * 9999) + 1)}>
-                    Randomise
-                  </button>
-                </div>
-              </Section>
-
-              {/*
-                Motion is a setting of the sheet: Still, or one of the three. It
-                is a loop — every curve goes round a whole number of times in the
-                clip's length, so the length is part of the motion rather than a
-                setting on the export — and its dials only exist while it moves.
-              */}
-              <Section title="Motion" className={motionOn ? 'motion is-moving' : 'motion'}>
-                <Seg
-                  label="Motion"
-                  items={[{ id: 'still', name: 'Still' }, ...MODES.map((m) => ({ id: m.id, name: m.name, title: m.note }))]}
-                  value={motionOn ? motionModeId : 'still'}
-                  disabled={recording || !!progress}
-                  onChange={(id) => pickMotion(id === 'still' ? null : id)}
-                />
-                <p className="note">
-                  {motionOn
-                    ? `${getMode(motionModeId).note[0].toUpperCase()}${getMode(motionModeId).note.slice(1)}.`
-                    : 'The sheet holds still and downloads as a picture. Pick a motion and it moves, and the download becomes an MP4.'}
-                </p>
-                {motionOn && steppy && (
-                  <p className="note">
-                    This chain redraws {layout.id === 'chars' ? 'the character set' : 'the word'} about{' '}
-                    {framesPerSecond!.toFixed(1)} times a second, so the letters will step between shapes rather
-                    than morph through them here. The MP4 draws every frame exactly.
-                  </p>
-                )}
-                {motionOn && (
-                  <>
-                    <Dial
-                      id="motion-depth"
-                      spec={DEPTH_SPEC}
-                      value={depth}
-                      disabled={!!progress}
-                      onChange={setDepth}
-                    />
-                    <Dial
-                      id="motion-speed"
-                      spec={SPEED_SPEC}
-                      value={speed}
-                      disabled={!!progress}
-                      onChange={setSpeed}
-                    />
-                    <div className="ctl">
-                      <div className="ctl-head">
-                        <span>Length</span>
-                      </div>
-                      <Seg
-                        label="Clip length"
-                        items={LENGTHS.map((l) => ({ id: l, name: `${l}s` }))}
-                        value={length}
-                        disabled={recording || !!progress}
-                        onChange={setLength}
-                      />
-                    </div>
-                  </>
-                )}
-              </Section>
-
-              {/* Export at the foot of the sheet, where Figma keeps it: the same
-                  choices as Download in the bar, with the one picked left showing. */}
-              <Section title="Export">
-                <label className="visually-hidden" htmlFor="sheet-export-type">
-                  Export as
-                </label>
-                <select
-                  id="sheet-export-type"
-                  className="inspector-select"
-                  value={exportType}
-                  disabled={exportBusy}
-                  onChange={(e) => setExportPick(e.target.value)}
-                >
-                  {exportItems.map((it) => (
-                    <option key={it.id} value={it.id}>
-                      {it.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="note">{exportItems.find((it) => it.id === exportType)?.note}</p>
-                <button type="button" className="inspector-export" disabled={exportBusy} onClick={() => download(exportType)}>
-                  {/* the select above names the format; the button names the act,
-                      the same word as the bar's */}
-                  {busy ? 'Rendering…' : 'Download'}
-                </button>
-                <div className="look-transfer">
-                  <button type="button" className="linkish" onClick={copyLook}>
-                    Copy look
-                  </button>
-                  <button type="button" className="linkish" disabled={historyLocked} onClick={pasteLook}>
-                    Paste look
-                  </button>
-                </div>
-                {lookSaid && (
-                  <p className="note" role="status">
-                    {lookSaid}
-                  </p>
-                )}
-              </Section>
+              <p className="note inspector-hint">
+                {phone
+                  ? 'Pick a layout above, a format in the bar. Tap the word or the background to change them.'
+                  : 'Pick a layout on the left, a format in the bar. Click the word or the background to change them.'}
+              </p>
             </>
           )}
 
@@ -2556,6 +2560,8 @@ export function Poster(p: Props) {
             </>
           )}
 
+          {selected === 'motion' && phone && timeline('stacked')}
+
           {selected === 'finishes' && (
             <Section title="On this sheet">
               <FinishesPanel
@@ -2580,6 +2586,9 @@ export function Poster(p: Props) {
             />
           )}
         </aside>
+
+        {/* the motion's dock, under the stage and the panel, the way a video editor keeps its timeline */}
+        {!phone && <div className="sheet-dock">{timeline('dock')}</div>}
       </div>
     </div>
   )

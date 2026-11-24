@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import type { FinishState } from '../lib/finish'
 import { finishesOn, type LayerRow, type Selection } from '../lib/composeLayers'
 import { AddFinish } from './ComposePanels'
@@ -32,7 +33,10 @@ export function ComposeLayers({
 }) {
   return (
     <>
-      <h2 className="layers-title">Layers</h2>
+      <div className="layers-head">
+        <h2 className="layers-title">Layers</h2>
+        <AddFinish finishes={finishes} onAdd={onAdd} label="+ Finish" />
+      </div>
       <ul className="layer-tree">
         {rows.map((r) => {
           const on = r.sel === selected
@@ -79,31 +83,42 @@ export function ComposeLayers({
           )
         })}
       </ul>
-      <AddFinish finishes={finishes} onAdd={onAdd} />
     </>
   )
 }
 
 /**
- * The same list on a phone, turned sideways into four chips: the sheet, the
- * finishes as one chip with a count, the word, the background. A phone has no
- * room for a tree, and the finishes open as a list in the sheet below.
+ * The same list on a phone, turned sideways into chips: the sheet, the
+ * finishes as one chip with a count, the word, the background, and the motion,
+ * whose timeline a desktop keeps in a dock under the stage. A phone has no room
+ * for a tree, and each chip opens its panel in the sheet below.
  */
 export function LayerChips({
   rows,
   selected,
   onSelect,
   finishes,
+  motion,
 }: {
   rows: LayerRow[]
   selected: Selection
   onSelect: (sel: Selection) => void
   finishes: FinishState
+  /** what the motion is (Still, Pulse, Custom…): the fifth chip, the phone's way to the timeline */
+  motion: string
 }) {
   const count = finishesOn(finishes).length
-  const chips = rows.filter((r) => !r.nested)
+  // five chips run past a phone's width, so the one selected is scrolled into view
+  const row = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    row.current?.querySelector('.is-on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [selected])
+  const chips: LayerRow[] = [
+    ...rows.filter((r) => !r.nested),
+    { sel: 'motion', name: 'Motion', sub: motion, icon: '~' },
+  ]
   return (
-    <div className="layer-chips" role="group" aria-label="Layers">
+    <div className="layer-chips" role="group" aria-label="Layers" ref={row}>
       {chips.map((r) => {
         // a single finish selected on a desktop reads as the finishes here
         const on = r.sel === selected || (r.sel === 'finishes' && selected.startsWith('finish:'))

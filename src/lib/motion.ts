@@ -98,3 +98,13 @@ export function motionAt(t: number, seconds: number, speed: number = DEFAULT_SPE
   const drift = Math.sin(TAU * u * cyclesIn(DRIFT_HZ, seconds, speed))
   return [clamp1(beat), clamp1(swell), clamp1(flicker), clamp1(drift)]
 }
+
+/** a time in the loop the way an editor writes it: 0:03.2 */
+export function clockText(seconds: number, tenths = true): string {
+  const s = Math.max(0, seconds)
+  const m = Math.floor(s / 60)
+  const rest = s - m * 60
+  const whole = Math.floor(rest)
+  const sec = String(whole).padStart(2, '0')
+  return tenths ? `${m}:${sec}.${Math.floor((rest - whole) * 10)}` : `${m}:${sec}`
+}

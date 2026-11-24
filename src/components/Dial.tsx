@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from 'react'
 import type { ParamSpec } from '../engine/treatments/registry'
 import { useScrub } from '../lib/scrub'
-import { shown, typed } from '../lib/units'
+import { settle, shown, typed } from '../lib/units'
 
 interface Props {
   spec: ParamSpec
@@ -22,21 +22,6 @@ interface Props {
   id?: string
   disabled?: boolean
 }
-
-/** how many decimals the step implies — 0.1 shows one, 1 shows none */
-function decimals(step: number): number {
-  const s = String(step)
-  return s.includes('.') ? s.split('.')[1].length : 0
-}
-
-const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
-
-/** snap to the spec's step and keep it inside the range */
-function settle(v: number, spec: ParamSpec): number {
-  const snapped = Math.round((v - spec.min) / spec.step) * spec.step + spec.min
-  return Number(clamp(snapped, spec.min, spec.max).toFixed(decimals(spec.step)))
-}
-
 
 /**
  * One dial: a label, a value you can type into, and a track.

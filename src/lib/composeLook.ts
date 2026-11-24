@@ -1,5 +1,5 @@
 import { FINISHES, PICTURE_EFFECTS, finishState, pictureState, type Finish, type FinishState } from './finish'
-import { DEFAULT_DEPTH, MODES } from './modulate'
+import { BANDS, DEFAULT_DEPTH, MODES, type Bindings } from './modulate'
 import { DEFAULT_LENGTH, DEFAULT_SPEED, LENGTHS, MAX_SPEED, MIN_SPEED } from './motion'
 import { FORMATS, GROUNDS, LAYOUTS, POSTER_PALETTES, type PosterPalette } from './poster'
 import { copySets } from './copyBank'
@@ -12,12 +12,14 @@ import { copySets } from './copyBank'
  * you settled on had to be rebuilt by hand each week. This is that look, kept
  * in the browser.
  *
- * The look: colours, ground, finishes, format, motion — and, since the
- * templates, the layout and what each template says, because a series is as
- * much the same template every week as the same colours. Not the picture
+ * The look: colours, ground, finishes, format, motion and the timeline rows
+ * changed by hand, and, since the templates, the layout and what each
+ * template says, because a series is as much the same template every week as
+ * the same colours. Not the picture
  * you brought (megabytes, and a photo belongs to one post), not the word's
- * placement or the seed (those belong to the font, and the font changes
- * weekly), and not in the URL, which is still about the font alone.
+ * placement (the post's), and not the seed, which is the workbench's: Compose
+ * draws with the font's own. And not in the URL, which is still about the
+ * font alone.
  */
 export interface ComposeLook {
   paletteIndex: number
@@ -37,6 +39,19 @@ export interface ComposeLook {
   layoutId: string
   /** per template: where Shuffle has got to in the bank, and any lines typed over it */
   copy: Record<string, TemplateCopy>
+  /**
+   * The timeline's rows changed by hand, over the motion's preset, and the
+   * chain they were set on. Rows name a dial by its place in the stack, so
+   * they only mean something on that chain; a different one opens on the
+   * preset alone.
+   */
+  tracks: Tracks
+}
+
+export interface Tracks {
+  /** the treatments, in order, the rows were set on (`chainKey`) */
+  chain: string
+  rows: Bindings
 }
 
 export interface TemplateCopy {
@@ -61,7 +76,22 @@ export function defaultLook(): ComposeLook {
     length: DEFAULT_LENGTH,
     layoutId: LAYOUTS[0].id,
     copy: {},
+    tracks: { chain: '', rows: {} },
   }
+}
+
+/** stored rows, kept only where the address is one and the curve is one that exists */
+function tracksRecord(raw: unknown): Tracks {
+  if (!raw || typeof raw !== 'object') return { chain: '', rows: {} }
+  const r = raw as { chain?: unknown; rows?: unknown }
+  const rows: Bindings = {}
+  if (r.rows && typeof r.rows === 'object') {
+    for (const [key, band] of Object.entries(r.rows as Record<string, unknown>)) {
+      if (!/^\d+:\w+$/.test(key)) continue
+      if (band === null || (BANDS as readonly unknown[]).includes(band)) rows[key] = band as Bindings[string]
+    }
+  }
+  return { chain: typeof r.chain === 'string' ? r.chain : '', rows }
 }
 
 /** a stored copy record, kept only for templates that exist and take copy, its lines trimmed to strings */
@@ -132,6 +162,7 @@ export function readLook(raw: unknown): ComposeLook {
     length: (LENGTHS as readonly number[]).includes(r.length as number) ? (r.length as number) : d.length,
     layoutId: LAYOUTS.some((l) => l.id === r.layoutId) ? (r.layoutId as string) : d.layoutId,
     copy: copyRecord(r.copy),
+    tracks: tracksRecord(r.tracks),
   }
 }
 

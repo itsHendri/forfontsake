@@ -1844,10 +1844,12 @@ its accent for those templates and for the share image.
 
 ### Compose remembers its look
 
-A series should look like one. Colours, ground, finishes, picture effects, format and the
-motion are kept in `localStorage` and checked field by field on the way back in, so a cut
-finish or a renamed format falls back on its own. Not the picture (one post's, and megabytes),
-not the word's place or the seed (the font's), and not the URL, which stays about the font.
+A series should look like one. Colours, ground, finishes, picture effects, format, the
+motion and the timeline rows changed by hand are kept in `localStorage` and checked field by
+field on the way back in, so a cut finish or a renamed format falls back on its own. The rows
+come back only on the chain they were set on (see "Compose as a video editor's room"). Not the
+picture (one post's, and megabytes), not the word's place, and not the URL, which stays about
+the font. The seed is not Compose's to keep: the sheet draws with the workbench's.
 
 ## Four sheets, chosen from a poster round
 
@@ -1906,16 +1908,16 @@ weight is the headline dial pushed further (the first primary dial of the first 
 of its range). That is what the "two settings" templates show. **Ramp** walks one glyph per
 row along that dial from the plain font onwards — the template only this tool can make.
 
-**The gallery** (`TemplateGallery.tsx`) takes the stage's grid cell, so the rail stays beside
-it and the canvas underneath is never torn down. It shows every sheet and template three
-across at the sheet's own format, like the profile the posts will sit on. Pressing a tile goes
-back to the sheet with it. The Sheet group shows the four sheets plus the template you are on;
-the rest stay in the gallery, so the picker is not drawing fourteen templates on every colour
-change. Tiles are the real engine, drawn only when near the screen, one per idle moment with a
-60 ms deadline, and cached by template, copy and look. Without the deadline the grid took half
-a minute to fill. Visibility is measured on scroll rather than with an IntersectionObserver:
-an observer reports from the rendering steps, and a background tab never heard which tiles were
-showing.
+**Every sheet and template is listed under the layers** (`ComposeLayouts.tsx`), two across at
+the sheet's own format, scrolling, the one in use framed and ticked; on a phone they come up
+with the Sheet chip. They first lived in a gallery over the stage, opened from a button, with
+only the four sheets and the current template in the panel; the November round (D) put them all
+in the left column, as Canva and Figma Slides keep templates beside the canvas. Tiles are the
+real engine, drawn only when near the screen, one per idle moment with a 60 ms deadline, and
+cached by template, copy and look. Without the deadline the grid took half a minute to fill.
+Visibility is measured on scroll of the box they sit in rather than with an
+IntersectionObserver: an observer reports from the rendering steps, and a background tab never
+heard which tiles were showing.
 
 **The picture in a box keeps its effects in the box.** The picture effects run on the ground
 layer. A full-bleed picture is the whole ground, but a boxed one is not — screening the paper
@@ -1964,20 +1966,21 @@ where what you select is what the panel edits, and asked to go all the way to Fi
 Band 12 drew it with every setting Compose has, and the open questions were settled one at a
 time.
 
-- **Motion is a section of the sheet, not a mode.** Still, Pulse, Breathe or Shimmer. Picking a
-  motion plays it, shows the transport, and turns Download into Download MP4; its dials exist only
-  while it moves, and the sheet's first sections fold to one line so it fits. A bottom-bar mode
-  switch, Figma's own pattern, was drawn and turned down: one place for everything beat a second
-  room. Compose remembers whether it was moving (`motionOn`); a look kept before opens still.
+- **Motion is a setting of the sheet, not a mode.** Still, Pulse, Breathe or Shimmer. Picking a
+  motion plays it and turns Download into Download MP4. It began as a section of the sheet's
+  panel; since November it is a timeline dock under the stage (see "Compose as a video editor's
+  room"). Compose remembers whether it was moving (`motionOn`); a look kept before opens still.
 - **Layers on the left, always open; the selection on the right.** The canvas and the list select
   the same things — the word, the paper, off the sheet for the sheet — and the list is the only
   way to the finishes, which have nothing to click. Each finish that is on is a row under the
   group, with × to take it off and "+ Add finish" for the rest; one turned off keeps its dials.
-- **Both export spots stay.** Export at the foot of the sheet panel, where Figma keeps it, and
-  Download in the bar. One list of choices behind both.
-- **On a phone, one sheet.** The layers turn sideways into four chips — sheet, finishes (one chip
-  with a count, opening the list), word, background — and the rest of the sheet is the
-  selection's properties. There is no select/hand bar: on glass you pinch and drag.
+- **One way out, in the bar.** There were two, as Figma keeps them: Export at the foot of the
+  sheet panel and Download in the bar. November's round kept only Download, its menu grouped by
+  type, with Copy and Paste look at its foot.
+- **On a phone, one sheet.** The layers turn sideways into chips: sheet, finishes (one chip
+  with a count, opening the list), word, background, and since November motion. The rest
+  of the sheet is the selection's properties. There is no select/hand bar: on glass you pinch
+  and drag.
 - **Finish order stays fixed.** The drawing had drag to reorder; the shader's uniforms are
   positional and the order is a fact about what each finish does (see *Finishes stack*), so the
   list says top to bottom instead.
@@ -1986,7 +1989,7 @@ time.
 OpenCut, 23 October):
 
 - **Undo and redo**, ⌘Z and ⇧⌘Z (or ⌘Y), and two buttons in the bar because a phone has no
-  keyboard. Snapshots of the whole sheet — the look, the word's place, the seed, the picture —
+  keyboard. Snapshots of the whole sheet (the look, the timeline's rows, the word's place, the picture),
   taken once a change has been still for 400 ms, so a slider's sweep is one step. Not the
   selection or the playhead; nothing is undone while a clip renders. `history.ts`, tested.
 - **The keys**: arrows nudge the selected word a sheet pixel, ten with Shift, as Figma's do;
@@ -2032,13 +2035,66 @@ are the product and carry its look. Three ideas came in instead.
   what lets presets, the URL and the CLI see nothing new.
 - **Copy link** in the bar, because the URL was always the whole font and nothing said so. A
   font you uploaded stays on your computer, which the button's title says.
-- **Copy look and Paste look**, under Export. The look Compose remembers is the same object,
+- **Copy look and Paste look**, at the foot of Download's menu. The look Compose remembers is the same object,
   as JSON with a name on it, read back through `readLook` so a look from an older or newer
   version settles field by field. This is Tweakpane's export and import of state, or Toolcraft's
   settings transfer, in the smallest form. Pasting is a change like any other, so undo takes it
   back. Reading the clipboard needs permission that some browsers never give, so an ordinary
   paste (⌘V on the sheet, not in a field) does the same thing without asking. It answers half of
   "nothing about the sheet is in the URL": a look can now be sent, without the URL growing.
+
+## Compose as a video editor's room
+
+Hendri ran a layout round for Compose on the Design canvas on 23 November (round 1, five
+layouts). All five shared the left column, the format in the bar and a Download menu by type;
+they differed in where motion lives. He picked **D, Tracks timeline**, over A, a simpler dock
+of presets only, because D lets people make their own motion: the presets fill the rows, and
+any row can be changed. The canvas holds the approved artboards under "Approved · to build".
+
+- **Motion leaves the panel for a dock** under the stage and the panel, as VEED and Jitter keep
+  a timeline. Its head holds play and pause, the time, the presets as chips (Still, Pulse,
+  Breathe, Shimmer), Depth (15%), Speed and Length. Under a ruler you can drag the playhead along
+  is **a row per drivable dial of each step**, grouped by treatment in a stack, each drawing the
+  curve it follows across the loop. This reverses October's call that a bottom bar was a second
+  room: it is not a mode, only where the motion's controls sit.
+- **A row changed by hand is an explicit binding.** `modulate()` always took a `Bindings` map
+  keyed `step:param`; a preset fills it (`bindingsFor`) and the rows changed by hand are laid
+  over it (`resolveBindings`). A row put back on what the preset gives it stops counting. The
+  chips then say **Custom**, ticked; picking any preset, Still included, clears the rows. The
+  rows travel with the look (remembered, copied and pasted), the undo history, and the clip's
+  file name (`-pulse`, or `-custom`).
+- **Rows are kept with their chain.** A row names a dial by its place in the stack, so a stale
+  one would drive whatever dial now sits at that address. The look stores the chain the rows
+  were set on (`chainKey`), and on any other chain they are dropped; `liveRows` also drops a
+  row for a dial the chain does not have.
+- **The curve is a select under a chip.** Beat, Drift, Swell, Flicker or Hold. A native select,
+  so a phone gets its own picker and nothing is clipped by the dock's scrolling rows. Hold is
+  drawn dashed and fainter, so a held row differs by the line's shape as well as its colour.
+- **Still folds the dock to its head** (Hendri's answer, 24 November), so the sheet gets the
+  room back; picking a preset opens the rows.
+- **While a clip renders the dock is locked**, with a line saying so, and its playhead follows
+  the frame being drawn rather than the live loop, which stands still under the render. The same
+  holds while the live recorder takes a clip. It matches the older rule that nothing is undone
+  mid-render: the file would otherwise differ from what was on screen.
+- **The playhead is painted, not rendered.** The room writes `--t` (the share of the loop) on
+  itself and the time into each `.tl-now` every frame; a React render a frame would be the
+  whole room's.
+- **On a phone** the dock is the fifth chip, Motion: presets, Depth, Speed and Length, then each
+  row with its lane the full width under its name. While the sheet moves, a strip under the
+  poster keeps play, the time and the preset's name, which opens the Motion chip.
+- **No seed in Compose.** It had its own Randomise, but a re-rolled sheet could differ from the
+  font you then downloaded. The sheet draws with the workbench's seed; re-rolling stays on the
+  bench, where it changes the real font. The number lives on in the link and the file names.
+- **The format is a segmented control in the bar**, centred, with the size beside it; on a
+  phone it takes the bar's second line. **Download is the one way out**, its menu grouped by
+  what it makes: Image (PNG 2×, SVG), Video (MP4, offered only while the sheet moves, with a line
+  saying how to get one when it is still), Post kit, then Copy look and Paste look side by side.
+  `Menu.tsx` learned sections for it.
+- **Every sheet and template under the layers**, replacing the gallery and the four-plus-one
+  picker (see "Templates, from the Feliciano round"). The sheet's panel is its colours alone.
+
+Built in the letterpress-era names (`--paper`, `--plate`, `--sunken`, `--ink`), which the
+Darkroom look redefined, so the room took the new look without its own pass.
 
 ## A line that divides, and an edge that names a control
 
@@ -2153,11 +2209,11 @@ what is left is below.
 10. **A video backdrop.** The picture effects work on an image texture that arrives inside
     the ground's SVG; a `<video>` needs its own sampler and a per-frame `texImage2D`. Medium,
     and it would export for free — the PNG and the recorder both read the same canvas.
-11. **Nothing about the sheet is in the URL.** Format, layout, palette, seed, word placement,
-    finish and the motion are all local to `Poster` — the look is now remembered in the
+11. **Nothing about the sheet is in the URL.** Format, layout, palette, word placement,
+    finish and the motion are all local to `Poster` (the seed is the workbench's, so it is). The look is now remembered in the
     browser, but a sheet you like still cannot be sent to anybody. That was an open question when the sheet was a modal; now
     that it is a room with real settings in it, it is a hole. Small to medium.
-    Since 10 November, Copy look carries the look as text. The word's place, the seed and the
+    Since 10 November, Copy look carries the look as text. The word's place and the
     picture still cannot travel.
 12. ~~**Text and format templates**~~ **Fourteen shipped 23 October** — see "Templates, from
     the Feliciano round". Left over: the trading card (L9: the dials as stats), and Story safe
@@ -2169,7 +2225,8 @@ Shipped: the licence panel at font upload; the action bar, layers as cards, ever
 and the size ladder's gutter with the layout pass; presets as pictures with one always
 selected; the finish layer; the sheet as a room with three formats, a Static/Video switch and
 one-type export. Removed again since: Present mode (it named a mode nobody could picture) and
-the per-dial sound binding table (three named modes replaced it).
+the per-dial sound binding table (three named modes replaced it; per-dial rows came back in
+November as the timeline's, filled by those modes).
 
 A later look at typograph.studio (AI parametric typeface generator, adjacent not
 competing) confirmed the positioning: nothing in the niche outputs specimen sheets or

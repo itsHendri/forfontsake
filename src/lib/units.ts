@@ -13,3 +13,15 @@ export function typed(raw: string, spec: ParamSpec): number | null {
   if (Number.isNaN(n)) return null
   return spec.unit === '%' ? n / 100 : n
 }
+
+/** how many decimals the step implies: 0.1 shows one, 1 shows none */
+function decimals(step: number): number {
+  const s = String(step)
+  return s.includes('.') ? s.split('.')[1].length : 0
+}
+
+/** snap to the spec's step and keep it inside the range */
+export function settle(v: number, spec: ParamSpec): number {
+  const snapped = Math.round((v - spec.min) / spec.step) * spec.step + spec.min
+  return Number(Math.min(spec.max, Math.max(spec.min, snapped)).toFixed(decimals(spec.step)))
+}

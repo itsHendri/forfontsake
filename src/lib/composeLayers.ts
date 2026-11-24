@@ -8,9 +8,10 @@ import { getGround, type PosterLayout, type SheetFormat, type WordTransform } fr
  * left, the properties of whatever is selected on the right, and the sheet
  * itself as the thing that is selected when nothing else is — the way Figma
  * shows the frame. `finishes` is the stack as a whole (the row on a desktop,
- * the chip on a phone); `finish:<id>` is one of them.
+ * the chip on a phone); `finish:<id>` is one of them. `motion` is the phone's
+ * way to the timeline, which a desktop keeps open under the stage.
  */
-export type Selection = 'sheet' | 'word' | 'background' | 'finishes' | `finish:${string}`
+export type Selection = 'sheet' | 'word' | 'background' | 'finishes' | 'motion' | `finish:${string}`
 
 /** the finish a selection names, if it names one */
 export function finishOf(sel: Selection): Finish | undefined {

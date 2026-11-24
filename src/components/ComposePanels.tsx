@@ -240,13 +240,21 @@ export function EffectStack({
 }
 
 /** "+ Add finish": the finishes that are off, each coming back with its dials as left */
-export function AddFinish({ finishes, onAdd }: { finishes: FinishState; onAdd: (id: string) => void }) {
+export function AddFinish({
+  finishes,
+  onAdd,
+  label = '+ Add finish',
+}: {
+  finishes: FinishState
+  onAdd: (id: string) => void
+  label?: string
+}) {
   const off = addable(finishes)
   if (off.length === 0) return null
   return (
     <div className="add-finish">
       <Menu
-        label="+ Add finish"
+        label={label}
         items={off.map((f) => ({ id: f.id, label: f.name, note: f.blurb }))}
         onPick={onAdd}
       />

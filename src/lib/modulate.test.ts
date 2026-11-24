@@ -10,6 +10,12 @@ import {
   drivable,
   getMode,
   modulate,
+  CURVES,
+  chainKey,
+  liveRows,
+  resolveBindings,
+  setRow,
+  tracksFor,
   type Bindings,
 } from './modulate'
 import { defaults, getTreatment } from '../engine/treatments/registry'
@@ -154,3 +160,58 @@ describe('a signed drive', () => {
     expect(down[0].params[spec.key]).toBeLessThan(chain[0].params[spec.key])
   })
 })
+
+describe('the timeline rows', () => {
+  const chain: Step[] = [
+    { id: 'halftone', params: defaults(getTreatment('halftone')) },
+    { id: 'grit', params: defaults(getTreatment('grit')) },
+  ]
+  const pulse = getMode('pulse')
+
+  it('has a row for every drivable dial of every step, filled by the preset', () => {
+    const rows = tracksFor(pulse, chain, {})
+    expect(rows.length).toBe(drivable(chain[0]).length + drivable(chain[1]).length)
+    const preset = bindingsFor(pulse, chain)
+    for (const r of rows) {
+      expect(r.band).toBe(preset[r.key])
+      expect(r.custom).toBe(false)
+    }
+  })
+
+  it('names every curve a row can follow, Hold among them', () => {
+    expect(CURVES.map((c) => c.band).sort()).toEqual([...BANDS, null].sort())
+  })
+
+  it('a row changed by hand is an explicit binding over the preset', () => {
+    const key = bindKey(0, drivable(chain[0])[0].key)
+    const rows = setRow(pulse, chain, {}, key, 'flicker')
+    expect(rows).toEqual({ [key]: 'flicker' })
+    expect(resolveBindings(pulse, chain, rows)[key]).toBe('flicker')
+    const row = tracksFor(pulse, chain, rows).find((r) => r.key === key)!
+    expect(row).toMatchObject({ band: 'flicker', custom: true })
+  })
+
+  it('a row put back on what the preset gives it stops being custom', () => {
+    const key = bindKey(0, drivable(chain[0])[0].key)
+    const changed = setRow(pulse, chain, {}, key, 'swell')
+    expect(setRow(pulse, chain, changed, key, bindingsFor(pulse, chain)[key])).toEqual({})
+  })
+
+  it('Hold is kept as a row of its own, so a preset dial can be stilled', () => {
+    const key = bindKey(0, drivable(chain[0])[0].key)
+    const rows = setRow(pulse, chain, {}, key, null)
+    expect(rows).toEqual({ [key]: null })
+    const out = modulate(chain, [1, 1, 1, 1], resolveBindings(pulse, chain, rows), 0.5)
+    expect(out[0].params[drivable(chain[0])[0].key]).toBe(chain[0].params[drivable(chain[0])[0].key])
+  })
+
+  it('drops rows for dials this chain does not have', () => {
+    const rows: Bindings = { '0:spacing': 'beat', '5:amount': 'drift', '0:nonsense': 'swell' }
+    expect(liveRows(chain, rows)).toEqual({ '0:spacing': 'beat' })
+  })
+
+  it('names a chain by its treatments in order', () => {
+    expect(chainKey(chain)).toBe('halftone+grit')
+  })
+})
+
