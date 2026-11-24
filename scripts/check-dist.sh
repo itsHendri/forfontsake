@@ -15,5 +15,5 @@ test "$(ls dist/fonts/preview/*.woff2 | wc -l)" -eq 7
 test -f dist/404.html
 test -f dist/api/health
 test -f dist/_headers
-for g in brayer linen crumpled kraft; do test -f "dist/grounds/$g.jpg"; test -f "dist/grounds/$g-thumb.jpg"; done
+for g in brayer linen crumpled kraft newsprint photocopy concrete washi watercolour; do test -f "dist/grounds/$g.jpg"; test -f "dist/grounds/$g-thumb.jpg"; done
 test -f dist/about.html

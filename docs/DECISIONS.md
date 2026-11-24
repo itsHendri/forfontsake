@@ -1649,13 +1649,15 @@ texture rendering identically to flat passes easily. The new ones assert what ac
 failed: every texture contains the palette's ink, the noise period is at least three units,
 and the tooth bands its alpha rather than wearing a blanket opacity.
 
-## Four grounds are scans, and only those four
+## The scanned grounds are materials code cannot draw
 
-The rule that a ground is drawn rather than shipped still holds for everything code can draw: a cutting mat, a drafting sheet, a press sheet, a Truchet maze, and two grain gradients are a few tags each and take the palette. Four materials are not drawable: an ink roller pass, bookcloth, crumpled paper and kraft. Those are greyscale scans, and they keep the other half of the rule: they are never shown as photographs. Their darkness becomes the sheet's own ink through a mask, so they recolour with the palette like every drawn ground.
+The rule that a ground is drawn rather than shipped still holds for everything code can draw: a cutting mat, a drafting sheet, a press sheet, a Truchet maze, and two grain gradients are a few tags each and take the palette. Nine materials are not drawable: an ink roller pass, bookcloth, crumpled paper, kraft, newsprint, a photocopy, concrete, washi and watercolour paper. Those are greyscale scans, and they keep the other half of the rule: they are never shown as photographs. Their darkness becomes the sheet's own ink through a mask, so they recolour with the palette like every drawn ground.
 
-What a scan costs is paid only by whoever picks it. The picker shows a thumbnail of about 10 to 30 KB; the full file, 135 to 460 KB, is fetched the first time the ground is chosen and kept as a data URI for the session, because the sheet is decoded as an image and cannot fetch anything itself. The sheet draws plain paper for the moment that takes. That is the same size as an uploaded picture, which already rides in the sheet on every rebuild.
+What a scan costs is paid only by whoever picks it. The picker shows a thumbnail of about 8 to 30 KB; the full file, 120 to 410 KB, is fetched the first time the ground is chosen and kept as a data URI for the session, because the sheet is decoded as an image and cannot fetch anything itself. The sheet draws plain paper for the moment that takes. That is the same size as an uploaded picture, which already rides in the sheet on every rebuild.
 
-The numerals on the mat and the drafting sheet are single strokes drawn in code. The sheet has no text in it, and could not load a web font if it did.
+Three of them (concrete, washi, watercolour) are seamless tiles drawn at a third of the sheet's width and repeated, because at full size their grain was too coarse. The tile was flattened (a wide blur subtracted) so a patch of light in the scan does not repeat as a pattern.
+
+The mat and the drafting sheet carry no numbers. The only figures on a sheet are the font's.
 
 ## An effect's reach is where you put it
 

@@ -341,6 +341,7 @@ describe('what the sheet is printed on', () => {
       'flat', 'screen', 'grid', 'tooth',
       'mat', 'drafting', 'press', 'truchet', 'grain', 'bands',
       'brayer', 'linen', 'crumpled', 'kraft',
+      'newsprint', 'photocopy', 'concrete', 'washi', 'watercolour',
     ])
   })
 
@@ -354,17 +355,18 @@ describe('what the sheet is printed on', () => {
     }
   })
 
-  it('sets the rulers in drawn numerals, since the sheet cannot load a font', () => {
+  it('keeps the mat and the drafting sheet free of numbers', () => {
+    // the only figures on a sheet are the ones the font draws
     for (const id of ['mat', 'drafting']) {
       const svg = GROUNDS.find((g) => g.id === id)!.draw(1080, 1350, palette)
       expect(svg, id).not.toContain('<text')
-      expect(svg, id).toMatch(/translate\([\d.]+ [\d.]+\) scale\(/)
+      expect(svg, id).not.toMatch(/scale\(/)
     }
   })
 
   it('draws a scan from its thumbnail until the full file has been fetched', () => {
     // the full scan is a download, so nothing fetches it until it is chosen
-    for (const id of ['brayer', 'linen', 'crumpled', 'kraft']) {
+    for (const id of ['brayer', 'linen', 'crumpled', 'kraft', 'newsprint', 'photocopy', 'concrete', 'washi', 'watercolour']) {
       const svg = GROUNDS.find((g) => g.id === id)!.draw(1080, 1350, palette)
       expect(svg, id).toContain(`/grounds/${id}-thumb.jpg`)
       expect(svg, id).toContain('feFlood')
