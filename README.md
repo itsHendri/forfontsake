@@ -37,7 +37,7 @@ button.
 | **Source font** | The font a treatment is applied to. Seven ship with the tool, all OFL, and you can bring your own. |
 | **Cut** | One randomised version of a letter. Several cuts per letter stop a word looking stamped. |
 | **Export** | Building the real font in the browser. Same engine as `build:font`, run in a worker. |
-| **Plate** | The specimen block at the top of the workbench: the type, the two choices that define it, and the door to the sheet. |
+| **Plate** | The specimen block at the top of the workbench: the treated word, and the field you type it into. The font and style choices and the way into Compose live in the bar above it. |
 | **Override** | One glyph's exceptions to the stack — sparse dial deltas over the global chain, set by selecting letters in the glyph grid. Never a different stack. |
 | **Sheet** | The specimen sheet: Post, Square or Story, word draggable and resizable, downloadable as PNG/SVG, rendered as a looping MP4 while the motion drives the dials, or cut every way at once as a post kit. |
 

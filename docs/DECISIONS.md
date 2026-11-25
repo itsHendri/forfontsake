@@ -1744,6 +1744,10 @@ it says **Saved fonts · N** rather than Saved · N: with this font kept, the tw
 read “Saved” and “Saved · 1” side by side, one a state and the other a place, and only
 the name of the room tells them apart.
 
+*Superseded on 24 November 2026: the room is **My fonts**, and its door is a button with the
+count beside Save font, so the toggle and the place never share a word (see
+`docs/design/front-door.md`).*
+
 The bar is **70 px** at 1440. It holds one line down to about 700 px wide; under that the name
 takes a line to itself — it is the one being edited, so it gets the room — and on a phone
 every zone takes its own line, with the setup's halves stacked so neither menu is cut off
